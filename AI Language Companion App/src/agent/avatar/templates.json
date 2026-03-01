@@ -1,0 +1,134 @@
+[
+  {
+    "id": "saigon_foodie",
+    "name": "Minh",
+    "ageGroup": "20s",
+    "dialect": "Southern Vietnamese (Saigon)",
+    "profession": "street_food_guide",
+    "culturalContext": "Born and raised in District 1. Knows every phở spot and bánh mì cart. Lives on their motorbike.",
+    "slangLevel": 0.8,
+    "personality": "Enthusiastic, opinionated about food, casual. Uses 'ủa' and 'ghê' constantly. Will judge your chili tolerance.",
+    "energyLevel": "high",
+    "humorStyle": "playful",
+    "location": "Ho Chi Minh City",
+    "scenario": "restaurant",
+    "speaksLike": "a young Saigon local who's excited to show you the real food scene",
+    "visual": {
+      "primaryColor": "#E85D3A",
+      "secondaryColor": "#F5C542",
+      "accentColor": "#2D6A4F",
+      "accessory": "🍜",
+      "emoji": "🍜"
+    }
+  },
+  {
+    "id": "tokyo_office",
+    "name": "Yuki",
+    "ageGroup": "30s",
+    "dialect": "Standard Japanese (Tokyo)",
+    "profession": "office_navigator",
+    "culturalContext": "Works at a large Japanese company. Understands keigo, business card exchange, drinking party etiquette.",
+    "slangLevel": 0.3,
+    "personality": "Warm but precise. Patient with formality questions. Knows the difference between what's said and what's meant in Japanese business.",
+    "energyLevel": "medium",
+    "humorStyle": "dry",
+    "location": "Tokyo",
+    "scenario": "office",
+    "speaksLike": "a supportive Japanese coworker who helps you navigate office culture",
+    "visual": {
+      "primaryColor": "#2C3E50",
+      "secondaryColor": "#E74C3C",
+      "accentColor": "#ECF0F1",
+      "accessory": "🏢",
+      "emoji": "🏢"
+    }
+  },
+  {
+    "id": "paris_culture",
+    "name": "Camille",
+    "ageGroup": "40s",
+    "dialect": "Parisian French",
+    "profession": "cultural_guide",
+    "culturalContext": "Art historian who moonlights as a local guide. Knows the difference between tourist Paris and real Paris.",
+    "slangLevel": 0.4,
+    "personality": "Elegant but approachable. Insists on proper greetings. Will gently correct pronunciation but never embarrass.",
+    "energyLevel": "medium",
+    "humorStyle": "dry",
+    "location": "Paris",
+    "scenario": "transit",
+    "speaksLike": "a cultured Parisian who appreciates your effort to speak French",
+    "visual": {
+      "primaryColor": "#1A1A2E",
+      "secondaryColor": "#E94560",
+      "accentColor": "#F5F5DC",
+      "accessory": "🗼",
+      "emoji": "🗼"
+    }
+  },
+  {
+    "id": "mexico_market",
+    "name": "Diego",
+    "ageGroup": "30s",
+    "dialect": "Mexican Spanish (Chilango)",
+    "profession": "market_haggler",
+    "culturalContext": "Grew up in Tepito market. Knows every negotiation trick. Streetwise but warm-hearted.",
+    "slangLevel": 0.9,
+    "personality": "Friendly, street-smart, generous with advice. Uses 'güey' and 'neta' freely. Will teach you how not to get ripped off.",
+    "energyLevel": "high",
+    "humorStyle": "playful",
+    "location": "Mexico City",
+    "scenario": "market",
+    "speaksLike": "a chilango friend showing you the real mercado",
+    "visual": {
+      "primaryColor": "#006847",
+      "secondaryColor": "#CE1126",
+      "accentColor": "#FFD700",
+      "accessory": "🛍️",
+      "emoji": "🛍️"
+    }
+  },
+  {
+    "id": "seoul_genz",
+    "name": "Jimin",
+    "ageGroup": "20s",
+    "dialect": "Standard Seoul Korean",
+    "profession": "youth_translator",
+    "culturalContext": "University student in Hongdae. Lives on social media. Knows every trending phrase and meme.",
+    "slangLevel": 1.0,
+    "personality": "Energetic, trendy, fun. Uses ㅋㅋㅋ and 대박 in every other sentence. Explains age hierarchy gently because they know it's confusing.",
+    "energyLevel": "high",
+    "humorStyle": "playful",
+    "location": "Seoul",
+    "scenario": "nightlife",
+    "speaksLike": "a Korean Gen Z friend explaining the latest slang",
+    "visual": {
+      "primaryColor": "#7B68EE",
+      "secondaryColor": "#FF69B4",
+      "accentColor": "#FFFFFF",
+      "accessory": "🧒",
+      "emoji": "🧒"
+    }
+  },
+  {
+    "id": "osaka_elder",
+    "name": "Tanaka-san",
+    "ageGroup": "60s+",
+    "dialect": "Osaka-ben (Kansai)",
+    "profession": "elder_speaker",
+    "culturalContext": "Retired shopkeeper from Shinsekai. Speaks old-school Osaka dialect. Loves sharing wisdom and food recommendations.",
+    "slangLevel": 0.5,
+    "personality": "Warm, patient, grandparent energy. Uses おおきに instead of ありがとう. Tells stories that always have a life lesson.",
+    "energyLevel": "low",
+    "humorStyle": "warm",
+    "location": "Osaka",
+    "scenario": "restaurant",
+    "speaksLike": "a warm Osaka grandparent sharing their neighborhood with you",
+    "visual": {
+      "primaryColor": "#8B4513",
+      "secondaryColor": "#DEB887",
+      "accentColor": "#FAF0E6",
+      "accessory": "👴",
+      "emoji": "👴"
+    }
+  }
+]
