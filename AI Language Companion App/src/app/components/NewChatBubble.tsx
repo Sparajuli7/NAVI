@@ -2,6 +2,8 @@ import React from 'react';
 import { BlockyAvatar } from './BlockyAvatar';
 import { Volume2 } from 'lucide-react';
 import { motion } from 'motion/react';
+import { speakPhrase } from '../../services/tts';
+import type { ParsedSegment, PhraseCardData } from '../../types/chat';
 
 interface PhraseHighlight {
   text: string;
@@ -26,15 +28,23 @@ interface NewChatBubbleProps {
   phraseHighlight?: PhraseHighlight;
   showAvatar?: boolean;
   onPhraseClick?: () => void;
+  onPhraseCardClick?: (data: PhraseCardData) => void;
+  segments?: ParsedSegment[];
+  isStreaming?: boolean;
+  languageName?: string;
 }
 
-export function NewChatBubble({ 
-  type, 
-  content, 
+export function NewChatBubble({
+  type,
+  content,
   character,
   phraseHighlight,
   showAvatar = false,
-  onPhraseClick
+  onPhraseClick,
+  onPhraseCardClick,
+  segments,
+  isStreaming = false,
+  languageName = 'English',
 }: NewChatBubbleProps) {
   if (type === 'user') {
     return (
@@ -50,6 +60,34 @@ export function NewChatBubble({
     );
   }
 
+  const renderPhraseCard = (data: PhraseCardData, idx: number) => (
+    <motion.button
+      key={idx}
+      className="w-full bg-primary/10 border border-primary/30 rounded-xl p-4 space-y-2 text-left hover:bg-primary/15 transition-colors"
+      onClick={() => onPhraseCardClick?.(data)}
+      whileTap={{ scale: 0.98 }}
+    >
+      <div className="flex items-center justify-between">
+        <p className="text-lg font-medium text-foreground">{data.phrase}</p>
+        <button
+          className="p-1.5 hover:bg-primary/20 rounded-lg transition-colors"
+          onClick={(e) => { e.stopPropagation(); speakPhrase(data.phrase, languageName); }}
+        >
+          <Volume2 className="w-4 h-4 text-primary" />
+        </button>
+      </div>
+      <p className="text-sm text-muted-foreground">
+        Phonetic: <span className="italic">{data.phonetic}</span>
+      </p>
+      {data.soundTip && (
+        <p className="text-sm text-accent/80 italic">{data.soundTip}</p>
+      )}
+      <p className="text-xs text-primary/70 mt-2">Tap to learn more</p>
+    </motion.button>
+  );
+
+  const hasSegments = segments && segments.length > 0 && !isStreaming;
+
   return (
     <motion.div
       className="flex gap-3 mb-4"
@@ -58,7 +96,7 @@ export function NewChatBubble({
     >
       {showAvatar && character && (
         <div className="flex-shrink-0">
-          <BlockyAvatar 
+          <BlockyAvatar
             character={character}
             size="xs"
             animate={false}
@@ -66,10 +104,22 @@ export function NewChatBubble({
         </div>
       )}
       {!showAvatar && <div className="w-7" />}
-      
+
       <div className="flex-1 max-w-[75%]">
         <div className="bg-card border-l-2 border-l-primary/30 border-y border-r border-border rounded-2xl rounded-tl-sm px-4 py-3">
-          {phraseHighlight ? (
+          {hasSegments ? (
+            <div className="space-y-3">
+              {segments.map((seg, idx) =>
+                seg.type === 'phrase_card' && seg.data ? (
+                  renderPhraseCard(seg.data, idx)
+                ) : (
+                  <p key={idx} className="text-foreground italic leading-relaxed" style={{ fontFamily: 'var(--font-character)' }}>
+                    {seg.content}
+                  </p>
+                )
+              )}
+            </div>
+          ) : phraseHighlight ? (
             <div className="space-y-3">
               <p className="text-foreground italic leading-relaxed" style={{ fontFamily: 'var(--font-character)' }}>
                 {content}
@@ -81,7 +131,10 @@ export function NewChatBubble({
               >
                 <div className="flex items-center justify-between">
                   <p className="text-lg font-medium text-foreground">{phraseHighlight.text}</p>
-                  <button className="p-1.5 hover:bg-primary/20 rounded-lg transition-colors">
+                  <button
+                    className="p-1.5 hover:bg-primary/20 rounded-lg transition-colors"
+                    onClick={(e) => { e.stopPropagation(); speakPhrase(phraseHighlight.text, languageName); }}
+                  >
                     <Volume2 className="w-4 h-4 text-primary" />
                   </button>
                 </div>

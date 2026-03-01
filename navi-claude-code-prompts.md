@@ -206,7 +206,7 @@ DO NOT modify any existing files. Only create new files.
 
 ---
 
-## PROMPT 3: Implement On-Device LLM Service
+## PROMPT 3: Implement On-Device LLM Service                          CONTINUE FROM HERE 
 
 ```
 Implement the on-device LLM service. NO cloud APIs. Everything runs in the browser on the user's device.

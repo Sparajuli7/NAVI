@@ -2,6 +2,16 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { MapPin } from 'lucide-react';
 import { BlockyAvatar } from './BlockyAvatar';
+import { generateCharacter as llmGenerateCharacter } from '../../services/llm';
+import { detectLocation } from '../../services/location';
+import { buildCharacterGenPrompt } from '../../prompts/characterGen';
+import { saveCharacter, saveConversation } from '../../utils/storage';
+import { useCharacterStore } from '../../stores/characterStore';
+import { useChatStore } from '../../stores/chatStore';
+import { useAppStore } from '../../stores/appStore';
+import type { LocationContext } from '../../types/config';
+import type { Message } from '../../types/chat';
+import type { Character } from '../../types/character';
 
 const placeholders = [
   "a chill surfer who loves street food...",
@@ -10,6 +20,7 @@ const placeholders = [
   "a mysterious cat who speaks 12 languages...",
 ];
 
+// Simplified shape consumed by existing UI components
 interface GeneratedCharacter {
   name: string;
   personality: string;
@@ -25,12 +36,30 @@ interface NewOnboardingScreenProps {
   onComplete: (character: GeneratedCharacter, location: string) => void;
 }
 
+// Map the rich Character from LLM to the simpler UI shape
+function mapToUI(c: Character): GeneratedCharacter {
+  return {
+    name: c.name,
+    personality: c.summary,
+    colors: (c.avatar_color && typeof c.avatar_color === 'object')
+      ? c.avatar_color
+      : { primary: '#4A5568', secondary: '#F6AD55', accent: '#48BB78' },
+    accessory: c.avatar_accessory || undefined,
+  };
+}
+
 export function NewOnboardingScreen({ onComplete }: NewOnboardingScreenProps) {
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
-  const [promptValue, setPromptValue] = useState('');
-  const [location, setLocation] = useState('Ho Chi Minh City');
-  const [isGenerating, setIsGenerating] = useState(false);
+  const [promptValue, setPromptValue]           = useState('');
+  const [location, setLocation]                 = useState('Ho Chi Minh City');
+  const [locationCtx, setLocationCtx]           = useState<LocationContext | null>(null);
+  const [isGenerating, setIsGenerating]         = useState(false);
   const [generatedCharacter, setGeneratedCharacter] = useState<GeneratedCharacter | null>(null);
+  const [error, setError]                       = useState<string | null>(null);
+
+  const { setActiveCharacter }  = useCharacterStore();
+  const { addMessage }          = useChatStore();
+  const { setCurrentLocation }  = useAppStore();
 
   // Cycle through placeholders
   useEffect(() => {
@@ -40,39 +69,66 @@ export function NewOnboardingScreen({ onComplete }: NewOnboardingScreenProps) {
     return () => clearInterval(interval);
   }, []);
 
-  const generateCharacter = () => {
+  // Auto-detect location on mount
+  useEffect(() => {
+    detectLocation()
+      .then((ctx) => {
+        setLocationCtx(ctx);
+        setLocation(ctx.city);
+      })
+      .catch(() => {
+        // GPS failed — keep default city, locationCtx stays null
+      });
+  }, []);
+
+  const generateCharacter = async () => {
+    if (!promptValue.trim()) return;
     setIsGenerating(true);
+    setError(null);
 
-    // Simulate character generation based on prompt + location
-    setTimeout(() => {
-      const names = ['Koji', 'Luna', 'Marco', 'Yuki', 'Sofia', 'Alex'];
-      const colorSets = [
-        { primary: '#4A5568', secondary: '#F6AD55', accent: '#48BB78' },
-        { primary: '#553C9A', secondary: '#ED64A6', accent: '#F6E05E' },
-        { primary: '#2C5282', secondary: '#63B3ED', accent: '#FC8181' },
-        { primary: '#38A169', secondary: '#68D391', accent: '#F6AD55' },
-        { primary: '#D53F8C', secondary: '#FBB6CE', accent: '#9F7AEA' },
-        { primary: '#DD6B20', secondary: '#F6AD55', accent: '#48BB78' },
-      ];
-      
-      const accessories = ['🏄‍♂️', '📚', '🎨', '🍜', '🎭', '🗺️'];
-      
-      const randomIndex = Math.floor(Math.random() * names.length);
-      
-      const character: GeneratedCharacter = {
-        name: names[randomIndex],
-        personality: promptValue || placeholders[0],
-        colors: colorSets[randomIndex],
-        accessory: accessories[randomIndex]
-      };
+    try {
+      const prompt = buildCharacterGenPrompt(promptValue, locationCtx);
+      const richCharacter = await llmGenerateCharacter(prompt);
 
-      setGeneratedCharacter(character);
+      // Ensure we have a stable id
+      if (!richCharacter.id || richCharacter.id.startsWith('<')) {
+        richCharacter.id = `char_${Date.now()}`;
+      }
 
-      // Auto-transition to conversation after showing character
+      // Save to stores
+      setActiveCharacter(richCharacter);
+      if (locationCtx) setCurrentLocation(locationCtx);
+
+      // Add the character's first message to chat
+      if (richCharacter.first_message) {
+        const firstMsg: Message = {
+          id: Date.now().toString(),
+          role: 'character',
+          content: richCharacter.first_message,
+          type: 'text',
+          timestamp: Date.now(),
+          showAvatar: true,
+        };
+        addMessage(firstMsg);
+        await saveConversation([firstMsg]);
+      }
+
+      // Persist character to IndexedDB
+      await saveCharacter(richCharacter);
+
+      // Map to the simpler UI shape for display + transition
+      const uiChar = mapToUI(richCharacter);
+      setGeneratedCharacter(uiChar);
+
+      // Reveal animation plays for 2.5 s then transition
       setTimeout(() => {
-        onComplete(character, location);
+        onComplete(uiChar, locationCtx?.city ?? location);
       }, 2500);
-    }, 2000);
+    } catch (err) {
+      console.error('Character generation failed:', err);
+      setIsGenerating(false);
+      setError('Generation failed — make sure the model is loaded and try again.');
+    }
   };
 
   return (
@@ -117,7 +173,7 @@ export function NewOnboardingScreen({ onComplete }: NewOnboardingScreenProps) {
                 animate={{ y: 0, opacity: 1 }}
                 transition={{ delay: 0.4 }}
               >
-                <label 
+                <label
                   className="block mb-4 text-center"
                   style={{ fontFamily: 'var(--font-display)' }}
                 >
@@ -125,7 +181,7 @@ export function NewOnboardingScreen({ onComplete }: NewOnboardingScreenProps) {
                     Describe your ideal travel companion
                   </span>
                 </label>
-                
+
                 <div className="relative mb-3">
                   <textarea
                     value={promptValue}
@@ -136,10 +192,15 @@ export function NewOnboardingScreen({ onComplete }: NewOnboardingScreenProps) {
                     style={{ fontSize: '18px', lineHeight: '1.5' }}
                   />
                 </div>
-                
+
                 <p className="text-sm text-muted-foreground text-center mb-8">
                   Be creative! Your companion's personality comes from this.
                 </p>
+
+                {/* Error message — only shown on failure */}
+                {error && (
+                  <p className="text-sm text-destructive text-center mb-4">{error}</p>
+                )}
               </motion.div>
 
               {/* Location */}
@@ -206,7 +267,7 @@ export function NewOnboardingScreen({ onComplete }: NewOnboardingScreenProps) {
                   }}
                 />
               ))}
-              
+
               {/* Central glow */}
               <motion.div
                 className="absolute inset-0 flex items-center justify-center"
@@ -248,7 +309,7 @@ export function NewOnboardingScreen({ onComplete }: NewOnboardingScreenProps) {
               transition={{ type: 'spring', damping: 15 }}
               className="mb-8"
             >
-              <BlockyAvatar 
+              <BlockyAvatar
                 character={generatedCharacter}
                 size="xl"
                 animate={true}
@@ -260,7 +321,7 @@ export function NewOnboardingScreen({ onComplete }: NewOnboardingScreenProps) {
               animate={{ y: 0, opacity: 1 }}
               transition={{ delay: 0.3 }}
             >
-              <h2 
+              <h2
                 className="text-2xl mb-3"
                 style={{ fontFamily: 'var(--font-display)' }}
               >

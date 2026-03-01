@@ -1,4 +1,5 @@
 import dialectMapRaw from '../config/dialectMap.json';
+import citiesData from '../data/cities.json';
 import type { LocationContext, DialectInfo } from '../types/config';
 
 type DialectMap = Record<string, DialectInfo>;
@@ -12,23 +13,7 @@ interface CityEntry {
   lng: number;
 }
 
-const BUNDLED_CITIES: CityEntry[] = [
-  { name: 'Ho Chi Minh City', country: 'Vietnam',      country_code: 'VN', lat: 10.8231, lng: 106.6297 },
-  { name: 'Hanoi',            country: 'Vietnam',      country_code: 'VN', lat: 21.0285, lng: 105.8542 },
-  { name: 'Tokyo',            country: 'Japan',        country_code: 'JP', lat: 35.6762, lng: 139.6503 },
-  { name: 'Osaka',            country: 'Japan',        country_code: 'JP', lat: 34.6937, lng: 135.5023 },
-  { name: 'Paris',            country: 'France',       country_code: 'FR', lat: 48.8566, lng:   2.3522 },
-  { name: 'Mexico City',      country: 'Mexico',       country_code: 'MX', lat: 19.4326, lng: -99.1332 },
-  { name: 'Seoul',            country: 'South Korea',  country_code: 'KR', lat: 37.5665, lng: 126.9780 },
-  { name: 'New York',         country: 'USA',          country_code: 'US', lat: 40.7128, lng: -74.0060 },
-  { name: 'London',           country: 'UK',           country_code: 'GB', lat: 51.5074, lng:  -0.1278 },
-  { name: 'Bangkok',          country: 'Thailand',     country_code: 'TH', lat: 13.7563, lng: 100.5018 },
-  { name: 'Singapore',        country: 'Singapore',    country_code: 'SG', lat:  1.3521, lng: 103.8198 },
-  { name: 'Mumbai',           country: 'India',        country_code: 'IN', lat: 19.0760, lng:  72.8777 },
-  { name: 'Beijing',          country: 'China',        country_code: 'CN', lat: 39.9042, lng: 116.4074 },
-  { name: 'Shanghai',         country: 'China',        country_code: 'CN', lat: 31.2304, lng: 121.4737 },
-  { name: 'Berlin',           country: 'Germany',      country_code: 'DE', lat: 52.5200, lng:  13.4050 },
-];
+const BUNDLED_CITIES: CityEntry[] = citiesData as CityEntry[];
 
 function haversineDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 6371;

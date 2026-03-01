@@ -1,10 +1,20 @@
 export function buildMemoryPrompt(): string {
-  return `Review this conversation and extract important facts to remember about the user.
-Focus on: their goals, things they struggle with, places they've been, preferences, personal details they shared.
-Ignore small talk and generic exchanges.
+  return `Summarize this conversation for future memory. Focus only on:
+- New phrases the user learned (list them)
+- Pronunciation difficulties observed (specific sounds/tones they struggled with)
+- User preferences expressed (formality, topics, goals)
+- Locations or scenarios discussed
+- Important personal context shared
 
-Respond ONLY with valid JSON (no markdown):
-{"entries":[{"key":"short_label","value":"fact to remember in one sentence"}]}
+Respond in this JSON format and nothing else:
+{
+  "entries": [
+    {"key": "learned_phrase", "value": "[phrase] in [language] - [mastery: learning/practiced/mastered]"},
+    {"key": "pronunciation_note", "value": "[specific observation]"},
+    {"key": "preference", "value": "[what they prefer]"},
+    {"key": "session_summary", "value": "[1 sentence: what happened this session]"}
+  ]
+}
 
-Maximum 5 entries. Only include genuinely useful facts.`;
+Only include entries for things that were actually discussed. If nothing notable, return {"entries":[]}.`;
 }

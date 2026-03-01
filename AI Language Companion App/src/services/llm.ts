@@ -1,7 +1,6 @@
 import { getEngine } from './modelManager';
 import { INFERENCE_CONFIGS, type InferenceConfig, type LLMMessage } from '../types/inference';
 import type { Character, MemoryEntry } from '../types/character';
-import { parseResponse } from '../utils/responseParser';
 
 function getGenerationConfig(config: InferenceConfig) {
   return {

@@ -10,10 +10,15 @@ export function classifyOCR(
   const hasPrice = PRICE_PATTERN.test(text);
   const totalLength = text.length;
 
-  if (hasPrice && blockCount >= 3) return 'MENU';
-  if (hasPrice && blockCount <= 5) return 'LABEL';
+  // MENU: prices + more than 3 blocks (multiple items with prices = menu)
+  if (hasPrice && blockCount > 3) return 'MENU';
+  // DOCUMENT: dense multi-block text, no price focus
   if (blockCount > 8 && avgBlockLength > 60) return 'DOCUMENT';
-  if (blockCount > 5 && avgBlockLength > 40) return 'PAGE';
+  // PAGE: moderate multi-block text without prices
+  if (blockCount > 5 && avgBlockLength > 40 && !hasPrice) return 'PAGE';
+  // SIGN: short, few blocks
   if (blockCount <= 3 && totalLength < 200) return 'SIGN';
+  // LABEL: prices but compact (single product, packaging)
+  if (hasPrice && blockCount <= 5) return 'LABEL';
   return 'GENERAL';
 }

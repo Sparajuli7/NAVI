@@ -1,6 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { Volume2, Mic, Bookmark, X } from 'lucide-react';
+import { speakPhrase, stopSpeaking } from '../../services/tts';
+import { startRecording, stopRecording, isSTTSupported } from '../../services/stt';
 
 interface ExpandedPhraseCardProps {
   phrase: {
@@ -13,11 +15,34 @@ interface ExpandedPhraseCardProps {
     alternatives?: string[];
   };
   characterName: string;
+  languageName?: string;
   onClose: () => void;
 }
 
-export function ExpandedPhraseCard({ phrase, characterName, onClose }: ExpandedPhraseCardProps) {
+export function ExpandedPhraseCard({ phrase, characterName, languageName = 'English', onClose }: ExpandedPhraseCardProps) {
+  const [isPracticing, setIsPracticing] = useState(false);
+
   const formalityPosition = phrase.formality === 'casual' ? 20 : phrase.formality === 'formal' ? 80 : 50;
+
+  const handleListen = () => {
+    stopSpeaking();
+    speakPhrase(phrase.foreign, languageName);
+  };
+
+  const handlePracticeDown = () => {
+    if (!isSTTSupported()) return;
+    setIsPracticing(true);
+    startRecording('en-US', () => {
+      setIsPracticing(false);
+    }, () => {
+      setIsPracticing(false);
+    });
+  };
+
+  const handlePracticeUp = () => {
+    stopRecording();
+    setIsPracticing(false);
+  };
 
   return (
     <motion.div
@@ -38,7 +63,7 @@ export function ExpandedPhraseCard({ phrase, characterName, onClose }: ExpandedP
         {/* Header */}
         <div className="sticky top-0 bg-background/95 backdrop-blur-xl border-b border-border px-6 py-4 flex items-center justify-between">
           <h3 className="font-medium text-foreground">Phrase Details</h3>
-          <button 
+          <button
             onClick={onClose}
             className="p-2 hover:bg-muted/50 rounded-lg transition-colors"
           >
@@ -58,13 +83,21 @@ export function ExpandedPhraseCard({ phrase, characterName, onClose }: ExpandedP
 
             {/* Audio and practice buttons */}
             <div className="flex gap-3 justify-center mb-6">
-              <button className="flex items-center gap-2 px-6 py-3 bg-primary text-primary-foreground rounded-xl font-medium hover:shadow-[0_0_20px_rgba(212,168,83,0.3)] transition-all">
+              <button
+                className="flex items-center gap-2 px-6 py-3 bg-primary text-primary-foreground rounded-xl font-medium hover:shadow-[0_0_20px_rgba(212,168,83,0.3)] transition-all"
+                onClick={handleListen}
+              >
                 <Volume2 className="w-5 h-5" />
                 <span>Listen</span>
               </button>
-              <button className="flex items-center gap-2 px-6 py-3 border border-border text-foreground rounded-xl font-medium hover:border-primary/30 transition-colors">
-                <Mic className="w-5 h-5" />
-                <span>Practice</span>
+              <button
+                className={`flex items-center gap-2 px-6 py-3 border text-foreground rounded-xl font-medium transition-colors ${isPracticing ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/30'}`}
+                onPointerDown={handlePracticeDown}
+                onPointerUp={handlePracticeUp}
+                onPointerLeave={handlePracticeUp}
+              >
+                <Mic className={`w-5 h-5 ${isPracticing ? 'text-primary' : ''}`} />
+                <span>{isPracticing ? 'Listening...' : 'Practice'}</span>
               </button>
             </div>
           </div>
@@ -96,12 +129,12 @@ export function ExpandedPhraseCard({ phrase, characterName, onClose }: ExpandedP
                 <span>Formal</span>
               </div>
               <div className="h-2 bg-muted rounded-full overflow-hidden">
-                <div 
+                <div
                   className="h-full bg-gradient-to-r from-secondary to-primary transition-all"
                   style={{ width: `${formalityPosition}%` }}
                 />
               </div>
-              <div 
+              <div
                 className="absolute -top-1 w-4 h-4 bg-primary rounded-full border-2 border-background shadow-lg transition-all"
                 style={{ left: `calc(${formalityPosition}% - 8px)` }}
               />
@@ -113,7 +146,7 @@ export function ExpandedPhraseCard({ phrase, characterName, onClose }: ExpandedP
             <p className="text-xs text-primary uppercase tracking-wide mb-2 font-medium">
               {characterName}'s tip
             </p>
-            <p 
+            <p
               className="text-foreground italic leading-relaxed"
               style={{ fontFamily: 'var(--font-character)' }}
             >
@@ -129,7 +162,7 @@ export function ExpandedPhraseCard({ phrase, characterName, onClose }: ExpandedP
               </p>
               <div className="space-y-2">
                 {phrase.alternatives.map((alt, index) => (
-                  <div 
+                  <div
                     key={index}
                     className="bg-card border border-border rounded-lg px-4 py-3 text-sm text-foreground"
                   >

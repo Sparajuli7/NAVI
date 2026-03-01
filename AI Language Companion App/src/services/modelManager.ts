@@ -25,26 +25,43 @@ export async function loadModel(
   setModelStatus('downloading');
   setModelProgress(0);
 
-  const eng = await initEngine();
+  try {
+    const eng = await initEngine();
 
-  await eng.reload(modelId, undefined, {
-    initProgressCallback: (report: webllm.InitProgressReport) => {
+    // initProgressCallback belongs on MLCEngineConfig (constructor/setInitProgressCallback),
+    // not on ChatOptions passed to reload().
+    eng.setInitProgressCallback((report: webllm.InitProgressReport) => {
       const progress = Math.round(report.progress * 100);
       setModelProgress(progress);
       onProgress?.(progress, report.text);
 
+      // WebLLM reports two phases: fetching weights (downloading) then loading GPU shaders
+      const isLoadingPhase =
+        report.text.toLowerCase().includes('loading') ||
+        report.text.toLowerCase().includes('shader') ||
+        report.text.toLowerCase().includes('compil');
+
       if (report.progress >= 1) {
         setModelStatus('ready');
         setModelProgress(100);
+      } else if (isLoadingPhase) {
+        setModelStatus('loading');
       } else {
         setModelStatus('downloading');
       }
-    },
-  });
+    });
 
-  setModelStatus('ready');
-  setModelProgress(100);
-  return eng;
+    await eng.reload(modelId);
+
+    setModelStatus('ready');
+    setModelProgress(100);
+    return eng;
+  } catch (err) {
+    setModelStatus('error');
+    setModelProgress(0);
+    engine = null;
+    throw err;
+  }
 }
 
 export function getEngine(): webllm.MLCEngine | null {
