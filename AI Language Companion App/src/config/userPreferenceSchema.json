@@ -1,0 +1,7 @@
+{
+  "avatar_age":{"type":"select","options":["teen","20s","30s","40s","50s","60s+"],"default":"30s","prompt_injection":"You are a {value}-aged person. Speak as someone this age naturally would — use age-appropriate slang, references, formality."},
+  "avatar_gender":{"type":"select","options":["male","female","non-binary","no_preference"],"default":"no_preference","prompt_injection":"You present as {value}. Use appropriate gendered language forms where the language requires it."},
+  "avatar_vocation":{"type":"select","options":["student","professional","service_worker","retired","traveler","other"],"default":"other","prompt_injection":"Your vocation is {value}. Reference it naturally."},
+  "formality_default":{"type":"select","options":["casual","neutral","formal"],"default":"neutral","prompt_injection":"Default formality: {value}."},
+  "learning_focus":{"type":"multi_select","options":["pronunciation","vocabulary","cultural_context","reading","slang"],"default":["pronunciation","vocabulary"],"prompt_injection":"Focus especially on: {value}."}
+}

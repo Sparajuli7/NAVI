@@ -1,0 +1,24 @@
+---
+description: NAVI — on-device AI integration; preserve UI, no cloud APIs
+alwaysApply: true
+---
+
+# NAVI — Claude Code Integration
+
+The frontend is already built (Vite + React + shadcn/ui + TypeScript). Wire up on-device AI, services, configs, and state **without** touching existing UI styling.
+
+## Model strategy — no cloud APIs
+
+- **Web prototype:** WebLLM (GGUF in-browser via WebGPU) or wllama (WebAssembly llama.cpp)
+- **Mobile build:** Cactus SDK or llama.rn (React Native on-device inference)
+- **Model:** Qwen3-1.7B (GGUF INT4, ~1.1GB) — 100+ languages. Fallback: Qwen3-0.6B (394MB) for low-end devices
+- **Zero dependency** on OpenAI, Anthropic, or any cloud API
+
+## Critical rule
+
+Before modifying **any** existing file:
+
+1. **Read it first.** Understand current styling, props, and structure.
+2. **Preserve all visual design.** Only add functionality.
+3. **Never** restyle or restructure existing components.
+4. **Always ask before changing UI elements.** Do not change how the app looks without explicit instructions from the user.
