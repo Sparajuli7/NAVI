@@ -31,8 +31,13 @@ export function ExpandedPhraseCard({ phrase, characterName, languageName = 'Engl
 
   const handlePracticeDown = () => {
     if (!isSTTSupported()) return;
+    const langMap: Record<string, string> = {
+      Vietnamese: 'vi-VN', Japanese: 'ja-JP', French: 'fr-FR',
+      Spanish: 'es-MX', Korean: 'ko-KR', English: 'en-US',
+    };
+    const lang = langMap[languageName] ?? 'en-US';
     setIsPracticing(true);
-    startRecording('en-US', () => {
+    startRecording(lang, () => {
       setIsPracticing(false);
     }, () => {
       setIsPracticing(false);
@@ -157,14 +162,14 @@ export function ExpandedPhraseCard({ phrase, characterName, languageName = 'Engl
           {/* Alternative phrasings */}
           {phrase.alternatives && phrase.alternatives.length > 0 && (
             <div>
-              <p className="text-sm font-medium text-foreground mb-3">
-                Other ways to say it:
+              <p className="text-xs text-teal-400 uppercase tracking-wide font-medium mb-3">
+                Sound tips
               </p>
               <div className="space-y-2">
                 {phrase.alternatives.map((alt, index) => (
                   <div
                     key={index}
-                    className="bg-card border border-border rounded-lg px-4 py-3 text-sm text-foreground"
+                    className="bg-teal-950/30 border border-teal-500/25 rounded-lg px-4 py-3 text-sm text-teal-300"
                   >
                     {alt}
                   </div>

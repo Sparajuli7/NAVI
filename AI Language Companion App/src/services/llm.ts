@@ -91,11 +91,34 @@ export async function generateMemorySummary(
   let raw = await sendMessage(messages, config);
   raw = raw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
 
-  const parsed = JSON.parse(raw) as { entries: Array<{ key: string; value: string }> };
-  return parsed.entries.map((e, i) => ({
-    id: `${Date.now()}_${i}`,
-    key: e.key,
-    value: e.value,
-    created_at: Date.now(),
-  }));
+  try {
+    const parsed = JSON.parse(raw) as { entries: Array<{ key: string; value: string }> };
+    if (!Array.isArray(parsed.entries)) return [];
+    return parsed.entries
+      .filter(e => e.key && e.value)
+      .map((e, i) => ({
+        id: `${Date.now()}_${i}`,
+        key: e.key,
+        value: e.value,
+        created_at: Date.now(),
+      }));
+  } catch {
+    // Retry once with lower temperature before giving up
+    try {
+      let raw2 = await sendMessage(messages, { ...config, temperature: 0.1 });
+      raw2 = raw2.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+      const parsed2 = JSON.parse(raw2) as { entries: Array<{ key: string; value: string }> };
+      if (!Array.isArray(parsed2.entries)) return [];
+      return parsed2.entries
+        .filter(e => e.key && e.value)
+        .map((e, i) => ({
+          id: `${Date.now()}_${i}`,
+          key: e.key,
+          value: e.value,
+          created_at: Date.now(),
+        }));
+    } catch {
+      return [];
+    }
+  }
 }

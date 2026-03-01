@@ -1,12 +1,14 @@
 import { get, set, del } from 'idb-keyval';
 import type { Character, MemoryEntry, UserPreferences } from '../types/character';
 import type { Message } from '../types/chat';
+import type { LocationContext } from '../types/config';
 
 const KEYS = {
   conversation: 'navi_conversation',
   character:    'navi_character',
   memories:     'navi_memories',
   preferences:  'navi_preferences',
+  location:     'navi_location',
 };
 
 export async function saveConversation(messages: Message[]): Promise<void> {
@@ -39,6 +41,14 @@ export async function savePreferences(preferences: UserPreferences): Promise<voi
 
 export async function loadPreferences(): Promise<UserPreferences | null> {
   return (await get<UserPreferences>(KEYS.preferences)) ?? null;
+}
+
+export async function saveLocation(location: LocationContext): Promise<void> {
+  await set(KEYS.location, location);
+}
+
+export async function loadLocation(): Promise<LocationContext | null> {
+  return (await get<LocationContext>(KEYS.location)) ?? null;
 }
 
 export async function clearAllData(): Promise<void> {

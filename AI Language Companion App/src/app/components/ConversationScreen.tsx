@@ -1,9 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Settings, Sun, Moon, Camera, Mic } from 'lucide-react';
+import { Settings, Sun, Moon, Camera, Mic, RotateCcw } from 'lucide-react';
 import { NewChatBubble } from './NewChatBubble';
 import { BlockyAvatar } from './BlockyAvatar';
 import { QuickActionPill } from './QuickActionPill';
 import { ExpandedPhraseCard } from './ExpandedPhraseCard';
+import { SettingsPanel } from './SettingsPanel';
 import { AnimatePresence, motion } from 'motion/react';
 import { useChatStore } from '../../stores/chatStore';
 import { useCharacterStore } from '../../stores/characterStore';
@@ -14,6 +15,8 @@ import { buildMessages } from '../../utils/contextManager';
 import { parseResponse } from '../../utils/responseParser';
 import { saveConversation, saveMemories } from '../../utils/storage';
 import { startRecording, stopRecording, isSTTSupported } from '../../services/stt';
+import { INFERENCE_CONFIGS } from '../../types/inference';
+import type { LLMMessage } from '../../types/inference';
 import type { Message, PhraseCardData } from '../../types/chat';
 import type { ScenarioKey } from '../../types/config';
 import scenarioContexts from '../../config/scenarioContexts.json';
@@ -34,6 +37,7 @@ interface ConversationScreenProps {
   location: string;
   onOpenCamera: () => void;
   onToggleTheme: () => void;
+  onRegenerate: () => void;
   isDark: boolean;
 }
 
@@ -61,19 +65,35 @@ function detectScenario(text: string): ScenarioKey | null {
   return bestCount > 0 ? best : null;
 }
 
-export function ConversationScreen({ character, location, onOpenCamera, onToggleTheme, isDark }: ConversationScreenProps) {
+function countryFlag(code: string): string {
+  if (!code || code.length !== 2) return '';
+  return [...code.toUpperCase()]
+    .map((c) => String.fromCodePoint(0x1f1e6 + c.charCodeAt(0) - 65))
+    .join('');
+}
+
+export function ConversationScreen({
+  character,
+  location,
+  onOpenCamera,
+  onToggleTheme,
+  onRegenerate,
+  isDark,
+}: ConversationScreenProps) {
   const [inputValue, setInputValue]   = useState('');
   const [showQuickActions, setShowQuickActions] = useState(true);
   const [expandedPhrase, setExpandedPhrase]     = useState<any>(null);
   const [showProfile, setShowProfile]           = useState(false);
+  const [showSettings, setShowSettings]         = useState(false);
   const [isRecording, setIsRecording]           = useState(false);
+  const [llmError, setLlmError]                 = useState(false);
+  const [retryText, setRetryText]               = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const { messages, isGenerating, activeScenario, addMessage, updateLastMessage, setGenerating, setScenario } = useChatStore();
   const { activeCharacter, memories, addMemory } = useCharacterStore();
   const { userPreferences, currentLocation }     = useAppStore();
 
-  // Language name for TTS/STT
   const languageName = currentLocation?.dialectInfo?.language ?? 'English';
 
   // Auto-scroll on new messages or typing state change
@@ -83,12 +103,22 @@ export function ConversationScreen({ character, location, onOpenCamera, onToggle
     }
   }, [messages, isGenerating]);
 
+  // Show quick action pills again every 5 user messages
+  const userMsgCount = messages.filter(m => m.role === 'user').length;
+  useEffect(() => {
+    if (userMsgCount > 0 && userMsgCount % 5 === 0 && !isGenerating) {
+      setShowQuickActions(true);
+    }
+  }, [userMsgCount, isGenerating]);
+
   const handleSend = async (textOverride?: string) => {
     const msgText = (textOverride ?? inputValue).trim();
     if (!msgText || isGenerating) return;
 
     const richChar = activeCharacter;
     if (!richChar) return;
+
+    setLlmError(false);
 
     // Scenario detection
     const detected = detectScenario(msgText);
@@ -97,7 +127,6 @@ export function ConversationScreen({ character, location, onOpenCamera, onToggle
     // Snapshot history BEFORE adding the new user message
     const historySnapshot = useChatStore.getState().messages;
 
-    // Add user message to store
     const userMsg: Message = {
       id: Date.now().toString(),
       role: 'user',
@@ -110,7 +139,6 @@ export function ConversationScreen({ character, location, onOpenCamera, onToggle
     setGenerating(true);
     setShowQuickActions(false);
 
-    // Add empty streaming placeholder (filtered out of render until first token)
     const placeholderMsg: Message = {
       id: (Date.now() + 1).toString(),
       role: 'character',
@@ -131,7 +159,6 @@ export function ConversationScreen({ character, location, onOpenCamera, onToggle
         memories,
       );
 
-      // Build LLM message list from history snapshot + new user message
       const llmMessages = buildMessages(systemPrompt, historySnapshot, msgText);
 
       let fullText = '';
@@ -140,7 +167,27 @@ export function ConversationScreen({ character, location, onOpenCamera, onToggle
         updateLastMessage(fullText, false);
       });
 
-      // Parse phrase cards and finalize the streaming message
+      // Repetition loop detection: if same as last 2 character replies, retry at lower temp
+      const prevCharMsgs = useChatStore
+        .getState()
+        .messages.filter(m => m.role === 'character' && m.content.length > 0)
+        .slice(-3, -1)
+        .map(m => m.content.trim());
+      const isRepeat = prevCharMsgs.length >= 2 && prevCharMsgs.every(t => t === fullText.trim());
+      if (isRepeat) {
+        fullText = '';
+        updateLastMessage('', false);
+        const retryLLMMessages = buildMessages(systemPrompt, historySnapshot.slice(-6), msgText);
+        await streamMessage(
+          retryLLMMessages,
+          { ...INFERENCE_CONFIGS.chat, temperature: 0.5 },
+          (_token, text) => {
+            fullText = text;
+            updateLastMessage(fullText, false);
+          },
+        );
+      }
+
       const segments = parseResponse(fullText);
       useChatStore.setState((state) => {
         const msgs = [...state.messages];
@@ -159,10 +206,17 @@ export function ConversationScreen({ character, location, onOpenCamera, onToggle
       await saveConversation(allMessages);
 
       // Background memory generation every 5 user messages
-      const userMsgCount = allMessages.filter(m => m.role === 'user').length;
-      if (userMsgCount > 0 && userMsgCount % 5 === 0) {
-        const recentLLMMessages = buildMessages(systemPrompt, allMessages.slice(-10), '');
-        generateMemorySummary(recentLLMMessages)
+      const uCount = allMessages.filter(m => m.role === 'user').length;
+      if (uCount > 0 && uCount % 5 === 0) {
+        // Pass raw user/assistant pairs — generateMemorySummary builds its own system wrapper
+        const recentConvMsgs: LLMMessage[] = allMessages
+          .slice(-10)
+          .filter(m => m.role === 'user' || m.role === 'character')
+          .map(m => ({
+            role: (m.role === 'user' ? 'user' : 'assistant') as 'user' | 'assistant',
+            content: m.content,
+          }));
+        generateMemorySummary(recentConvMsgs)
           .then(async (newMemories) => {
             newMemories.forEach(m => addMemory(m));
             await saveMemories(useCharacterStore.getState().memories);
@@ -170,10 +224,21 @@ export function ConversationScreen({ character, location, onOpenCamera, onToggle
           .catch(() => {});
       }
     } catch {
-      updateLastMessage("Sorry, I couldn't process that. Try again!", true);
+      updateLastMessage("Hmm, let me try that again... 🔄", true);
+      setLlmError(true);
+      setRetryText(msgText);
     } finally {
       setGenerating(false);
     }
+  };
+
+  const handleRetry = () => {
+    // Remove the last 2 messages (error bubble + user message) and resend
+    useChatStore.setState((state) => ({
+      messages: state.messages.slice(0, -2),
+    }));
+    setLlmError(false);
+    handleSend(retryText);
   };
 
   const handlePhraseCardClick = (data: PhraseCardData) => {
@@ -188,7 +253,6 @@ export function ConversationScreen({ character, location, onOpenCamera, onToggle
     });
   };
 
-  // Mic: hold to record
   const handleMicDown = () => {
     if (!isSTTSupported()) return;
     const langMap: Record<string, string> = {
@@ -210,7 +274,6 @@ export function ConversationScreen({ character, location, onOpenCamera, onToggle
     setIsRecording(false);
   };
 
-  // Scenario-aware quick action pills
   const pills: Array<{ icon: string; label: string; isCamera?: boolean; text?: string }> =
     activeScenario && SCENARIOS[activeScenario]
       ? SCENARIOS[activeScenario].auto_suggestions.map(s => ({ icon: '💬', label: s, text: s }))
@@ -220,9 +283,12 @@ export function ConversationScreen({ character, location, onOpenCamera, onToggle
           { icon: '🧭', label: "What's nearby?",      text: "What's interesting nearby that locals love?" },
         ];
 
-  // Only show typing dots when generating but no streaming content yet
   const hasStreamingContent = messages.some(m => m.metadata?.isStreaming && m.content.length > 0);
   const showTypingDots = isGenerating && !hasStreamingContent;
+
+  const dialectIndicator = currentLocation?.dialectInfo
+    ? `${countryFlag(currentLocation.countryCode)} ${currentLocation.dialectInfo.dialect}`
+    : null;
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
@@ -230,20 +296,25 @@ export function ConversationScreen({ character, location, onOpenCamera, onToggle
       <div className="flex items-center gap-3 px-6 py-3 border-b border-border bg-card sticky top-0 z-10">
         <button
           onClick={() => setShowProfile(!showProfile)}
-          className="flex items-center gap-3 flex-1 hover:opacity-80 transition-opacity"
+          className="flex items-center gap-3 flex-1 hover:opacity-80 transition-opacity min-w-0"
         >
-          <BlockyAvatar
-            character={character}
-            size="sm"
-            animate={false}
-          />
-          <div className="text-left">
-            <p className="font-medium text-foreground">{character.name}</p>
-            <p className="text-xs text-muted-foreground">{location}</p>
+          <BlockyAvatar character={character} size="sm" animate={false} />
+          <div className="text-left min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <p className="font-medium text-foreground">{character.name}</p>
+              {activeScenario && SCENARIOS[activeScenario] && (
+                <span className="px-2 py-0.5 rounded-full text-xs bg-primary/20 text-primary font-medium whitespace-nowrap">
+                  {SCENARIOS[activeScenario].label}
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground truncate">
+              {dialectIndicator ?? location}
+            </p>
           </div>
         </button>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-shrink-0">
           <button
             onClick={onToggleTheme}
             className="p-2 hover:bg-muted/50 rounded-lg transition-colors"
@@ -254,7 +325,10 @@ export function ConversationScreen({ character, location, onOpenCamera, onToggle
               <Moon className="w-5 h-5 text-muted-foreground" />
             )}
           </button>
-          <button className="p-2 hover:bg-muted/50 rounded-lg transition-colors">
+          <button
+            onClick={() => setShowSettings(true)}
+            className="p-2 hover:bg-muted/50 rounded-lg transition-colors"
+          >
             <Settings className="w-5 h-5 text-muted-foreground" />
           </button>
         </div>
@@ -270,15 +344,14 @@ export function ConversationScreen({ character, location, onOpenCamera, onToggle
             className="border-b border-border bg-card/50 overflow-hidden"
           >
             <div className="px-6 py-4 text-center">
-              <BlockyAvatar
-                character={character}
-                size="md"
-                animate={true}
-              />
+              <BlockyAvatar character={character} size="md" animate={true} />
               <p className="mt-3 text-sm text-muted-foreground italic">
                 "{character.personality}"
               </p>
-              <button className="mt-3 text-sm text-secondary hover:underline">
+              <button
+                className="mt-3 text-sm text-secondary hover:underline"
+                onClick={() => { setShowProfile(false); onRegenerate(); }}
+              >
                 Regenerate companion
               </button>
             </div>
@@ -287,10 +360,7 @@ export function ConversationScreen({ character, location, onOpenCamera, onToggle
       </AnimatePresence>
 
       {/* Chat messages */}
-      <div
-        ref={scrollRef}
-        className="flex-1 overflow-y-auto px-6 py-6"
-      >
+      <div ref={scrollRef} className="flex-1 overflow-y-auto px-6 py-6">
         {messages
           .filter(m => m.role !== 'system' && !(m.metadata?.isStreaming && m.content.length === 0))
           .map((message) => (
@@ -327,37 +397,42 @@ export function ConversationScreen({ character, location, onOpenCamera, onToggle
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
           >
-            <BlockyAvatar
-              character={character}
-              size="xs"
-              animate={false}
-            />
+            <BlockyAvatar character={character} size="xs" animate={false} />
             <div className="bg-card border-l-2 border-l-primary/30 border-y border-r border-border rounded-2xl rounded-tl-sm px-4 py-3">
               <div className="flex gap-1">
-                <motion.div
-                  className="w-2 h-2 bg-primary rounded-full"
-                  animate={{ scale: [1, 1.2, 1], opacity: [0.5, 1, 0.5] }}
-                  transition={{ duration: 1, repeat: Infinity, delay: 0 }}
-                />
-                <motion.div
-                  className="w-2 h-2 bg-primary rounded-full"
-                  animate={{ scale: [1, 1.2, 1], opacity: [0.5, 1, 0.5] }}
-                  transition={{ duration: 1, repeat: Infinity, delay: 0.2 }}
-                />
-                <motion.div
-                  className="w-2 h-2 bg-primary rounded-full"
-                  animate={{ scale: [1, 1.2, 1], opacity: [0.5, 1, 0.5] }}
-                  transition={{ duration: 1, repeat: Infinity, delay: 0.4 }}
-                />
+                {[0, 0.2, 0.4].map((delay, i) => (
+                  <motion.div
+                    key={i}
+                    className="w-2 h-2 bg-primary rounded-full"
+                    animate={{ scale: [1, 1.2, 1], opacity: [0.5, 1, 0.5] }}
+                    transition={{ duration: 1, repeat: Infinity, delay }}
+                  />
+                ))}
               </div>
             </div>
+          </motion.div>
+        )}
+
+        {/* LLM error retry button */}
+        {llmError && !isGenerating && (
+          <motion.div
+            className="flex justify-center mb-4"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
+            <button
+              onClick={handleRetry}
+              className="flex items-center gap-2 px-4 py-2 bg-primary/10 border border-primary/30 text-primary rounded-xl text-sm font-medium hover:bg-primary/20 transition-colors"
+            >
+              <RotateCcw className="w-4 h-4" />
+              Retry
+            </button>
           </motion.div>
         )}
       </div>
 
       {/* Input area */}
       <div className="border-t border-border bg-card">
-        {/* Quick action pills */}
         {showQuickActions && (
           <div className="px-6 pt-3 pb-2 flex gap-2 overflow-x-auto scrollbar-hide">
             {pills.map((pill, idx) => (
@@ -391,14 +466,20 @@ export function ConversationScreen({ character, location, onOpenCamera, onToggle
             />
           </div>
 
-          <button
-            className={`p-2.5 rounded-lg transition-colors flex-shrink-0 ${isRecording ? 'bg-primary' : 'bg-primary/10 hover:bg-primary/20'}`}
-            onPointerDown={handleMicDown}
-            onPointerUp={handleMicUp}
-            onPointerLeave={handleMicUp}
-          >
-            <Mic className={`w-5 h-5 ${isRecording ? 'text-primary-foreground' : 'text-primary'}`} />
-          </button>
+          {isSTTSupported() ? (
+            <button
+              className={`p-2.5 rounded-lg transition-colors flex-shrink-0 ${isRecording ? 'bg-primary' : 'bg-primary/10 hover:bg-primary/20'}`}
+              onPointerDown={handleMicDown}
+              onPointerUp={handleMicUp}
+              onPointerLeave={handleMicUp}
+            >
+              <Mic className={`w-5 h-5 ${isRecording ? 'text-primary-foreground' : 'text-primary'}`} />
+            </button>
+          ) : (
+            <div className="p-2.5 flex-shrink-0 opacity-30" title="Voice input unavailable in this browser">
+              <Mic className="w-5 h-5 text-muted-foreground" />
+            </div>
+          )}
 
           {inputValue.trim() && (
             <motion.button
@@ -412,6 +493,12 @@ export function ConversationScreen({ character, location, onOpenCamera, onToggle
             </motion.button>
           )}
         </div>
+
+        {!isSTTSupported() && (
+          <p className="text-center text-xs text-muted-foreground pb-2">
+            Voice input unavailable in this browser
+          </p>
+        )}
       </div>
 
       {/* Expanded phrase card modal */}
@@ -422,6 +509,16 @@ export function ConversationScreen({ character, location, onOpenCamera, onToggle
             characterName={character.name}
             languageName={languageName}
             onClose={() => setExpandedPhrase(null)}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Settings panel */}
+      <AnimatePresence>
+        {showSettings && (
+          <SettingsPanel
+            onClose={() => setShowSettings(false)}
+            onRegenerate={onRegenerate}
           />
         )}
       </AnimatePresence>

@@ -1,7 +1,9 @@
 import type { ParsedSegment, PhraseCardData } from '../types/chat';
 
+// Use [\r\n]+ as separator so the pattern works with both Unix and Windows line endings,
+// and is tolerant of blank lines between fields.
 const PHRASE_CARD_PATTERN =
-  /\*\*Phrase:\*\*\s*(.+?)\n\*\*Say it:\*\*\s*(.+?)\n\*\*Sound tip:\*\*\s*(.+?)\n\*\*Means:\*\*\s*(.+?)\n\*\*Tip:\*\*\s*(.+?)(?:\n|$)/gs;
+  /\*\*Phrase:\*\*[ \t]*(.+?)[\r\n]+\*\*Say it:\*\*[ \t]*(.+?)[\r\n]+\*\*Sound tip:\*\*[ \t]*(.+?)[\r\n]+\*\*Means:\*\*[ \t]*(.+?)[\r\n]+\*\*Tip:\*\*[ \t]*(.+?)(?:[\r\n]|$)/gs;
 
 export function parseResponse(text: string): ParsedSegment[] {
   const segments: ParsedSegment[] = [];

@@ -193,13 +193,19 @@ export function CameraOverlay({ character, onClose }: CameraOverlayProps) {
       />
 
       {/* Camera viewfinder */}
-      <div className="absolute inset-0">
-        <img
-          src={previewUrl ?? "https://images.unsplash.com/photo-1770913161058-7522027673bd?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=800"}
-          alt="Camera view"
-          className="w-full h-full object-cover opacity-70"
-        />
-        <div className="absolute inset-0 bg-black/30" />
+      <div className="absolute inset-0 bg-zinc-900">
+        {previewUrl ? (
+          <img
+            src={previewUrl}
+            alt="Captured image"
+            className="w-full h-full object-cover opacity-70"
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center">
+            <p className="text-white/30 text-sm">Tap Scan to capture</p>
+          </div>
+        )}
+        <div className="absolute inset-0 bg-black/20" />
       </div>
 
       {/* Top bar */}

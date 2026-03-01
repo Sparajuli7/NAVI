@@ -5,7 +5,7 @@ import { BlockyAvatar } from './BlockyAvatar';
 import { generateCharacter as llmGenerateCharacter } from '../../services/llm';
 import { detectLocation } from '../../services/location';
 import { buildCharacterGenPrompt } from '../../prompts/characterGen';
-import { saveCharacter, saveConversation } from '../../utils/storage';
+import { saveCharacter, saveConversation, saveLocation } from '../../utils/storage';
 import { useCharacterStore } from '../../stores/characterStore';
 import { useChatStore } from '../../stores/chatStore';
 import { useAppStore } from '../../stores/appStore';
@@ -97,7 +97,10 @@ export function NewOnboardingScreen({ onComplete }: NewOnboardingScreenProps) {
 
       // Save to stores
       setActiveCharacter(richCharacter);
-      if (locationCtx) setCurrentLocation(locationCtx);
+      if (locationCtx) {
+        setCurrentLocation(locationCtx);
+        await saveLocation(locationCtx);
+      }
 
       // Add the character's first message to chat
       if (richCharacter.first_message) {

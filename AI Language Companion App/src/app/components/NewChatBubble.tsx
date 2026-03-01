@@ -80,7 +80,7 @@ export function NewChatBubble({
         Phonetic: <span className="italic">{data.phonetic}</span>
       </p>
       {data.soundTip && (
-        <p className="text-sm text-accent/80 italic">{data.soundTip}</p>
+        <p className="text-sm text-teal-400/90 italic">{data.soundTip}</p>
       )}
       <p className="text-xs text-primary/70 mt-2">Tap to learn more</p>
     </motion.button>
