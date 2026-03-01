@@ -167,10 +167,24 @@ export default function App() {
     );
   }
 
+  const handleRetryModel = async () => {
+    setAppPhase('downloading');
+    setProgressText('');
+    try {
+      await loadModel(MODEL_ID, (_, text) => setProgressText(text));
+    } catch (err) {
+      console.error('Model retry failed:', err);
+    }
+    setAppPhase('onboarding');
+  };
+
   return (
     <div className="relative w-full max-w-md mx-auto min-h-screen shadow-2xl">
       {appPhase === 'onboarding' ? (
-        <NewOnboardingScreen onComplete={handleOnboardingComplete} />
+        <NewOnboardingScreen
+          onComplete={handleOnboardingComplete}
+          onRetryLoadModel={handleRetryModel}
+        />
       ) : character ? (
         <>
           <ConversationScreen

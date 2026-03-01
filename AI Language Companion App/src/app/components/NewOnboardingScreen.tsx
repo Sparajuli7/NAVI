@@ -4,6 +4,7 @@ import { MapPin } from 'lucide-react';
 import { BlockyAvatar } from './BlockyAvatar';
 import { generateCharacter as llmGenerateCharacter } from '../../services/llm';
 import { detectLocation } from '../../services/location';
+import { isModelReady } from '../../services/modelManager';
 import { buildCharacterGenPrompt } from '../../prompts/characterGen';
 import { saveCharacter, saveConversation, saveLocation } from '../../utils/storage';
 import { useCharacterStore } from '../../stores/characterStore';
@@ -12,6 +13,8 @@ import { useAppStore } from '../../stores/appStore';
 import type { LocationContext } from '../../types/config';
 import type { Message } from '../../types/chat';
 import type { Character } from '../../types/character';
+import type { DialectInfo } from '../../types/config';
+import dialectMap from '../../config/dialectMap.json';
 
 const placeholders = [
   "a chill surfer who loves street food...",
@@ -34,6 +37,44 @@ interface GeneratedCharacter {
 
 interface NewOnboardingScreenProps {
   onComplete: (character: GeneratedCharacter, location: string) => void;
+  onRetryLoadModel?: () => Promise<void>;
+}
+
+const COUNTRY_NAMES: Record<string, string> = {
+  JP: 'Japan',
+  VN: 'Vietnam',
+  FR: 'France',
+  MX: 'Mexico',
+  KR: 'South Korea',
+};
+
+type DialectMapType = Record<string, DialectInfo>;
+
+function getPresetCities(): Array<{ key: string; city: string; country: string }> {
+  const map = dialectMap as DialectMapType;
+  return Object.keys(map).map((key) => {
+    const [countryCode, city] = key.split('/');
+    return {
+      key,
+      city,
+      country: COUNTRY_NAMES[countryCode] ?? countryCode,
+    };
+  });
+}
+
+function buildLocationFromPreset(key: string): LocationContext {
+  const map = dialectMap as DialectMapType;
+  const [countryCode, city] = key.split('/');
+  const info = map[key];
+  return {
+    city,
+    country: COUNTRY_NAMES[countryCode] ?? countryCode,
+    countryCode,
+    lat: 0,
+    lng: 0,
+    dialectKey: key,
+    dialectInfo: info ?? null,
+  };
 }
 
 // Map the rich Character from LLM to the simpler UI shape
@@ -48,7 +89,9 @@ function mapToUI(c: Character): GeneratedCharacter {
   };
 }
 
-export function NewOnboardingScreen({ onComplete }: NewOnboardingScreenProps) {
+const presetCities = getPresetCities();
+
+export function NewOnboardingScreen({ onComplete, onRetryLoadModel }: NewOnboardingScreenProps) {
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
   const [promptValue, setPromptValue]           = useState('');
   const [location, setLocation]                 = useState('Ho Chi Minh City');
@@ -56,10 +99,12 @@ export function NewOnboardingScreen({ onComplete }: NewOnboardingScreenProps) {
   const [isGenerating, setIsGenerating]         = useState(false);
   const [generatedCharacter, setGeneratedCharacter] = useState<GeneratedCharacter | null>(null);
   const [error, setError]                       = useState<string | null>(null);
+  const [showCityPicker, setShowCityPicker]     = useState(false);
 
   const { setActiveCharacter }  = useCharacterStore();
   const { addMessage }          = useChatStore();
   const { setCurrentLocation }  = useAppStore();
+  const { modelStatus }         = useAppStore();
 
   // Cycle through placeholders
   useEffect(() => {
@@ -83,6 +128,14 @@ export function NewOnboardingScreen({ onComplete }: NewOnboardingScreenProps) {
 
   const generateCharacter = async () => {
     if (!promptValue.trim()) return;
+    if (!isModelReady()) {
+      setError(
+        modelStatus === 'error'
+          ? 'Model failed to load. Tap Retry below to try again.'
+          : 'Model is still loading. Wait for the download to finish, then try again.'
+      );
+      return;
+    }
     setIsGenerating(true);
     setError(null);
 
@@ -204,20 +257,71 @@ export function NewOnboardingScreen({ onComplete }: NewOnboardingScreenProps) {
                 {error && (
                   <p className="text-sm text-destructive text-center mb-4">{error}</p>
                 )}
+                {/* Model failed — show Retry */}
+                {modelStatus === 'error' && onRetryLoadModel && (
+                  <div className="flex justify-center mb-4">
+                    <button
+                      type="button"
+                      onClick={() => { setError(null); onRetryLoadModel(); }}
+                      className="text-sm text-secondary hover:underline"
+                    >
+                      Retry loading model
+                    </button>
+                  </div>
+                )}
               </motion.div>
 
               {/* Location */}
               <motion.div
-                className="flex items-center justify-center gap-2 mb-12"
+                className="flex flex-col items-center gap-2 mb-12"
                 initial={{ y: 20, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
                 transition={{ delay: 0.5 }}
               >
-                <MapPin className="w-4 h-4 text-secondary" />
-                <span className="text-foreground">{location}</span>
-                <button className="text-secondary text-sm hover:underline ml-2">
-                  Change
-                </button>
+                <div className="flex items-center justify-center gap-2">
+                  <MapPin className="w-4 h-4 text-secondary" />
+                  <span className="text-foreground">{location}</span>
+                  <button
+                    type="button"
+                    onClick={() => setShowCityPicker((prev) => !prev)}
+                    className="text-secondary text-sm hover:underline ml-2"
+                  >
+                    Change
+                  </button>
+                </div>
+                {showCityPicker && (
+                  <div className="flex flex-wrap justify-center gap-2 mt-2 max-w-xs">
+                    {presetCities.map(({ key, city, country }) => (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => {
+                          setLocation(city);
+                          setLocationCtx(buildLocationFromPreset(key));
+                          setShowCityPicker(false);
+                        }}
+                        className="px-3 py-1.5 text-sm bg-card border border-border rounded-lg text-foreground hover:border-primary/30 transition-colors"
+                      >
+                        {city}, {country}
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowCityPicker(false);
+                        detectLocation()
+                          .then((ctx) => {
+                            setLocationCtx(ctx);
+                            setLocation(ctx.city);
+                          })
+                          .catch(() => {});
+                      }}
+                      className="px-3 py-1.5 text-sm bg-primary/20 border border-primary/40 rounded-lg text-primary hover:bg-primary/30 transition-colors"
+                    >
+                      Detect my location
+                    </button>
+                  </div>
+                )}
               </motion.div>
             </div>
 
@@ -225,7 +329,7 @@ export function NewOnboardingScreen({ onComplete }: NewOnboardingScreenProps) {
             <motion.button
               className="w-full px-12 py-4 bg-primary text-primary-foreground rounded-full font-medium hover:shadow-[0_0_20px_rgba(212,168,83,0.3)] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               onClick={generateCharacter}
-              disabled={!promptValue.trim()}
+              disabled={!promptValue.trim() || modelStatus !== 'ready'}
               whileTap={{ scale: 0.97 }}
               initial={{ y: 20, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
