@@ -62,6 +62,7 @@ export async function analyzeImage(
   const totalStart = Date.now();
 
   // Step 1: OCR
+  console.log(`[NAVI:pipeline] imageUnderstanding step=1 OCR`);
   const ocrStart = Date.now();
   const ocr: OCRResult = await visionProvider.extractText(
     image,
@@ -69,13 +70,16 @@ export async function analyzeImage(
     options?.onOCRProgress,
   );
   const ocrMs = Date.now() - ocrStart;
+  console.log(`[NAVI:pipeline] OCR done in ${ocrMs}ms confidence=${ocr.confidence.toFixed(2)} text=${ocr.text.slice(0, 100)}...`);
 
   // Step 2: Classification
   const classStart = Date.now();
   const documentType = classifyOCR(ocr.text, ocr.blockCount, ocr.avgBlockLength);
   const classificationMs = Date.now() - classStart;
+  console.log(`[NAVI:pipeline] classification=${documentType} in ${classificationMs}ms`);
 
   // Step 3: LLM Explanation
+  console.log(`[NAVI:pipeline] imageUnderstanding step=3 LLM explanation`);
   const explainStart = Date.now();
   const systemPrompt = buildExplanationPrompt(
     documentType,

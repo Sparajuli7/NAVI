@@ -96,7 +96,9 @@ export class MemoryManager {
       sections.push(`Current session context:\n${workingCtx}`);
     }
 
-    return sections.join('\n\n');
+    const ctx = sections.join('\n\n');
+    console.log(`[NAVI:memory] buildContextForPrompt sections=${sections.length} working=${workingSlots.length} episodes=${episodes.length}`);
+    return ctx;
   }
 
   /** Store a conversation episode asynchronously (fire-and-forget for UX) */
@@ -109,6 +111,7 @@ export class MemoryManager {
       tags?: string[];
     } = {},
   ): void {
+    console.log(`[NAVI:memory] storeEpisode location=${options.location ?? 'none'} summary=${summary.slice(0, 80)}...`);
     // Don't await — this runs in the background
     this.episodic
       .add({

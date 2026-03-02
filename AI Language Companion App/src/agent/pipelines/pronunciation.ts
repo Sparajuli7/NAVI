@@ -72,6 +72,7 @@ export async function practicePronunciation(
   },
 ): Promise<PronunciationAttempt> {
   // Step 1: Record user's attempt via STT
+  console.log(`[NAVI:pipeline] pronunciation target="${targetPhrase}" lang=${targetLanguage}`);
   callbacks?.onRecordingStart?.();
   const userTranscription = await new Promise<string>((resolve, reject) => {
     const langCode = ttsProvider.getLangCode(targetLanguage);
@@ -98,6 +99,7 @@ export async function practicePronunciation(
     llmProvider,
   );
 
+  console.log(`[NAVI:pipeline] pronunciation feedback score=${feedback.score} assessment=${feedback.assessment}`);
   callbacks?.onFeedback?.(feedback);
 
   // Step 3: Play correct pronunciation
