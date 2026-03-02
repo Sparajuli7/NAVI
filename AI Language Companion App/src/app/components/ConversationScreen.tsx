@@ -9,17 +9,13 @@ import { AnimatePresence, motion } from 'motion/react';
 import { useChatStore } from '../../stores/chatStore';
 import { useCharacterStore } from '../../stores/characterStore';
 import { useAppStore } from '../../stores/appStore';
-import { streamMessage, generateMemorySummary } from '../../services/llm';
-import { isModelReady } from '../../services/modelManager';
-import { buildSystemPrompt } from '../../prompts/systemBuilder';
-import { buildMessages } from '../../utils/contextManager';
+import { useNaviAgent } from '../../agent/react/useNaviAgent';
 import { parseResponse } from '../../utils/responseParser';
 import { saveCharacterConversation, saveCharacterMemories } from '../../utils/storage';
 import { startRecording, stopRecording, isSTTSupported } from '../../services/stt';
-import { INFERENCE_CONFIGS } from '../../types/inference';
-import type { LLMMessage } from '../../types/inference';
 import type { Message, PhraseCardData } from '../../types/chat';
 import type { ScenarioKey } from '../../types/config';
+import type { Character } from '../../types/character';
 import scenarioContexts from '../../config/scenarioContexts.json';
 
 interface GeneratedCharacter {
@@ -32,8 +28,6 @@ interface GeneratedCharacter {
   };
   accessory?: string;
 }
-
-import type { Character } from '../../types/character';
 
 interface ConversationScreenProps {
   character: GeneratedCharacter;
@@ -101,7 +95,10 @@ export function ConversationScreen({
 
   const { messages, isGenerating, activeScenario, addMessage, updateLastMessage, setGenerating, setScenario } = useChatStore();
   const { activeCharacter, memories, addMemory } = useCharacterStore();
-  const { userPreferences, currentLocation, userProfile } = useAppStore();
+  const { currentLocation } = useAppStore();
+
+  // Agent framework — routes messages through tools, director, memory
+  const { agent, isLLMReady } = useNaviAgent();
 
   const languageName = currentLocation?.dialectInfo?.language ?? 'English';
 
@@ -129,7 +126,7 @@ export function ConversationScreen({
 
     setLlmError(false);
 
-    // Scenario detection
+    // Scenario detection (keep for UI pill switching)
     const detected = detectScenario(msgText);
     if (detected) setScenario(detected);
 
@@ -147,7 +144,7 @@ export function ConversationScreen({
     setInputValue('');
     setShowQuickActions(false);
 
-    if (!isModelReady()) {
+    if (!isLLMReady) {
       const helpMsg: Message = {
         id: `err-${Date.now()}`,
         role: 'character',
@@ -177,43 +174,27 @@ export function ConversationScreen({
     addMessage(placeholderMsg);
 
     try {
-      const systemPrompt = buildSystemPrompt(
-        richChar,
-        userPreferences,
-        currentLocation,
-        detected ?? activeScenario,
-        memories,
-        userProfile,
-      );
+      // Build conversation history for the agent
+      const history = historySnapshot
+        .filter(m => m.role === 'user' || m.role === 'character')
+        .slice(-20)
+        .map(m => ({
+          role: m.role === 'user' ? 'user' : 'assistant',
+          content: m.content,
+        }));
 
-      const llmMessages = buildMessages(systemPrompt, historySnapshot, msgText);
-
-      let fullText = '';
-      await streamMessage(llmMessages, undefined, (_token, text) => {
-        fullText = text;
-        updateLastMessage(fullText, false);
+      // Use the agent framework — routes through director + tools + memory
+      const result = await agent.handleMessage(msgText, {
+        history,
+        context: {
+          scenario: detected ?? activeScenario,
+        },
+        onToken: (_token, fullText) => {
+          updateLastMessage(fullText, false);
+        },
       });
 
-      // Repetition loop detection: if same as last 2 character replies, retry at lower temp
-      const prevCharMsgs = useChatStore
-        .getState()
-        .messages.filter(m => m.role === 'character' && m.content.length > 0)
-        .slice(-3, -1)
-        .map(m => m.content.trim());
-      const isRepeat = prevCharMsgs.length >= 2 && prevCharMsgs.every(t => t === fullText.trim());
-      if (isRepeat) {
-        fullText = '';
-        updateLastMessage('', false);
-        const retryLLMMessages = buildMessages(systemPrompt, historySnapshot.slice(-6), msgText);
-        await streamMessage(
-          retryLLMMessages,
-          { ...INFERENCE_CONFIGS.chat, temperature: 0.5 },
-          (_token, text) => {
-            fullText = text;
-            updateLastMessage(fullText, false);
-          },
-        );
-      }
+      const fullText = result.response;
 
       const segments = parseResponse(fullText);
       useChatStore.setState((state) => {
@@ -232,24 +213,22 @@ export function ConversationScreen({
       const allMessages = useChatStore.getState().messages;
       if (richChar?.id) await saveCharacterConversation(richChar.id, allMessages);
 
-      // Background memory generation every 5 user messages
+      // Agent's director handles memory/learning tracking automatically via postProcess,
+      // but we still persist the legacy Zustand memories for the UI
       const uCount = allMessages.filter(m => m.role === 'user').length;
-      if (uCount > 0 && uCount % 5 === 0) {
-        // Pass raw user/assistant pairs — generateMemorySummary builds its own system wrapper
-        const recentConvMsgs: LLMMessage[] = allMessages
-          .slice(-10)
+      if (uCount > 0 && uCount % 10 === 0) {
+        // Episodic memory is handled by the agent's MemoryManager
+        // Store a summary episode for cross-session continuity
+        const recentMsgs = allMessages.slice(-10)
           .filter(m => m.role === 'user' || m.role === 'character')
-          .map(m => ({
-            role: (m.role === 'user' ? 'user' : 'assistant') as 'user' | 'assistant',
-            content: m.content,
-          }));
-        generateMemorySummary(recentConvMsgs)
-          .then(async (newMemories) => {
-            newMemories.forEach(m => addMemory(m));
-            const charId = useCharacterStore.getState().activeCharacter?.id;
-            if (charId) await saveCharacterMemories(charId, useCharacterStore.getState().memories);
-          })
-          .catch(() => {});
+          .map(m => m.content)
+          .join(' ');
+        const summary = recentMsgs.slice(0, 200);
+        agent.memory.storeEpisodeAsync(summary, {
+          location: currentLocation?.city,
+          scenario: detected ?? activeScenario ?? undefined,
+          importance: 0.5,
+        });
       }
     } catch {
       updateLastMessage("Hmm, let me try that again... 🔄", true);

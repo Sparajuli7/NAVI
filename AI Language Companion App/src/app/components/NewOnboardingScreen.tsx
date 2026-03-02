@@ -2,11 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { MapPin } from 'lucide-react';
 import { BlockyAvatar } from './BlockyAvatar';
-import { generateCharacter as llmGenerateCharacter } from '../../services/llm';
 import { detectLocation } from '../../services/location';
-import { isModelReady } from '../../services/modelManager';
 import { buildCharacterGenPrompt } from '../../prompts/characterGen';
 import { saveCharacter, saveConversation, saveLocation } from '../../utils/storage';
+import { useNaviAgent } from '../../agent/react/useNaviAgent';
 import { useCharacterStore } from '../../stores/characterStore';
 import { useChatStore } from '../../stores/chatStore';
 import { useAppStore } from '../../stores/appStore';
@@ -105,6 +104,7 @@ export function NewOnboardingScreen({ onComplete, onRetryLoadModel }: NewOnboard
   const { addMessage }          = useChatStore();
   const { setCurrentLocation }  = useAppStore();
   const { modelStatus }         = useAppStore();
+  const { agent, isLLMReady }   = useNaviAgent();
 
   // Cycle through placeholders
   useEffect(() => {
@@ -128,7 +128,7 @@ export function NewOnboardingScreen({ onComplete, onRetryLoadModel }: NewOnboard
 
   const generateCharacter = async () => {
     if (!promptValue.trim()) return;
-    if (!isModelReady()) {
+    if (!isLLMReady) {
       setError(
         modelStatus === 'error'
           ? 'Model failed to load. Tap Retry below to try again.'
@@ -141,7 +141,33 @@ export function NewOnboardingScreen({ onComplete, onRetryLoadModel }: NewOnboard
 
     try {
       const prompt = buildCharacterGenPrompt(promptValue, locationCtx);
-      const richCharacter = await llmGenerateCharacter(prompt);
+
+      // Use agent's LLM for character generation
+      const llm = agent.getLLM();
+      let raw = await llm.chat(
+        [
+          { role: 'system', content: 'You are a character generator. Respond ONLY with valid JSON, no markdown fences.' },
+          { role: 'user', content: prompt },
+        ],
+        { temperature: 0.8, max_tokens: 400 },
+      );
+      raw = raw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+
+      let richCharacter: Character;
+      try {
+        richCharacter = JSON.parse(raw) as Character;
+      } catch {
+        // Retry with lower temperature
+        let raw2 = await llm.chat(
+          [
+            { role: 'system', content: 'You are a character generator. Respond ONLY with valid JSON, no markdown fences.' },
+            { role: 'user', content: prompt },
+          ],
+          { temperature: 0.3, max_tokens: 400 },
+        );
+        raw2 = raw2.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+        richCharacter = JSON.parse(raw2) as Character;
+      }
 
       // Ensure we have a stable id
       if (!richCharacter.id || richCharacter.id.startsWith('<')) {
@@ -154,6 +180,15 @@ export function NewOnboardingScreen({ onComplete, onRetryLoadModel }: NewOnboard
         setCurrentLocation(locationCtx);
         await saveLocation(locationCtx);
       }
+
+      // Set up agent avatar so the agent context is ready for chat
+      const avatarProfile = agent.createAvatarFromTemplate(
+        richCharacter.template_id ?? 'default',
+        locationCtx?.city ?? location,
+      );
+      avatarProfile.name = richCharacter.name;
+      avatarProfile.personality = richCharacter.summary;
+      agent.setAvatar(avatarProfile);
 
       // Add the character's first message to chat
       if (richCharacter.first_message) {
@@ -320,7 +355,7 @@ export function NewOnboardingScreen({ onComplete, onRetryLoadModel }: NewOnboard
             <motion.button
               className="w-full px-12 py-4 bg-primary text-primary-foreground rounded-full font-medium hover:shadow-[0_0_20px_rgba(212,168,83,0.3)] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               onClick={generateCharacter}
-              disabled={!promptValue.trim() || modelStatus !== 'ready'}
+              disabled={!promptValue.trim() || !isLLMReady}
               whileTap={{ scale: 0.97 }}
               initial={{ y: 20, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}

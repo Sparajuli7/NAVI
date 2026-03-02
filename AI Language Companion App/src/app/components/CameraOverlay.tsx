@@ -2,21 +2,14 @@ import React, { useState, useRef } from 'react';
 import { X, Zap, ZapOff, Volume2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { BlockyAvatar } from './BlockyAvatar';
-import { extractText } from '../../services/ocr';
-import { classifyOCR } from '../../utils/ocrClassifier';
-import type { OCRType } from '../../utils/ocrClassifier';
-import { buildCameraPrompt } from '../../prompts/camera';
-import { streamMessage } from '../../services/llm';
+import { useNaviAgent } from '../../agent/react/useNaviAgent';
 import { speakPhrase } from '../../services/tts';
 import { parseResponse } from '../../utils/responseParser';
 import type { ParsedSegment } from '../../types/chat';
-import { INFERENCE_CONFIGS } from '../../types/inference';
-import type { LLMMessage } from '../../types/inference';
 import { useCharacterStore } from '../../stores/characterStore';
 import { useAppStore } from '../../stores/appStore';
 import { useChatStore } from '../../stores/chatStore';
 import { FALLBACKS } from '../../utils/fallbacks';
-import type { Character } from '../../types/character';
 
 interface GeneratedCharacter {
   name: string;
@@ -34,21 +27,12 @@ interface CameraOverlayProps {
   onClose: () => void;
 }
 
-const OCR_TYPE_LABELS: Record<OCRType, { emoji: string; label: string }> = {
-  MENU:     { emoji: '🍽️', label: 'Menu detected' },
-  SIGN:     { emoji: '🪧', label: 'Sign detected' },
-  DOCUMENT: { emoji: '📄', label: 'Document detected' },
-  PAGE:     { emoji: '📃', label: 'Text page detected' },
-  LABEL:    { emoji: '🏷️', label: 'Label detected' },
-  GENERAL:  { emoji: '📝', label: 'Text detected' },
-};
-
 export function CameraOverlay({ character, onClose }: CameraOverlayProps) {
   const [isScanning, setIsScanning] = useState(false);
   const [showResults, setShowResults] = useState(false);
   const [flashOn, setFlashOn] = useState(false);
   const [ocrProgress, setOcrProgress] = useState(0);
-  const [scanType, setScanType] = useState<OCRType | null>(null);
+  const [scanTypeLabel, setScanTypeLabel] = useState<string | null>(null);
   const [llmResponse, setLlmResponse] = useState('');
   const [isLLMStreaming, setIsLLMStreaming] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -58,27 +42,9 @@ export function CameraOverlay({ character, onClose }: CameraOverlayProps) {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const { activeCharacter } = useCharacterStore();
   const { currentLocation } = useAppStore();
   const { addMessage } = useChatStore();
-
-  const getCharForPrompt = (): Character => {
-    if (activeCharacter) return activeCharacter;
-    return {
-      id: 'temp',
-      name: character.name,
-      summary: character.personality,
-      detailed: character.personality,
-      style: 'casual',
-      emoji: character.accessory ?? '🌍',
-      avatar_color: character.colors,
-      avatar_accessory: character.accessory ?? '',
-      speaks_like: 'Like a friendly local guide.',
-      template_id: null,
-      location_city: '',
-      location_country: '',
-    };
-  };
+  const { agent } = useNaviAgent();
 
   const handleFileCapture = async (file: File) => {
     const url = URL.createObjectURL(file);
@@ -88,51 +54,51 @@ export function CameraOverlay({ character, onClose }: CameraOverlayProps) {
     setLlmResponse('');
     setParsedSegments([]);
     setErrorMessage(null);
-    setScanType(null);
+    setScanTypeLabel(null);
     setOcrProgress(0);
     setScannedText('');
 
     try {
-      // Step 1: OCR
-      const ocrResult = await extractText(file, (progress) => setOcrProgress(progress));
-
-      if (!ocrResult.text.trim()) {
-        setIsScanning(false);
-        setErrorMessage(FALLBACKS.camera_no_text);
-        setShowResults(true);
-        return;
-      }
-
-      setScannedText(ocrResult.text);
-
-      // Step 2: Classify
-      const type = classifyOCR(ocrResult.text, ocrResult.blockCount, ocrResult.avgBlockLength);
-      setScanType(type);
-      setIsScanning(false);
-      setShowResults(true);
-      setIsLLMStreaming(true);
-
-      // Step 3: Build camera prompt + stream LLM response
-      const charForPrompt = getCharForPrompt();
-      const cameraPrompt = buildCameraPrompt(type, {
-        character: charForPrompt,
-        location: currentLocation,
-        ocrText: ocrResult.text,
+      // Use the agent's image pipeline (OCR → classify → LLM explain)
+      const result = await agent.handleImage(file, {
+        onOCRProgress: (progress) => {
+          setOcrProgress(progress);
+        },
+        onExplanationToken: (_token, fullText) => {
+          // Once we start getting LLM tokens, show the results
+          if (!showResults) {
+            setIsScanning(false);
+            setShowResults(true);
+            setIsLLMStreaming(true);
+          }
+          setLlmResponse(fullText);
+        },
       });
 
-      const messages: LLMMessage[] = [
-        { role: 'system', content: `You are ${charForPrompt.name}. ${charForPrompt.speaks_like}` },
-        { role: 'user', content: cameraPrompt },
-      ];
-
-      const fullResponse = await streamMessage(
-        messages,
-        INFERENCE_CONFIGS.camera,
-        (_token, fullText) => setLlmResponse(fullText),
-      );
-
+      setIsScanning(false);
       setIsLLMStreaming(false);
-      setParsedSegments(parseResponse(fullResponse));
+
+      if (result.success && result.data) {
+        const data = result.data as Record<string, unknown>;
+        const responseText = (data.response as string) ?? '';
+        const ocrText = (data.extractedText as string) ?? '';
+        const docType = (data.documentType as string) ?? 'GENERAL';
+
+        setScannedText(ocrText);
+        setScanTypeLabel(docType);
+        setLlmResponse(responseText);
+        setParsedSegments(parseResponse(responseText));
+        setShowResults(true);
+      } else {
+        const errorText = result.error ?? FALLBACKS.inference_error;
+        // Check if OCR returned no text
+        if (errorText.includes('No text') || errorText.includes('no text')) {
+          setErrorMessage(FALLBACKS.camera_no_text);
+        } else {
+          setErrorMessage(errorText);
+        }
+        setShowResults(true);
+      }
     } catch (err) {
       console.error('Camera pipeline error:', err);
       setIsScanning(false);
@@ -143,7 +109,7 @@ export function CameraOverlay({ character, onClose }: CameraOverlayProps) {
   };
 
   const handleHelpWithThis = () => {
-    const type = scanType ?? 'GENERAL';
+    const type = scanTypeLabel ?? 'GENERAL';
     const textSnippet = scannedText.slice(0, 200);
     const interpretationSnippet = llmResponse.slice(0, 200);
     addMessage({
@@ -161,7 +127,7 @@ export function CameraOverlay({ character, onClose }: CameraOverlayProps) {
     setLlmResponse('');
     setParsedSegments([]);
     setErrorMessage(null);
-    setScanType(null);
+    setScanTypeLabel(null);
     setOcrProgress(0);
     setScannedText('');
     if (previewUrl) URL.revokeObjectURL(previewUrl);
@@ -169,7 +135,16 @@ export function CameraOverlay({ character, onClose }: CameraOverlayProps) {
     setTimeout(() => fileInputRef.current?.click(), 100);
   };
 
-  const typeLabel = scanType ? OCR_TYPE_LABELS[scanType] : null;
+  // Map scan type to display labels
+  const TYPE_LABELS: Record<string, { emoji: string; label: string }> = {
+    MENU:     { emoji: '🍽️', label: 'Menu detected' },
+    SIGN:     { emoji: '🪧', label: 'Sign detected' },
+    DOCUMENT: { emoji: '📄', label: 'Document detected' },
+    PAGE:     { emoji: '📃', label: 'Text page detected' },
+    LABEL:    { emoji: '🏷️', label: 'Label detected' },
+    GENERAL:  { emoji: '📝', label: 'Text detected' },
+  };
+  const typeLabel = scanTypeLabel ? TYPE_LABELS[scanTypeLabel] ?? null : null;
 
   return (
     <motion.div
@@ -210,14 +185,14 @@ export function CameraOverlay({ character, onClose }: CameraOverlayProps) {
 
       {/* Top bar */}
       <div className="relative z-10 flex items-center justify-between px-6 py-4">
-        <button 
+        <button
           onClick={onClose}
           className="p-2 bg-black/50 backdrop-blur-sm rounded-full"
         >
           <X className="w-5 h-5 text-white" />
         </button>
         <span className="text-white font-medium">Camera</span>
-        <button 
+        <button
           onClick={() => setFlashOn(!flashOn)}
           className="p-2 bg-black/50 backdrop-blur-sm rounded-full"
         >

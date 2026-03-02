@@ -5,7 +5,7 @@ import { useCharacterStore } from '../../stores/characterStore';
 import { useAppStore } from '../../stores/appStore';
 import { saveMemories, savePreferences, saveLocation, saveCharacterMemories } from '../../utils/storage';
 import { detectLocation } from '../../services/location';
-import { MODEL_ID } from '../../services/modelManager';
+import { useNaviAgent } from '../../agent/react/useNaviAgent';
 import type { UserPreferences, Character } from '../../types/character';
 
 function countryFlag(code: string): string {
@@ -46,6 +46,7 @@ export function SettingsPanel({ onClose, onRegenerate, onUpdateCharacter, onSave
   const { activeCharacter, memories, removeMemory, clearMemories } = useCharacterStore();
   const { userPreferences, currentLocation, modelStatus, modelProgress, setUserPreferences, setCurrentLocation, userProfile } =
     useAppStore();
+  const { agent } = useNaviAgent();
 
   // Lazy-init profile draft from store
   if (!profileInitialized) {
@@ -519,7 +520,9 @@ export function SettingsPanel({ onClose, onRegenerate, onUpdateCharacter, onSave
             <div className="bg-card border border-border rounded-xl p-4 space-y-4">
               <div>
                 <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Model</p>
-                <p className="text-sm text-foreground font-medium break-all">{MODEL_ID}</p>
+                <p className="text-sm text-foreground font-medium break-all">
+                  {agent.getBackend() === 'ollama' ? `Ollama` : 'Qwen2.5-1.5B (WebGPU)'}
+                </p>
               </div>
               <div className="border-t border-border pt-4">
                 <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Status</p>
@@ -551,12 +554,14 @@ export function SettingsPanel({ onClose, onRegenerate, onUpdateCharacter, onSave
                 </div>
               )}
               <div className="border-t border-border pt-4">
-                <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Size</p>
-                <p className="text-sm text-foreground">~1.5B parameters · Q4 quantized · ~1 GB</p>
+                <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Backend</p>
+                <p className="text-sm text-foreground capitalize">{agent.getBackend()}</p>
               </div>
               <div className="border-t border-border pt-4">
                 <p className="text-xs text-muted-foreground leading-relaxed">
-                  Runs entirely on your device via WebGPU. No data is sent to any server.
+                  {agent.getBackend() === 'ollama'
+                    ? 'Connected to local Ollama server. All data stays on your machine.'
+                    : 'Runs entirely on your device via WebGPU. No data is sent to any server.'}
                 </p>
               </div>
             </div>
