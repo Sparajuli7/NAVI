@@ -92,6 +92,7 @@ export async function executeTool(
   }
 
   // Emit start event
+  console.log(`[NAVI:exec] ▶ tool=${request.tool} id=${request.requestId}`);
   agentBus.emit('tool:start', { tool: request.tool, requestId: request.requestId });
 
   // Execute with timeout
@@ -119,6 +120,7 @@ export async function executeTool(
       durationMs,
     };
 
+    console.log(`[NAVI:exec] ✓ tool=${request.tool} took ${durationMs}ms`);
     context.trace.push(result);
     agentBus.emit('tool:complete', { request, result });
     return result;
@@ -140,6 +142,7 @@ export async function executeTool(
       durationMs,
     };
 
+    console.error(`[NAVI:exec] ✗ tool=${request.tool} error=${result.error} took ${durationMs}ms`);
     context.trace.push(result);
     agentBus.emit('tool:error', { request, result });
     return result;

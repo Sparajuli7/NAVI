@@ -123,15 +123,18 @@ export function routeIntent(
 
   if (matches.length > 0) {
     const best = matches[0];
-    return {
+    const decision = {
       tool: best.rule.tool,
       params: { message: userMessage, ...contextParams },
       confidence: Math.min(best.score / 10, 1),
       reason: `Matched keywords for ${best.rule.tool} (score: ${best.score.toFixed(2)})`,
     };
+    console.log(`[NAVI:router] ${decision.reason} | confidence: ${decision.confidence.toFixed(2)}`);
+    return decision;
   }
 
   // Default to general chat
+  console.log(`[NAVI:router] No specific tool matched — routing to chat | confidence: 0.50`);
   return {
     tool: 'chat',
     params: { message: userMessage, ...contextParams },
