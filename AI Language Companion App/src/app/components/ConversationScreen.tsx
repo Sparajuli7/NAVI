@@ -10,6 +10,7 @@ import { useChatStore } from '../../stores/chatStore';
 import { useCharacterStore } from '../../stores/characterStore';
 import { useAppStore } from '../../stores/appStore';
 import { streamMessage, generateMemorySummary } from '../../services/llm';
+import { isModelReady } from '../../services/modelManager';
 import { buildSystemPrompt } from '../../prompts/systemBuilder';
 import { buildMessages } from '../../utils/contextManager';
 import { parseResponse } from '../../utils/responseParser';
@@ -138,8 +139,25 @@ export function ConversationScreen({
     };
     addMessage(userMsg);
     setInputValue('');
-    setGenerating(true);
     setShowQuickActions(false);
+
+    if (!isModelReady()) {
+      const helpMsg: Message = {
+        id: `err-${Date.now()}`,
+        role: 'character',
+        content:
+          "The AI model isn't loaded yet. Open Settings (gear icon) → AI Model to download or retry.",
+        type: 'text',
+        timestamp: Date.now(),
+        showAvatar: true,
+      };
+      addMessage(helpMsg);
+      setLlmError(true);
+      setRetryText(msgText);
+      return;
+    }
+
+    setGenerating(true);
 
     const placeholderMsg: Message = {
       id: (Date.now() + 1).toString(),
