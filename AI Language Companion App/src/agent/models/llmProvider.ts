@@ -123,6 +123,12 @@ export class LLMProvider implements ModelProvider<webllm.MLCEngine>, ChatLLM {
       throw new Error(`LLM not ready: ${this.config.modelId}`);
     }
 
+    // Log outgoing prompt
+    console.log(`[NAVI] ── PROMPT (webllm: ${this.config.modelId}) ──`);
+    for (const m of messages) {
+      console.log(`[NAVI] [${m.role}] ${m.content}`);
+    }
+
     const chatMessages = messages as webllm.ChatCompletionMessageParam[];
 
     if (options?.stream && options?.onToken) {
@@ -142,6 +148,8 @@ export class LLMProvider implements ModelProvider<webllm.MLCEngine>, ChatLLM {
           options.onToken(delta, fullText);
         }
       }
+      console.log(`[NAVI] ── RESPONSE (webllm) ──`);
+      console.log(`[NAVI] [assistant] ${fullText}`);
       return fullText;
     }
 
@@ -153,6 +161,9 @@ export class LLMProvider implements ModelProvider<webllm.MLCEngine>, ChatLLM {
       stream: false,
     });
 
-    return reply.choices[0]?.message?.content ?? '';
+    const response = reply.choices[0]?.message?.content ?? '';
+    console.log(`[NAVI] ── RESPONSE (webllm) ──`);
+    console.log(`[NAVI] [assistant] ${response}`);
+    return response;
   }
 }

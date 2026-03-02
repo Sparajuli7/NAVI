@@ -181,6 +181,12 @@ export class OllamaProvider implements ModelProvider<null>, ChatLLM {
     messages: Array<{ role: string; content: string }>,
     options?: ChatOptions,
   ): Promise<string> {
+    // Log outgoing prompt
+    console.log(`[NAVI] ── PROMPT (ollama: ${this.config.model}) ──`);
+    for (const m of messages) {
+      console.log(`[NAVI] [${m.role}] ${m.content}`);
+    }
+
     const url = `${this.config.baseUrl}/v1/chat/completions`;
 
     const body = {
@@ -217,12 +223,18 @@ export class OllamaProvider implements ModelProvider<null>, ChatLLM {
 
       // Streaming response
       if (body.stream && options?.onToken && response.body) {
-        return await this.handleStream(response.body, options.onToken);
+        const result = await this.handleStream(response.body, options.onToken);
+        console.log(`[NAVI] ── RESPONSE (ollama) ──`);
+        console.log(`[NAVI] [assistant] ${result}`);
+        return result;
       }
 
       // Non-streaming response
       const data = await response.json();
-      return data.choices?.[0]?.message?.content ?? '';
+      const result = data.choices?.[0]?.message?.content ?? '';
+      console.log(`[NAVI] ── RESPONSE (ollama) ──`);
+      console.log(`[NAVI] [assistant] ${result}`);
+      return result;
     } catch (err) {
       clearTimeout(timeoutId);
       if (err instanceof Error && err.name === 'AbortError') {
