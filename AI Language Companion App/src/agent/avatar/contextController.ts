@@ -244,7 +244,9 @@ export class AvatarContextController {
     // Layer 11: Core rules (always last)
     layers.push(this.buildCoreRules());
 
-    return layers.join('\n\n');
+    const assembled = layers.join('\n\n');
+    console.log(`[NAVI:avatar] buildSystemPrompt layers=${layers.length} avatar=${profile.name} location=${override.location ?? profile.location} scenario=${(override.scenario ?? profile.scenario) || 'none'}`);
+    return assembled;
   }
 
   // ── Layer Builders ──────────────────────────────────────────

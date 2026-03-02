@@ -141,6 +141,10 @@ export class ConversationDirector {
     const warmthInstruction = this.relationships.formatForPrompt(avatarId);
     const promptInjection = goalInstructions.join('\n');
 
+    console.log(`[NAVI:director] preProcess goals=[${goals.join(', ')}]`);
+    if (promptInjection) console.log(`[NAVI:director] promptInjection: ${promptInjection}`);
+    if (warmthInstruction) console.log(`[NAVI:director] warmth: ${warmthInstruction}`);
+
     return {
       goals,
       promptInjection,
@@ -163,6 +167,9 @@ export class ConversationDirector {
   ): Promise<void> {
     // 1. Detect phrases in the response
     const detectedPhrases = detectPhrases(llmResponse);
+    if (detectedPhrases.length > 0) {
+      console.log(`[NAVI:director] postProcess detected ${detectedPhrases.length} phrases: ${detectedPhrases.map(p => p.phrase).join(', ')}`);
+    }
     for (const detected of detectedPhrases) {
       await this.learner.recordPhraseAttempt({
         phrase: detected.phrase,
@@ -175,6 +182,9 @@ export class ConversationDirector {
 
     // 2. Detect topics
     const topics = detectTopics(userMessage + ' ' + llmResponse);
+    if (topics.length > 0) {
+      console.log(`[NAVI:director] postProcess detected topics: ${topics.join(', ')}`);
+    }
     for (const topic of topics) {
       await this.learner.updateTopicProficiency(topic, 0.05);
     }

@@ -304,6 +304,10 @@ export class NaviAgent {
       onToken?: (token: string, full: string) => void;
     },
   ): Promise<{ response: string; tool: string; confidence: number }> {
+    console.log(`[NAVI] ════════════════════════════════════════`);
+    console.log(`[NAVI] USER INPUT: ${message}`);
+    console.log(`[NAVI] ════════════════════════════════════════`);
+
     // 1. Director pre-processing — build goals + context injection
     const avatarId = this.avatar.getActiveProfile()?.id ?? 'default';
     const directorCtx = this.director.preProcess(message, avatarId);
@@ -342,6 +346,10 @@ export class NaviAgent {
       .postProcess(message, response, decision.tool, avatarId)
       .catch((err) => console.error('[NaviAgent] Director postProcess error:', err));
 
+    console.log(`[NAVI] ── AGENT OUTPUT (tool=${decision.tool}) ──`);
+    console.log(`[NAVI] ${response}`);
+    console.log(`[NAVI] ════════════════════════════════════════`);
+
     return {
       response,
       tool: decision.tool,
@@ -359,11 +367,15 @@ export class NaviAgent {
       onExplanationToken?: (token: string, full: string) => void;
     },
   ): Promise<ToolResult> {
+    console.log(`[NAVI] ════════════════════════════════════════`);
+    console.log(`[NAVI] IMAGE INPUT: ${image instanceof File ? image.name : typeof image}`);
+    console.log(`[NAVI] ════════════════════════════════════════`);
     const { result } = await handleUserInput('Read this image', {
       imageData: image,
       onOCRProgress: callbacks?.onOCRProgress,
       onExplanationToken: callbacks?.onExplanationToken,
     });
+    console.log(`[NAVI] ── IMAGE OUTPUT (success=${result.success}) ──`);
     return result;
   }
 
