@@ -4,14 +4,18 @@
  * Provides the NaviAgent instance to React components via a singleton.
  * Components use this hook instead of creating their own agent instances.
  *
+ * Syncs agent state with the existing Zustand appStore so legacy UI
+ * components (ModelDownloadScreen, SettingsPanel) continue to work.
+ *
  * Usage:
- *   const { agent, isReady, status } = useNaviAgent();
+ *   const { agent, isReady } = useNaviAgent();
  *   const result = await agent.handleMessage('Hello!');
  */
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { NaviAgent, createNaviAgent } from '../index';
 import type { NaviAgentConfig, AgentEvent, LLMBackend } from '../index';
+import { useAppStore } from '../../stores/appStore';
 
 // Singleton agent instance (shared across all components)
 let agentInstance: NaviAgent | null = null;
@@ -53,7 +57,7 @@ export function useNaviAgent(config?: NaviAgentConfig): UseNaviAgentReturn {
   const [loadStatusText, setLoadStatusText] = useState('');
   const [lastEvent, setLastEvent] = useState<AgentEvent | null>(null);
 
-  // Subscribe to agent events
+  // Subscribe to agent events and sync with Zustand appStore
   useEffect(() => {
     const agent = agentRef.current;
 
@@ -62,6 +66,8 @@ export function useNaviAgent(config?: NaviAgentConfig): UseNaviAgentReturn {
       const data = event.data as { status?: string; modelId?: string };
       if (data.status === 'ready') {
         setIsLLMReady(true);
+        useAppStore.getState().setModelStatus('ready');
+        useAppStore.getState().setModelProgress(100);
       }
     });
 
@@ -84,11 +90,35 @@ export function useNaviAgent(config?: NaviAgentConfig): UseNaviAgentReturn {
 
   const loadLLM = useCallback(async () => {
     const agent = agentRef.current;
-    await agent.loadLLM((progress, text) => {
-      setLoadProgress(progress);
-      setLoadStatusText(text);
-    });
-    setIsLLMReady(true);
+    const { setModelStatus, setModelProgress } = useAppStore.getState();
+
+    setModelStatus('downloading');
+    setModelProgress(0);
+
+    try {
+      await agent.loadLLM((progress, text) => {
+        setLoadProgress(progress);
+        setLoadStatusText(text);
+
+        // Sync with Zustand appStore for legacy UI components
+        setModelProgress(progress);
+        const lowerText = text.toLowerCase();
+        if (progress >= 100) {
+          setModelStatus('ready');
+        } else if (lowerText.includes('loading') || lowerText.includes('shader') || lowerText.includes('compil')) {
+          setModelStatus('loading');
+        } else {
+          setModelStatus('downloading');
+        }
+      });
+      setIsLLMReady(true);
+      setModelStatus('ready');
+      setModelProgress(100);
+    } catch (err) {
+      setModelStatus('error');
+      setModelProgress(0);
+      throw err;
+    }
   }, []);
 
   return {

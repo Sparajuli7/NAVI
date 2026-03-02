@@ -6,7 +6,8 @@ import { ModelDownloadScreen } from './components/ModelDownloadScreen';
 import { HomeScreen } from './components/HomeScreen';
 import { Navbar } from './components/Navbar';
 import { AnimatePresence } from 'motion/react';
-import { loadModel, isModelReady, isWebGPUSupported, MODEL_ID } from '../services/modelManager';
+import { isWebGPUSupported } from '../services/modelManager';
+import { useNaviAgent } from '../agent/react/useNaviAgent';
 import { useAppStore } from '../stores/appStore';
 import { useCharacterStore } from '../stores/characterStore';
 import { useChatStore } from '../stores/chatStore';
@@ -53,7 +54,6 @@ type AppPhase = 'init' | 'no_webgpu' | 'downloading' | 'home' | 'onboarding' | '
 
 export default function App() {
   const [appPhase, setAppPhase]         = useState<AppPhase>('init');
-  const [progressText, setProgressText] = useState('');
   const [character, setCharacter]       = useState<GeneratedCharacter | null>(null);
   const [location, setLocation]         = useState('');
   const [isDark, setIsDark]             = useState(true);
@@ -63,13 +63,26 @@ export default function App() {
 
   const { modelStatus, modelProgress } = useAppStore();
 
+  // Agent framework — singleton, handles LLM loading + memory + director + tools
+  const { agent, initialize: initAgent, loadLLM, loadStatusText } = useNaviAgent();
+
   useEffect(() => {
     document.documentElement.classList.add('dark');
   }, []);
 
   useEffect(() => {
     async function init() {
-      if (!isWebGPUSupported()) {
+      // Initialize agent (loads memory, detects Ollama, sets backend)
+      try {
+        await initAgent();
+      } catch (err) {
+        console.error('Agent initialization error:', err);
+      }
+
+      const activeBackend = agent.getBackend();
+
+      // If WebLLM backend selected but no WebGPU, show error
+      if (activeBackend === 'webllm' && !isWebGPUSupported()) {
         setAppPhase('no_webgpu');
         return;
       }
@@ -135,20 +148,29 @@ export default function App() {
             ? `${savedLocation.city}, ${savedLocation.country}`
             : `${activeChar.location_city}, ${activeChar.location_country}`,
         );
+
+        // Set up the avatar in the agent framework
+        const avatarProfile = agent.createAvatarFromTemplate(
+          activeChar.template_id ?? 'default',
+          savedLocation?.city ?? activeChar.location_city,
+        );
+        avatarProfile.name = activeChar.name;
+        avatarProfile.personality = activeChar.summary;
+        agent.setAvatar(avatarProfile);
       }
 
       const targetPhase: AppPhase = activeChar ? 'home' : 'onboarding';
 
-      if (isModelReady()) {
+      // Check if LLM is already ready (e.g., Ollama is running and was auto-detected)
+      if (agent.isLLMReady()) {
         setAppPhase(targetPhase);
         return;
       }
 
+      // Load the LLM model via the agent framework
       setAppPhase('downloading');
       try {
-        await loadModel(MODEL_ID, (_progress, text) => {
-          setProgressText(text);
-        });
+        await loadLLM();
       } catch (err) {
         console.error('Model load failed:', err);
       }
@@ -169,6 +191,19 @@ export default function App() {
     }
     setCharacter(generatedCharacter);
     setLocation(selectedLocation);
+
+    // Set up the avatar in the agent framework from the generated character
+    const activeChar = useCharacterStore.getState().activeCharacter;
+    if (activeChar) {
+      const avatarProfile = agent.createAvatarFromTemplate(
+        activeChar.template_id ?? 'default',
+        selectedLocation,
+      );
+      avatarProfile.name = activeChar.name;
+      avatarProfile.personality = activeChar.summary;
+      agent.setAvatar(avatarProfile);
+    }
+
     setAppPhase('chat');
   };
 
@@ -186,6 +221,15 @@ export default function App() {
     useCharacterStore.getState().clearMemories();
     mems.forEach((m) => useCharacterStore.getState().addMemory(m));
     useChatStore.setState({ messages: msgs });
+
+    // Update agent avatar for the selected companion
+    const avatarProfile = agent.createAvatarFromTemplate(
+      char.template_id ?? 'default',
+      char.location_city,
+    );
+    avatarProfile.name = char.name;
+    avatarProfile.personality = char.summary;
+    agent.setAvatar(avatarProfile);
 
     setCharacter(mapCharacterToUI(char));
     setLocation(`${char.location_city}, ${char.location_country}`);
@@ -231,9 +275,8 @@ export default function App() {
 
   const handleRetryModel = async () => {
     setAppPhase('downloading');
-    setProgressText('');
     try {
-      await loadModel(MODEL_ID, (_, text) => setProgressText(text));
+      await loadLLM();
     } catch (err) {
       console.error('Model retry failed:', err);
     }
@@ -246,7 +289,7 @@ export default function App() {
     await saveUserProfile(text);
   };
 
-  // WebGPU not supported
+  // WebGPU not supported (and Ollama not available)
   if (appPhase === 'no_webgpu') {
     return (
       <div className="relative w-full max-w-md mx-auto min-h-screen shadow-2xl flex flex-col items-center justify-center px-8 bg-background text-center gap-4">
@@ -254,7 +297,8 @@ export default function App() {
         <h2 className="text-xl font-medium text-foreground">WebGPU not supported</h2>
         <p className="text-sm text-muted-foreground leading-relaxed">
           Your browser doesn't support on-device AI.{' '}
-          Try <strong>Chrome 113+</strong> or <strong>Edge 113+</strong> on desktop.
+          Try <strong>Chrome 113+</strong> or <strong>Edge 113+</strong> on desktop,
+          or install <strong>Ollama</strong> for local model serving.
         </p>
       </div>
     );
@@ -267,7 +311,7 @@ export default function App() {
         <ModelDownloadScreen
           progress={modelProgress}
           status={modelStatus}
-          progressText={progressText}
+          progressText={loadStatusText}
         />
       </div>
     );
