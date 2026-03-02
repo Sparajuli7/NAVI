@@ -43,12 +43,17 @@ export {
   ModelRegistry,
   LLMProvider,
   LLM_PRESETS,
+  OllamaProvider,
+  OLLAMA_PRESETS,
+  isOllamaAvailable,
+  listOllamaModels,
   TTSProvider,
   STTProvider,
   VisionProvider,
   EmbeddingProvider,
   TranslationProvider,
 } from './models';
+export type { ChatLLM, ChatOptions } from './models';
 
 // Avatar
 export { AvatarContextController } from './avatar/contextController';
@@ -66,7 +71,8 @@ export { registerAllTools } from './tools';
 // ─── NaviAgent: The unified agent instance ─────────────────────
 
 import { MemoryManager } from './memory';
-import { ModelRegistry, LLMProvider, LLM_PRESETS, TTSProvider, STTProvider, VisionProvider, EmbeddingProvider, TranslationProvider } from './models';
+import { ModelRegistry, LLMProvider, LLM_PRESETS, OllamaProvider, OLLAMA_PRESETS, isOllamaAvailable, TTSProvider, STTProvider, VisionProvider, EmbeddingProvider, TranslationProvider } from './models';
+import type { ChatLLM } from './models';
 import { AvatarContextController } from './avatar/contextController';
 import { LocationIntelligence } from './location/locationIntelligence';
 import { registerAllTools } from './tools';
@@ -74,9 +80,18 @@ import { handleUserInput } from './core/router';
 import { agentBus } from './core/eventBus';
 import type { ToolResult, EnergyMode, AvatarProfile } from './core/types';
 
+/** LLM backend selection */
+export type LLMBackend = 'webllm' | 'ollama' | 'auto';
+
 export interface NaviAgentConfig {
-  /** Which LLM preset to use */
+  /** Which LLM backend to use: 'webllm' (in-browser), 'ollama' (local server), 'auto' (detect) */
+  backend?: LLMBackend;
+  /** Which WebLLM preset to use (only for 'webllm' backend) */
   llmPreset?: keyof typeof LLM_PRESETS;
+  /** Which Ollama model to use (only for 'ollama' backend) */
+  ollamaModel?: string;
+  /** Ollama server URL (default: http://localhost:11434) */
+  ollamaBaseUrl?: string;
   /** Working memory capacity */
   workingMemoryCapacity?: number;
   /** Energy mode */
@@ -89,8 +104,13 @@ export class NaviAgent {
   readonly avatar: AvatarContextController;
   readonly location: LocationIntelligence;
 
+  // LLM provider — can be WebLLM or Ollama (both implement ChatLLM)
+  private llm: ChatLLM;
+  private llmBackend: LLMBackend;
+
   // Direct provider references for convenience
-  private llmProvider: LLMProvider;
+  private webllmProvider: LLMProvider | null = null;
+  private ollamaProvider: OllamaProvider | null = null;
   private ttsProvider: TTSProvider;
   private sttProvider: STTProvider;
   private visionProvider: VisionProvider;
@@ -98,25 +118,42 @@ export class NaviAgent {
   private translationProvider: TranslationProvider;
 
   private initialized = false;
+  private config: NaviAgentConfig;
 
   constructor(config: NaviAgentConfig = {}) {
+    this.config = config;
+
     // Initialize subsystems
     this.models = new ModelRegistry();
     this.memory = new MemoryManager(config.workingMemoryCapacity ?? 32);
     this.avatar = new AvatarContextController();
     this.location = new LocationIntelligence();
 
-    // Create providers
-    const presetKey = config.llmPreset ?? 'qwen2.5-1.5b';
-    this.llmProvider = new LLMProvider(LLM_PRESETS[presetKey]);
+    // Determine backend — 'auto' is resolved during initialize()
+    this.llmBackend = config.backend ?? 'auto';
+
+    // Create the LLM provider based on backend selection
+    // For 'auto', default to webllm now; will switch in initialize() if Ollama is available
+    if (this.llmBackend === 'ollama') {
+      this.ollamaProvider = this.createOllamaProvider(config);
+      this.llm = this.ollamaProvider;
+    } else {
+      // 'webllm' or 'auto' (auto defaults to webllm, may switch later)
+      const presetKey = config.llmPreset ?? 'qwen2.5-1.5b';
+      this.webllmProvider = new LLMProvider(LLM_PRESETS[presetKey]);
+      this.llm = this.webllmProvider;
+    }
+
+    // Create other providers
     this.ttsProvider = new TTSProvider();
     this.sttProvider = new STTProvider();
     this.visionProvider = new VisionProvider();
     this.embeddingProvider = new EmbeddingProvider();
     this.translationProvider = new TranslationProvider();
 
-    // Register all providers
-    this.models.register(this.llmProvider);
+    // Register all model providers
+    if (this.webllmProvider) this.models.register(this.webllmProvider);
+    if (this.ollamaProvider) this.models.register(this.ollamaProvider);
     this.models.register(this.ttsProvider);
     this.models.register(this.sttProvider);
     this.models.register(this.visionProvider);
@@ -128,9 +165,9 @@ export class NaviAgent {
       this.models.setEnergyMode(config.energyMode);
     }
 
-    // Register all tools
+    // Register all tools (using the ChatLLM interface)
     registerAllTools({
-      llmProvider: this.llmProvider,
+      llmProvider: this.llm,
       ttsProvider: this.ttsProvider,
       sttProvider: this.sttProvider,
       visionProvider: this.visionProvider,
@@ -141,12 +178,54 @@ export class NaviAgent {
     });
   }
 
+  private createOllamaProvider(config: NaviAgentConfig): OllamaProvider {
+    const ollamaModel = config.ollamaModel ?? 'qwen2.5:1.5b';
+    const preset = OLLAMA_PRESETS[ollamaModel as keyof typeof OLLAMA_PRESETS];
+    return new OllamaProvider({
+      model: ollamaModel,
+      name: preset?.name,
+      baseUrl: config.ollamaBaseUrl,
+      sizeBytes: preset?.sizeBytes,
+    });
+  }
+
   /**
    * Initialize the agent: load memory, detect location.
+   * For 'auto' backend, detects if Ollama is available and switches if so.
    * Call this before using the agent. LLM loading is separate (it's slow).
    */
   async initialize(): Promise<void> {
     if (this.initialized) return;
+
+    // Auto-detect backend
+    if (this.llmBackend === 'auto') {
+      const ollamaUp = await isOllamaAvailable(this.config.ollamaBaseUrl);
+      if (ollamaUp) {
+        // Ollama is running — use it (faster startup, better models)
+        this.ollamaProvider = this.createOllamaProvider(this.config);
+        this.llm = this.ollamaProvider;
+        this.llmBackend = 'ollama';
+        this.models.register(this.ollamaProvider);
+
+        // Re-register tools with the new LLM provider
+        registerAllTools({
+          llmProvider: this.llm,
+          ttsProvider: this.ttsProvider,
+          sttProvider: this.sttProvider,
+          visionProvider: this.visionProvider,
+          translationProvider: this.translationProvider,
+          avatarController: this.avatar,
+          memoryManager: this.memory,
+          locationIntelligence: this.location,
+        });
+
+        agentBus.emit('model:status', { backend: 'ollama', status: 'detected' });
+      } else {
+        // No Ollama — stick with WebLLM
+        this.llmBackend = 'webllm';
+        agentBus.emit('model:status', { backend: 'webllm', status: 'detected' });
+      }
+    }
 
     await Promise.all([
       this.memory.initialize(),
@@ -154,22 +233,37 @@ export class NaviAgent {
     ]);
 
     this.initialized = true;
-    agentBus.emit('tool:complete', { action: 'agent_initialized' });
+    agentBus.emit('tool:complete', { action: 'agent_initialized', backend: this.llmBackend });
   }
 
   /**
    * Load the LLM model (separate from initialize because it's slow).
-   * Shows download progress via the callback.
+   * For WebLLM: downloads + compiles the model in-browser.
+   * For Ollama: verifies connection and pulls model if needed.
    */
   async loadLLM(
     onProgress?: (progress: number, text: string) => void,
   ): Promise<void> {
-    await this.models.loadModel(this.llmProvider.info().id, onProgress);
+    if (this.ollamaProvider && this.llmBackend === 'ollama') {
+      await this.ollamaProvider.load(onProgress);
+    } else if (this.webllmProvider) {
+      await this.models.loadModel(this.webllmProvider.info().id, onProgress);
+    }
   }
 
   /** Check if the LLM is ready for inference */
   isLLMReady(): boolean {
-    return this.llmProvider.isReady();
+    return this.llm.isReady();
+  }
+
+  /** Get the active LLM backend */
+  getBackend(): LLMBackend {
+    return this.llmBackend;
+  }
+
+  /** Get the active ChatLLM instance */
+  getLLM(): ChatLLM {
+    return this.llm;
   }
 
   /**
@@ -253,6 +347,7 @@ export class NaviAgent {
   getStatus(): {
     initialized: boolean;
     llmReady: boolean;
+    backend: LLMBackend;
     models: Array<{ id: string; capability: string; status: string }>;
     memory: { working: number; episodic: number; semantic: number };
     location: { city: string; language: string } | null;
@@ -263,6 +358,7 @@ export class NaviAgent {
     return {
       initialized: this.initialized,
       llmReady: this.isLLMReady(),
+      backend: this.llmBackend,
       models: this.models.listModels().map((m) => ({
         id: m.id,
         capability: m.capability,

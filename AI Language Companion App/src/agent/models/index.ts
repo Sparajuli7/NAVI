@@ -5,7 +5,9 @@
  */
 
 export { ModelRegistry } from './registry';
+export type { ChatLLM, ChatOptions } from './chatLLM';
 export { LLMProvider, PRESET_CONFIGS as LLM_PRESETS } from './llmProvider';
+export { OllamaProvider, OLLAMA_PRESETS, isOllamaAvailable, listOllamaModels } from './ollamaProvider';
 export { TTSProvider } from './ttsProvider';
 export { STTProvider } from './sttProvider';
 export { VisionProvider } from './visionProvider';

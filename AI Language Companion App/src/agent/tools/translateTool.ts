@@ -5,12 +5,12 @@
  */
 
 import type { ToolDefinition } from '../core/toolRegistry';
-import type { LLMProvider } from '../models/llmProvider';
+import type { ChatLLM } from '../models/chatLLM';
 import type { TranslationProvider } from '../models/translationProvider';
 import type { LocationIntelligence } from '../location/locationIntelligence';
 
 export function createTranslateTool(
-  llmProvider: LLMProvider,
+  llmProvider: ChatLLM,
   translationProvider: TranslationProvider,
   locationIntelligence: LocationIntelligence,
 ): ToolDefinition {

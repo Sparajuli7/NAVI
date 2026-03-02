@@ -11,7 +11,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { NaviAgent, createNaviAgent } from '../index';
-import type { NaviAgentConfig, AgentEvent } from '../index';
+import type { NaviAgentConfig, AgentEvent, LLMBackend } from '../index';
 
 // Singleton agent instance (shared across all components)
 let agentInstance: NaviAgent | null = null;
@@ -30,6 +30,8 @@ export interface UseNaviAgentReturn {
   isInitialized: boolean;
   /** Whether the LLM model is loaded and ready */
   isLLMReady: boolean;
+  /** Which LLM backend is active */
+  backend: LLMBackend;
   /** Current model loading progress (0-100) */
   loadProgress: number;
   /** Loading status text */
@@ -46,6 +48,7 @@ export function useNaviAgent(config?: NaviAgentConfig): UseNaviAgentReturn {
   const agentRef = useRef<NaviAgent>(getOrCreateAgent(config));
   const [isInitialized, setIsInitialized] = useState(false);
   const [isLLMReady, setIsLLMReady] = useState(false);
+  const [backend, setBackend] = useState<LLMBackend>(config?.backend ?? 'auto');
   const [loadProgress, setLoadProgress] = useState(0);
   const [loadStatusText, setLoadStatusText] = useState('');
   const [lastEvent, setLastEvent] = useState<AgentEvent | null>(null);
@@ -76,6 +79,7 @@ export function useNaviAgent(config?: NaviAgentConfig): UseNaviAgentReturn {
     const agent = agentRef.current;
     await agent.initialize();
     setIsInitialized(true);
+    setBackend(agent.getBackend());
   }, []);
 
   const loadLLM = useCallback(async () => {
@@ -91,6 +95,7 @@ export function useNaviAgent(config?: NaviAgentConfig): UseNaviAgentReturn {
     agent: agentRef.current,
     isInitialized,
     isLLMReady,
+    backend,
     loadProgress,
     loadStatusText,
     lastEvent,

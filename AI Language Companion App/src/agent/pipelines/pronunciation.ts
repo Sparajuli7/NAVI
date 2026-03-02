@@ -23,7 +23,7 @@
  * TODO: Measure STT accuracy across different accents
  */
 
-import type { LLMProvider } from '../models/llmProvider';
+import type { ChatLLM } from '../models/chatLLM';
 import type { STTProvider } from '../models/sttProvider';
 import type { TTSProvider } from '../models/ttsProvider';
 
@@ -62,7 +62,7 @@ export interface PronunciationFeedback {
 export async function practicePronunciation(
   targetPhrase: string,
   targetLanguage: string,
-  llmProvider: LLMProvider,
+  llmProvider: ChatLLM,
   sttProvider: STTProvider,
   ttsProvider: TTSProvider,
   callbacks?: {
@@ -116,7 +116,7 @@ async function evaluatePronunciation(
   target: string,
   userSaid: string,
   language: string,
-  llm: LLMProvider,
+  llm: ChatLLM,
 ): Promise<PronunciationFeedback> {
   const prompt = `You are a pronunciation coach for ${language}.
 

@@ -3,6 +3,8 @@ import { NewOnboardingScreen } from './components/NewOnboardingScreen';
 import { ConversationScreen } from './components/ConversationScreen';
 import { CameraOverlay } from './components/CameraOverlay';
 import { ModelDownloadScreen } from './components/ModelDownloadScreen';
+import { HomeScreen } from './components/HomeScreen';
+import { Navbar } from './components/Navbar';
 import { AnimatePresence } from 'motion/react';
 import { loadModel, isModelReady, isWebGPUSupported, MODEL_ID } from '../services/modelManager';
 import { useAppStore } from '../stores/appStore';
@@ -40,7 +42,7 @@ function mapCharacterToUI(c: Character): GeneratedCharacter {
   };
 }
 
-type AppPhase = 'init' | 'no_webgpu' | 'downloading' | 'onboarding' | 'chat';
+type AppPhase = 'init' | 'no_webgpu' | 'downloading' | 'home' | 'onboarding' | 'chat';
 
 export default function App() {
   const [appPhase, setAppPhase]         = useState<AppPhase>('init');
@@ -97,7 +99,7 @@ export default function App() {
           : `${savedChar.location_city}, ${savedChar.location_country}`);
       }
 
-      const targetPhase: AppPhase = savedChar ? 'chat' : 'onboarding';
+      const targetPhase: AppPhase = savedChar ? 'home' : 'onboarding';
 
       if (isModelReady()) {
         setAppPhase(targetPhase);
@@ -133,6 +135,10 @@ export default function App() {
     setCharacter(null);
     setLocation('');
     setAppPhase('onboarding');
+  };
+
+  const handleGoHome = () => {
+    setAppPhase('home');
   };
 
   const handleToggleTheme = () => {
@@ -178,9 +184,26 @@ export default function App() {
     setAppPhase('onboarding');
   };
 
+  const messages = useChatStore.getState().messages;
+  const memoryCount = useCharacterStore.getState().memories.length;
+  const lastMsg = messages.filter(m => m.role !== 'system').at(-1);
+
   return (
     <div className="relative w-full max-w-md mx-auto min-h-screen shadow-2xl">
-      {appPhase === 'onboarding' ? (
+      {/* Navbar — shown on home, onboarding, and chat phases */}
+      <Navbar onGoHome={handleGoHome} />
+
+      {appPhase === 'home' ? (
+        <HomeScreen
+          character={character}
+          location={location}
+          messageCount={messages.length}
+          lastMessagePreview={lastMsg?.content?.slice(0, 120) ?? ''}
+          memoryCount={memoryCount}
+          onContinueChat={() => setAppPhase('chat')}
+          onNewCompanion={handleRegenerate}
+        />
+      ) : appPhase === 'onboarding' ? (
         <NewOnboardingScreen
           onComplete={handleOnboardingComplete}
           onRetryLoadModel={handleRetryModel}
@@ -193,6 +216,7 @@ export default function App() {
             onOpenCamera={() => setShowCamera(true)}
             onToggleTheme={handleToggleTheme}
             onRegenerate={handleRegenerate}
+            onGoHome={handleGoHome}
             isDark={isDark}
           />
 

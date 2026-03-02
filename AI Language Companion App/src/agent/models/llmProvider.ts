@@ -17,6 +17,7 @@
  */
 
 import type { ModelInfo, ModelProvider, ModelStatus } from '../core/types';
+import type { ChatLLM, ChatOptions } from './chatLLM';
 import * as webllm from '@mlc-ai/web-llm';
 
 export interface LLMProviderConfig {
@@ -47,7 +48,7 @@ export const PRESET_CONFIGS = {
   },
 } satisfies Record<string, LLMProviderConfig>;
 
-export class LLMProvider implements ModelProvider<webllm.MLCEngine> {
+export class LLMProvider implements ModelProvider<webllm.MLCEngine>, ChatLLM {
   private engine: webllm.MLCEngine | null = null;
   private status: ModelStatus = 'not_loaded';
   private config: LLMProviderConfig;
@@ -113,16 +114,10 @@ export class LLMProvider implements ModelProvider<webllm.MLCEngine> {
     return this.engine;
   }
 
-  /** Convenience: run chat completion */
+  /** Run chat completion via WebLLM engine */
   async chat(
     messages: Array<{ role: string; content: string }>,
-    options?: {
-      temperature?: number;
-      max_tokens?: number;
-      top_p?: number;
-      stream?: boolean;
-      onToken?: (token: string, full: string) => void;
-    },
+    options?: ChatOptions,
   ): Promise<string> {
     if (!this.engine || !this.isReady()) {
       throw new Error(`LLM not ready: ${this.config.modelId}`);

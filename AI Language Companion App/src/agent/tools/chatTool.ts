@@ -7,12 +7,12 @@
  */
 
 import type { ToolDefinition } from '../core/toolRegistry';
-import type { LLMProvider } from '../models/llmProvider';
+import type { ChatLLM } from '../models/chatLLM';
 import type { AvatarContextController } from '../avatar/contextController';
 import type { MemoryManager } from '../memory';
 
 export function createChatTool(
-  llmProvider: LLMProvider,
+  llmProvider: ChatLLM,
   avatarController: AvatarContextController,
   memoryManager: MemoryManager,
 ): ToolDefinition {

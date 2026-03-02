@@ -6,7 +6,7 @@
  */
 
 import { toolRegistry } from '../core/toolRegistry';
-import type { LLMProvider } from '../models/llmProvider';
+import type { ChatLLM } from '../models/chatLLM';
 import type { TTSProvider } from '../models/ttsProvider';
 import type { STTProvider } from '../models/sttProvider';
 import type { VisionProvider } from '../models/visionProvider';
@@ -27,7 +27,7 @@ import { createSwitchScenarioTool, createSwitchLocationTool } from './scenarioTo
 import { createTTSSpeakTool, createSTTListenTool } from './speechTools';
 
 export interface ToolDependencies {
-  llmProvider: LLMProvider;
+  llmProvider: ChatLLM;
   ttsProvider: TTSProvider;
   sttProvider: STTProvider;
   visionProvider: VisionProvider;

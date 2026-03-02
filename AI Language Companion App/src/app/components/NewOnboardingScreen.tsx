@@ -188,7 +188,7 @@ export function NewOnboardingScreen({ onComplete, onRetryLoadModel }: NewOnboard
   };
 
   return (
-    <div className="min-h-screen bg-background flex flex-col relative overflow-hidden">
+    <div className="min-h-[calc(100vh-57px)] bg-background flex flex-col relative overflow-hidden">
       {/* Ambient gradient background */}
       <div className="absolute inset-0 bg-gradient-to-br from-purple-950/20 via-background to-teal-950/20 dark:from-purple-950/10 dark:via-background dark:to-teal-950/10" />
 
@@ -201,22 +201,13 @@ export function NewOnboardingScreen({ onComplete, onRetryLoadModel }: NewOnboard
             exit={{ opacity: 0 }}
             className="relative z-10 flex-1 flex flex-col px-8 py-12"
           >
-            {/* Logo/Header */}
+            {/* Tagline */}
             <div className="text-center mb-16">
-              <motion.h1
-                className="text-3xl mb-3 uppercase tracking-[0.15em] text-primary"
-                style={{ fontFamily: 'var(--font-display)' }}
-                initial={{ y: 20, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                transition={{ delay: 0.2 }}
-              >
-                NAVI
-              </motion.h1>
               <motion.p
                 className="text-foreground/70 text-lg"
                 initial={{ y: 20, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
-                transition={{ delay: 0.3 }}
+                transition={{ delay: 0.2 }}
               >
                 Your local friend, anywhere in the world.
               </motion.p>

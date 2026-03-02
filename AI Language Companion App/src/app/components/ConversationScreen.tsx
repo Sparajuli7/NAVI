@@ -38,6 +38,7 @@ interface ConversationScreenProps {
   onOpenCamera: () => void;
   onToggleTheme: () => void;
   onRegenerate: () => void;
+  onGoHome: () => void;
   isDark: boolean;
 }
 
@@ -78,6 +79,7 @@ export function ConversationScreen({
   onOpenCamera,
   onToggleTheme,
   onRegenerate,
+  onGoHome,
   isDark,
 }: ConversationScreenProps) {
   const [inputValue, setInputValue]   = useState('');
@@ -291,9 +293,9 @@ export function ConversationScreen({
     : null;
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      {/* Top bar */}
-      <div className="flex items-center gap-3 px-6 py-3 border-b border-border bg-card sticky top-0 z-10">
+    <div className="min-h-[calc(100vh-57px)] bg-background flex flex-col">
+      {/* Character info bar */}
+      <div className="flex items-center gap-3 px-6 py-2 border-b border-border bg-card/50">
         <button
           onClick={() => setShowProfile(!showProfile)}
           className="flex items-center gap-3 flex-1 hover:opacity-80 transition-opacity min-w-0"
@@ -301,7 +303,7 @@ export function ConversationScreen({
           <BlockyAvatar character={character} size="sm" animate={false} />
           <div className="text-left min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <p className="font-medium text-foreground">{character.name}</p>
+              <p className="font-medium text-foreground text-sm">{character.name}</p>
               {activeScenario && SCENARIOS[activeScenario] && (
                 <span className="px-2 py-0.5 rounded-full text-xs bg-primary/20 text-primary font-medium whitespace-nowrap">
                   {SCENARIOS[activeScenario].label}

@@ -6,14 +6,14 @@
  */
 
 import type { ToolDefinition } from '../core/toolRegistry';
-import type { LLMProvider } from '../models/llmProvider';
+import type { ChatLLM } from '../models/chatLLM';
 import type { VisionProvider } from '../models/visionProvider';
 import type { AvatarContextController } from '../avatar/contextController';
 import type { LocationIntelligence } from '../location/locationIntelligence';
 import { analyzeImage } from '../pipelines/imageUnderstanding';
 
 export function createCameraReadTool(
-  llmProvider: LLMProvider,
+  llmProvider: ChatLLM,
   visionProvider: VisionProvider,
   avatarController: AvatarContextController,
   locationIntelligence: LocationIntelligence,

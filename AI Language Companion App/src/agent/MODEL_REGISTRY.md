@@ -8,8 +8,26 @@
 |---|---|---|---|---|---|
 | Qwen 2.5 1.5B (Primary) | `Qwen2.5-1.5B-Instruct-q4f16_1-MLC` | ~1.1GB | WebLLM (WebGPU) | Implemented | Multilingual, q4f16 quantized |
 | Qwen 2.5 0.5B (Lite) | `Qwen2.5-0.5B-Instruct-q4f16_1-MLC` | ~394MB | WebLLM (WebGPU) | Implemented | Power saver mode fallback |
+| Qwen 2.5 1.5B (Ollama) | `qwen2.5:1.5b` | ~986MB | Ollama | Implemented | Local server, same model via Ollama |
+| Qwen 2.5 3B (Ollama) | `qwen2.5:3b` | ~1.9GB | Ollama | Implemented | Better quality, local server |
+| Qwen 2.5 7B (Ollama) | `qwen2.5:7b` | ~4.7GB | Ollama | Implemented | Best quality, needs 8GB RAM |
+| Llama 3.2 3B (Ollama) | `llama3.2:3b` | ~2GB | Ollama | Implemented | Good alternative for English-heavy |
+| Mistral 7B (Ollama) | `mistral:7b` | ~4.1GB | Ollama | Implemented | Strong multilingual performance |
 
 **Why Qwen 2.5:** Best multilingual performance at 1.5B parameter count. Supports 100+ languages including CJK, Vietnamese, French, Spanish, Korean. 4-bit quantization runs in <2GB VRAM.
+
+### Dual Backend: WebLLM vs Ollama
+
+| Feature | WebLLM | Ollama |
+|---|---|---|
+| **Runtime** | In-browser via WebGPU | Local server at localhost:11434 |
+| **Offline** | Fully offline after download | Needs Ollama running locally |
+| **Model Size** | Limited to ~1.5B (browser VRAM) | Any size your hardware supports |
+| **Setup** | Zero setup (browser only) | Install Ollama + pull model |
+| **Best For** | Mobile/tablet, demo, PWA | Development, desktop, testing larger models |
+| **Interface** | `ChatLLM` | `ChatLLM` (same interface) |
+
+Both backends implement the `ChatLLM` interface — all tools and pipelines work identically with either backend. Use `backend: 'auto'` (default) to auto-detect Ollama and fall back to WebLLM.
 
 ### TTS (Text-to-Speech)
 

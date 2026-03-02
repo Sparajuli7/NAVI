@@ -15,7 +15,7 @@
  */
 
 import type { VisionProvider, OCRResult } from '../models/visionProvider';
-import type { LLMProvider } from '../models/llmProvider';
+import type { ChatLLM } from '../models/chatLLM';
 import { classifyOCR, type OCRType } from '../../utils/ocrClassifier';
 
 export interface ImageAnalysisResult {
@@ -51,7 +51,7 @@ const DOCUMENT_PROMPTS: Record<OCRType, string> = {
 export async function analyzeImage(
   image: File | Blob | string,
   visionProvider: VisionProvider,
-  llmProvider: LLMProvider,
+  llmProvider: ChatLLM,
   options?: {
     /** Language context for the explanation */
     language?: string;

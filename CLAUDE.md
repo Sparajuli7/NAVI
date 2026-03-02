@@ -16,6 +16,16 @@ NAVI is an **offline-first AI language companion app** — a local friend in you
 /NAVI/
 ├── AI Language Companion App/        # Main React app (Vite + TypeScript)
 │   ├── src/
+│   │   ├── agent/                    # AGENT FRAMEWORK (new)
+│   │   │   ├── core/                 # Router, ExecutionEngine, ToolRegistry, EventBus
+│   │   │   ├── memory/              # 4-tier memory (working, episodic, semantic, profile)
+│   │   │   ├── models/              # Model providers (LLM, TTS, STT, Vision, Embedding)
+│   │   │   ├── avatar/              # AvatarContextController + template configs
+│   │   │   ├── location/            # LocationIntelligence module
+│   │   │   ├── pipelines/           # Multi-step pipelines (image, pronunciation)
+│   │   │   ├── tools/               # 13 registered tools
+│   │   │   ├── react/               # useNaviAgent() hook
+│   │   │   └── index.ts             # NaviAgent class + createNaviAgent()
 │   │   ├── app/
 │   │   │   ├── App.tsx               # Root component — phase state machine
 │   │   │   └── components/           # 15+ custom components
@@ -29,7 +39,7 @@ NAVI is an **offline-first AI language companion app** — a local friend in you
 │   │   │       ├── SettingsPanel.tsx        # Settings UI
 │   │   │       ├── ModelDownloadScreen.tsx  # Model download progress
 │   │   │       └── QuickActionPill.tsx      # Contextual action buttons
-│   │   ├── services/                 # Core business logic
+│   │   ├── services/                 # Legacy service layer (wrapped by agent)
 │   │   │   ├── llm.ts               # On-device LLM wrapper (WebLLM)
 │   │   │   ├── modelManager.ts      # Model download/load/status
 │   │   │   ├── ocr.ts               # Tesseract.js OCR
@@ -43,7 +53,7 @@ NAVI is an **offline-first AI language companion app** — a local friend in you
 │   │   ├── prompts/                  # LLM prompt templates
 │   │   │   ├── systemBuilder.ts     # 6-layer system prompt engine
 │   │   │   └── characterGen.ts      # Character generation prompts
-│   │   ├── config/                   # Data files
+│   │   ├── config/                   # Data files (editable without code)
 │   │   │   ├── avatarTemplates.json # 8 character templates by vocation
 │   │   │   ├── dialectMap.json      # Language/dialect/slang mappings
 │   │   │   ├── scenarioContexts.json # 8 scenario types
@@ -72,6 +82,7 @@ NAVI is an **offline-first AI language companion app** — a local friend in you
 | **State** | Zustand 5 | 3 stores: app, character, chat |
 | **Storage** | IndexedDB (idb-keyval) | Persists character, messages, memories, prefs |
 | **On-Device LLM** | @mlc-ai/web-llm | WebGPU inference, Qwen2.5-1.5B model |
+| **Local LLM (Alt)** | Ollama | Local server backend, any model (qwen, llama, mistral) |
 | **OCR** | Tesseract.js 7 | Client-side, 6 languages |
 | **TTS** | Web Speech API | Browser SpeechSynthesis |
 | **STT** | Web Speech API | Browser SpeechRecognition |
@@ -113,6 +124,19 @@ Each LLM call is guided by a layered system prompt:
 - **LocationContext**: city, country, dialect key, cultural notes, slang era
 - **MemoryEntry**: fact extracted from conversation, timestamp
 
+### Agent Framework (`src/agent/`)
+The agent framework sits underneath the UI as an orchestration layer:
+- **NaviAgent** — Unified entry point (`createNaviAgent()`)
+- **Router** — Rule-based intent routing (keyword matching, deterministic)
+- **ExecutionEngine** — Bounded tool execution (recursion limits, token budgets, timeouts)
+- **ToolRegistry** — 13 registered tools (chat, translate, pronounce, camera, culture, slang, etc.)
+- **MemoryManager** — 4-tier memory (working ring buffer, episodic summaries, semantic vectors, profile)
+- **ModelRegistry** — Provider pattern for all models (LLM, TTS, STT, Vision, Embedding, Translation)
+- **AvatarContextController** — Config-driven avatar behavior (JSON-editable, no code changes needed)
+- **LocationIntelligence** — GPS detection + dialect inference + location history
+- **Pipelines** — Multi-step orchestrations (image understanding, pronunciation evaluation)
+- **useNaviAgent()** — React hook exposing singleton agent instance
+
 ---
 
 ## Current Implementation Status
@@ -127,20 +151,20 @@ Each LLM call is guided by a layered system prompt:
 - Configuration data (8 avatar templates, 8 dialects, 8 scenarios, city database)
 - Dark/light theme with custom typography (Playfair Display, DM Sans, Source Serif 4)
 - Model download + loading logic (WebLLM integration)
+- **Agent framework** — full infrastructure (router, tools, memory, models, avatar, pipelines)
+- **4-tier memory system** — working (ring buffer), episodic, semantic (vector store), profile
+- **Model abstraction layer** — provider pattern for swapping models without code changes
+- **Avatar context controller** — config-driven behavior, no code changes to tweak personality
+- **13 registered tools** — chat, translate, pronounce, camera_read, culture, slang, phrase, memory, scenario, location, tts, stt
+- **Image understanding pipeline** — OCR → classification → LLM explanation
+- **Pronunciation evaluation pipeline** — STT → LLM evaluation → TTS playback
 
-### Needs Wiring (Services → UI)
-- **ConversationScreen**: `handleSend()` needs real LLM call via `streamMessage()`, message persistence, memory generation after exchanges, scenario auto-detection
-- **CameraOverlay**: Replace fake camera feed with real `<input capture>`, wire OCR + LLM interpretation
-- **ExpandedPhraseCard**: Wire TTS playback, STT practice mode, phrase saving
-- **SettingsPanel**: Complete save/load for preferences, location detection UI, memory management
-- **App.tsx**: Wire character generation from onboarding → store + IndexedDB, first message flow
-
-### Prompt Templates Still Needed
-- `prompts/camera.ts` — OCR interpretation prompts (menu, document, sign, etc.)
-- `prompts/phrase.ts` — Phrase card generation with format enforcement
-- `prompts/memory.ts` — Memory extraction from conversation
-- `prompts/scenario.ts` — Scenario-specific instruction injection
-- `prompts/slang.ts` — Generational slang teaching
+### Next: Wire Agent → UI
+- Connect `useNaviAgent()` hook to ConversationScreen's `handleSend()`
+- Replace direct service calls with `agent.handleMessage()`
+- Wire CameraOverlay to `agent.handleImage()`
+- Wire ExpandedPhraseCard TTS/STT to agent tools
+- Wire SettingsPanel to agent memory/location/energy APIs
 
 ---
 
@@ -190,8 +214,44 @@ pnpm run build  # Production build
 
 ---
 
+### Agent Framework Usage
+
+```typescript
+import { createNaviAgent } from './agent';
+
+// WebLLM (in-browser, default)
+const agent = createNaviAgent();
+
+// Ollama (local server)
+const agent = createNaviAgent({ backend: 'ollama', ollamaModel: 'qwen2.5:3b' });
+
+// Auto-detect (Ollama if available, else WebLLM)
+const agent = createNaviAgent({ backend: 'auto' });
+
+await agent.initialize();     // Load memory + detect location + auto-detect backend
+await agent.loadLLM();        // Download/load the LLM model
+
+// Handle user messages (auto-routes to correct tool)
+const result = await agent.handleMessage('How do I say hello?');
+// → routes to 'pronounce' tool, returns phrase card
+
+// Handle images
+const imageResult = await agent.handleImage(photoBlob);
+// → OCR → classify → LLM explain
+
+// React hook
+const { agent, isLLMReady, backend } = useNaviAgent({ backend: 'ollama' });
+```
+
+---
+
 ## Reference Documents
 - `navi-prd-v3.md` — Full product requirements with user stories, features, and architecture
 - `navi-claude-code-prompts.md` — Step-by-step implementation task prompts
 - `AI Language Companion App/navi-prompts-v3.md` — System prompt templates for all modes
+- `AI Language Companion App/src/agent/ARCHITECTURE.md` — Agent framework architecture
+- `AI Language Companion App/src/agent/MODEL_REGISTRY.md` — Model specs + swap guide
+- `AI Language Companion App/src/agent/DEPENDENCIES.md` — All dependencies + future needs
+- `AI Language Companion App/src/agent/FUTURE_SCALING.md` — Scaling strategy (Phase 2 & 3)
+- `AI Language Companion App/src/agent/ENERGY_OPTIMIZATION_NOTES.md` — Battery/performance notes
 - `audit.md` — Previous code audit with component-by-component breakdown

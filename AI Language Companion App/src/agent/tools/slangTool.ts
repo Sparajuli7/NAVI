@@ -5,12 +5,12 @@
  */
 
 import type { ToolDefinition } from '../core/toolRegistry';
-import type { LLMProvider } from '../models/llmProvider';
+import type { ChatLLM } from '../models/chatLLM';
 import type { AvatarContextController } from '../avatar/contextController';
 import type { LocationIntelligence } from '../location/locationIntelligence';
 
 export function createSlangTool(
-  llmProvider: LLMProvider,
+  llmProvider: ChatLLM,
   avatarController: AvatarContextController,
   locationIntelligence: LocationIntelligence,
 ): ToolDefinition {
