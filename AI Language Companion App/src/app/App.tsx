@@ -16,7 +16,14 @@ import {
   loadMemories,
   loadPreferences,
   loadLocation,
-  clearAllData,
+  loadCharacters,
+  loadCharacterConversation,
+  loadCharacterMemories,
+  loadUserProfile,
+  saveCharacters,
+  saveCharacter,
+  saveCharacterConversation,
+  saveUserProfile,
 } from '../utils/storage';
 import type { Character } from '../types/character';
 
@@ -51,6 +58,8 @@ export default function App() {
   const [location, setLocation]         = useState('');
   const [isDark, setIsDark]             = useState(true);
   const [showCamera, setShowCamera]     = useState(false);
+  // Full list of companions (Character objects for HomeScreen)
+  const [companions, setCompanions]     = useState<Character[]>([]);
 
   const { modelStatus, modelProgress } = useAppStore();
 
@@ -60,46 +69,75 @@ export default function App() {
 
   useEffect(() => {
     async function init() {
-      // WebGPU support check — must happen before any model work
       if (!isWebGPUSupported()) {
         setAppPhase('no_webgpu');
         return;
       }
 
-      // Restore all persisted data from IndexedDB in parallel
-      const [savedChar, savedPrefs, savedMemories, savedMsgs, savedLocation] = await Promise.all([
-        loadCharacter(),
-        loadPreferences(),
-        loadMemories(),
-        loadConversation(),
-        loadLocation(),
-      ]);
+      // Restore all persisted data in parallel
+      const [savedChars, savedChar, savedPrefs, savedMemories, savedMsgs, savedLocation, savedProfile] =
+        await Promise.all([
+          loadCharacters(),
+          loadCharacter(),
+          loadPreferences(),
+          loadMemories(),
+          loadConversation(),
+          loadLocation(),
+          loadUserProfile(),
+        ]);
 
       if (savedPrefs) {
         useAppStore.getState().setUserPreferences(savedPrefs);
       }
 
-      // Restore location context (needed for dialect/language on first message)
       if (savedLocation) {
         useAppStore.getState().setCurrentLocation(savedLocation);
       }
 
-      if (savedMemories.length > 0) {
-        savedMemories.forEach((m) => useCharacterStore.getState().addMemory(m));
+      if (savedProfile) {
+        useAppStore.getState().setUserProfile(savedProfile);
       }
 
-      if (savedChar) {
-        useCharacterStore.getState().setActiveCharacter(savedChar);
-        if (savedMsgs.length > 0) {
-          useChatStore.setState({ messages: savedMsgs });
+      // Build the canonical characters list (migrate from legacy single-char if needed)
+      let charList: Character[] = savedChars;
+      if (charList.length === 0 && savedChar) {
+        charList = [savedChar];
+        await saveCharacters(charList);
+      }
+      setCompanions(charList);
+      useCharacterStore.getState().setCharacters(charList);
+
+      // Restore the most-recently-active companion (last in list)
+      const activeChar = charList.length > 0 ? charList[charList.length - 1] : null;
+      if (activeChar) {
+        useCharacterStore.getState().setActiveCharacter(activeChar);
+
+        // Load per-companion conversation (fall back to legacy navi_conversation for migration)
+        const [perCharMsgs, perCharMems] = await Promise.all([
+          loadCharacterConversation(activeChar.id),
+          loadCharacterMemories(activeChar.id),
+        ]);
+        const msgs = perCharMsgs.length > 0 ? perCharMsgs : savedMsgs;
+        if (msgs.length > 0) {
+          useChatStore.setState({ messages: msgs });
+          // Migrate: write into per-char key so future loads use it
+          if (perCharMsgs.length === 0 && msgs.length > 0) {
+            await saveCharacterConversation(activeChar.id, msgs);
+          }
         }
-        setCharacter(mapCharacterToUI(savedChar));
-        setLocation(savedLocation
-          ? `${savedLocation.city}, ${savedLocation.country}`
-          : `${savedChar.location_city}, ${savedChar.location_country}`);
+
+        const mems = perCharMems.length > 0 ? perCharMems : savedMemories;
+        mems.forEach((m) => useCharacterStore.getState().addMemory(m));
+
+        setCharacter(mapCharacterToUI(activeChar));
+        setLocation(
+          savedLocation
+            ? `${savedLocation.city}, ${savedLocation.country}`
+            : `${activeChar.location_city}, ${activeChar.location_country}`,
+        );
       }
 
-      const targetPhase: AppPhase = savedChar ? 'home' : 'onboarding';
+      const targetPhase: AppPhase = activeChar ? 'home' : 'onboarding';
 
       if (isModelReady()) {
         setAppPhase(targetPhase);
@@ -113,7 +151,6 @@ export default function App() {
         });
       } catch (err) {
         console.error('Model load failed:', err);
-        // modelStatus is already 'error' in the store; user can see in Settings → AI Model
       }
       setAppPhase(targetPhase);
     }
@@ -121,14 +158,49 @@ export default function App() {
     init();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleOnboardingComplete = (generatedCharacter: GeneratedCharacter, selectedLocation: string) => {
+  // Called when onboarding finishes — add the new companion to the list
+  const handleOnboardingComplete = async (generatedCharacter: GeneratedCharacter, selectedLocation: string) => {
+    const newChar = useCharacterStore.getState().activeCharacter;
+    if (newChar) {
+      const updated = [...companions.filter((c) => c.id !== newChar.id), newChar];
+      setCompanions(updated);
+      useCharacterStore.getState().setCharacters(updated);
+      await saveCharacters(updated);
+    }
     setCharacter(generatedCharacter);
     setLocation(selectedLocation);
     setAppPhase('chat');
   };
 
+  // Select a companion from the HomeScreen list
+  const handleSelectCompanion = async (charId: string) => {
+    const char = companions.find((c) => c.id === charId);
+    if (!char) return;
+
+    const [msgs, mems] = await Promise.all([
+      loadCharacterConversation(char.id),
+      loadCharacterMemories(char.id),
+    ]);
+
+    useCharacterStore.getState().setActiveCharacter(char);
+    useCharacterStore.getState().clearMemories();
+    mems.forEach((m) => useCharacterStore.getState().addMemory(m));
+    useChatStore.setState({ messages: msgs });
+
+    setCharacter(mapCharacterToUI(char));
+    setLocation(`${char.location_city}, ${char.location_country}`);
+    setAppPhase('chat');
+  };
+
+  // Regenerate the ACTIVE companion (remove it, go to onboarding to create a replacement)
   const handleRegenerate = async () => {
-    await clearAllData();
+    const currentChar = useCharacterStore.getState().activeCharacter;
+    if (currentChar) {
+      const updated = companions.filter((c) => c.id !== currentChar.id);
+      setCompanions(updated);
+      useCharacterStore.getState().setCharacters(updated);
+      await saveCharacters(updated);
+    }
     useCharacterStore.getState().setActiveCharacter(null);
     useCharacterStore.getState().clearMemories();
     useChatStore.getState().clearMessages();
@@ -137,13 +209,41 @@ export default function App() {
     setAppPhase('onboarding');
   };
 
-  const handleGoHome = () => {
-    setAppPhase('home');
+  // Update active companion's data (from Settings edit)
+  const handleUpdateCharacter = async (updates: Partial<Character>) => {
+    useCharacterStore.getState().updateActiveCharacter(updates);
+    const updated = useCharacterStore.getState().activeCharacter;
+    if (!updated) return;
+    const updatedList = useCharacterStore.getState().characters;
+    setCompanions(updatedList);
+    await saveCharacters(updatedList);
+    await saveCharacter(updated);
+    setCharacter(mapCharacterToUI(updated));
+    setLocation(`${updated.location_city}, ${updated.location_country}`);
   };
+
+  const handleGoHome = () => setAppPhase('home');
 
   const handleToggleTheme = () => {
     setIsDark(!isDark);
     document.documentElement.classList.toggle('dark');
+  };
+
+  const handleRetryModel = async () => {
+    setAppPhase('downloading');
+    setProgressText('');
+    try {
+      await loadModel(MODEL_ID, (_, text) => setProgressText(text));
+    } catch (err) {
+      console.error('Model retry failed:', err);
+    }
+    setAppPhase('onboarding');
+  };
+
+  // Update user profile and persist
+  const handleSaveUserProfile = async (text: string) => {
+    useAppStore.getState().setUserProfile(text);
+    await saveUserProfile(text);
   };
 
   // WebGPU not supported
@@ -173,35 +273,31 @@ export default function App() {
     );
   }
 
-  const handleRetryModel = async () => {
-    setAppPhase('downloading');
-    setProgressText('');
-    try {
-      await loadModel(MODEL_ID, (_, text) => setProgressText(text));
-    } catch (err) {
-      console.error('Model retry failed:', err);
-    }
-    setAppPhase('onboarding');
-  };
-
-  const messages = useChatStore.getState().messages;
+  const messages   = useChatStore.getState().messages;
   const memoryCount = useCharacterStore.getState().memories.length;
-  const lastMsg = messages.filter(m => m.role !== 'system').at(-1);
+  const lastMsg    = messages.filter((m) => m.role !== 'system').at(-1);
 
   return (
     <div className="relative w-full max-w-md mx-auto min-h-screen shadow-2xl">
-      {/* Navbar — shown on home, onboarding, and chat phases */}
       <Navbar onGoHome={handleGoHome} />
 
       {appPhase === 'home' ? (
         <HomeScreen
-          character={character}
-          location={location}
+          companions={companions}
           messageCount={messages.length}
           lastMessagePreview={lastMsg?.content?.slice(0, 120) ?? ''}
           memoryCount={memoryCount}
+          onSelectCompanion={handleSelectCompanion}
           onContinueChat={() => setAppPhase('chat')}
-          onNewCompanion={handleRegenerate}
+          onNewCompanion={() => {
+            // Don't clear — just add a new companion
+            useCharacterStore.getState().setActiveCharacter(null);
+            useCharacterStore.getState().clearMemories();
+            useChatStore.getState().clearMessages();
+            setCharacter(null);
+            setLocation('');
+            setAppPhase('onboarding');
+          }}
         />
       ) : appPhase === 'onboarding' ? (
         <NewOnboardingScreen
@@ -217,6 +313,8 @@ export default function App() {
             onToggleTheme={handleToggleTheme}
             onRegenerate={handleRegenerate}
             onGoHome={handleGoHome}
+            onUpdateCharacter={handleUpdateCharacter}
+            onSaveUserProfile={handleSaveUserProfile}
             isDark={isDark}
           />
 

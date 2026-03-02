@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
-import { X, RefreshCw, Trash2, MapPin } from 'lucide-react';
+import { X, RefreshCw, Trash2, MapPin, Save } from 'lucide-react';
 import { useCharacterStore } from '../../stores/characterStore';
 import { useAppStore } from '../../stores/appStore';
-import { saveMemories, savePreferences, saveLocation } from '../../utils/storage';
+import { saveMemories, savePreferences, saveLocation, saveCharacterMemories } from '../../utils/storage';
 import { detectLocation } from '../../services/location';
 import { MODEL_ID } from '../../services/modelManager';
-import type { UserPreferences } from '../../types/character';
+import type { UserPreferences, Character } from '../../types/character';
 
 function countryFlag(code: string): string {
   if (!code || code.length !== 2) return '';
@@ -15,34 +15,57 @@ function countryFlag(code: string): string {
     .join('');
 }
 
-type Section = 'companion' | 'preferences' | 'location' | 'memory' | 'model';
+type Section = 'companion' | 'profile' | 'preferences' | 'location' | 'memory' | 'model';
 
 interface SettingsPanelProps {
   onClose: () => void;
   onRegenerate: () => void;
+  onUpdateCharacter: (updates: Partial<Character>) => Promise<void>;
+  onSaveUserProfile: (text: string) => Promise<void>;
 }
 
-export function SettingsPanel({ onClose, onRegenerate }: SettingsPanelProps) {
+export function SettingsPanel({ onClose, onRegenerate, onUpdateCharacter, onSaveUserProfile }: SettingsPanelProps) {
   const [activeSection, setActiveSection] = useState<Section>('companion');
   const [confirmClear, setConfirmClear] = useState(false);
   const [manualCity, setManualCity] = useState('');
   const [isDetectingLocation, setIsDetectingLocation] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
 
+  // Companion edit state
+  const [editingSummary, setEditingSummary] = useState(false);
+  const [summaryDraft, setSummaryDraft] = useState('');
+  const [editingLocation, setEditingLocation] = useState(false);
+  const [cityDraft, setCityDraft] = useState('');
+  const [countryDraft, setCountryDraft] = useState('');
+  const [isSavingCompanion, setIsSavingCompanion] = useState(false);
+
+  // Profile state
+  const [profileDraft, setProfileDraft] = useState('');
+  const [profileInitialized, setProfileInitialized] = useState(false);
+
   const { activeCharacter, memories, removeMemory, clearMemories } = useCharacterStore();
-  const { userPreferences, currentLocation, modelStatus, modelProgress, setUserPreferences, setCurrentLocation } =
+  const { userPreferences, currentLocation, modelStatus, modelProgress, setUserPreferences, setCurrentLocation, userProfile } =
     useAppStore();
+
+  // Lazy-init profile draft from store
+  if (!profileInitialized) {
+    setProfileDraft(userProfile);
+    setProfileInitialized(true);
+  }
 
   const handlePreferenceChange = async (updates: Partial<UserPreferences>) => {
     setUserPreferences(updates);
-    // Read from store after update (Zustand set is synchronous)
     await savePreferences(useAppStore.getState().userPreferences);
   };
 
   const handleDeleteMemory = async (id: string) => {
     removeMemory(id);
-    // read updated state after removal
-    await saveMemories(useCharacterStore.getState().memories);
+    const charId = activeCharacter?.id;
+    if (charId) {
+      await saveCharacterMemories(charId, useCharacterStore.getState().memories);
+    } else {
+      await saveMemories(useCharacterStore.getState().memories);
+    }
   };
 
   const handleClearAll = async () => {
@@ -51,7 +74,12 @@ export function SettingsPanel({ onClose, onRegenerate }: SettingsPanelProps) {
       return;
     }
     clearMemories();
-    await saveMemories([]);
+    const charId = activeCharacter?.id;
+    if (charId) {
+      await saveCharacterMemories(charId, []);
+    } else {
+      await saveMemories([]);
+    }
     setConfirmClear(false);
   };
 
@@ -70,12 +98,36 @@ export function SettingsPanel({ onClose, onRegenerate }: SettingsPanelProps) {
     }
   };
 
+  const handleSaveCompanionEdits = async () => {
+    if (!activeCharacter) return;
+    setIsSavingCompanion(true);
+    const updates: Partial<Character> = {};
+    if (editingSummary && summaryDraft.trim() && summaryDraft.trim() !== activeCharacter.summary) {
+      updates.summary = summaryDraft.trim();
+    }
+    if (editingLocation) {
+      if (cityDraft.trim()) updates.location_city = cityDraft.trim();
+      if (countryDraft.trim()) updates.location_country = countryDraft.trim();
+    }
+    if (Object.keys(updates).length > 0) {
+      await onUpdateCharacter(updates);
+    }
+    setEditingSummary(false);
+    setEditingLocation(false);
+    setIsSavingCompanion(false);
+  };
+
+  const handleSaveProfile = async () => {
+    await onSaveUserProfile(profileDraft);
+  };
+
   const sections: Array<{ key: Section; label: string }> = [
-    { key: 'companion', label: '👤 Companion' },
+    { key: 'companion',   label: '👤 Companion' },
+    { key: 'profile',     label: '🧍 Profile' },
     { key: 'preferences', label: '⚙️ Prefs' },
-    { key: 'location', label: '📍 Location' },
-    { key: 'memory', label: '🧠 Memory' },
-    { key: 'model', label: '🤖 Model' },
+    { key: 'location',    label: '📍 Location' },
+    { key: 'memory',      label: '🧠 Memory' },
+    { key: 'model',       label: '🤖 Model' },
   ];
 
   return (
@@ -127,6 +179,7 @@ export function SettingsPanel({ onClose, onRegenerate }: SettingsPanelProps) {
             <div className="space-y-4">
               {activeCharacter ? (
                 <>
+                  {/* Identity row */}
                   <div className="flex items-center gap-4 bg-card border border-border rounded-xl p-4">
                     <span className="text-4xl">{activeCharacter.emoji}</span>
                     <div>
@@ -136,11 +189,33 @@ export function SettingsPanel({ onClose, onRegenerate }: SettingsPanelProps) {
                       </p>
                     </div>
                   </div>
+
+                  {/* About (editable) */}
                   <div className="bg-card border border-border rounded-xl p-4 space-y-3">
                     <div>
-                      <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">About</p>
-                      <p className="text-sm text-foreground leading-relaxed">{activeCharacter.summary}</p>
+                      <div className="flex items-center justify-between mb-1">
+                        <p className="text-xs text-muted-foreground uppercase tracking-wide">About</p>
+                        {!editingSummary && (
+                          <button
+                            onClick={() => { setEditingSummary(true); setSummaryDraft(activeCharacter.summary); }}
+                            className="text-xs text-primary hover:underline"
+                          >
+                            Edit
+                          </button>
+                        )}
+                      </div>
+                      {editingSummary ? (
+                        <textarea
+                          value={summaryDraft}
+                          onChange={(e) => setSummaryDraft(e.target.value)}
+                          rows={3}
+                          className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none"
+                        />
+                      ) : (
+                        <p className="text-sm text-foreground leading-relaxed">{activeCharacter.summary}</p>
+                      )}
                     </div>
+
                     {activeCharacter.speaks_like && (
                       <div className="border-t border-border pt-3">
                         <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Speaks like</p>
@@ -148,6 +223,60 @@ export function SettingsPanel({ onClose, onRegenerate }: SettingsPanelProps) {
                       </div>
                     )}
                   </div>
+
+                  {/* Location (editable) */}
+                  <div className="bg-card border border-border rounded-xl p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs text-muted-foreground uppercase tracking-wide">Location</p>
+                      {!editingLocation && (
+                        <button
+                          onClick={() => {
+                            setEditingLocation(true);
+                            setCityDraft(activeCharacter.location_city);
+                            setCountryDraft(activeCharacter.location_country);
+                          }}
+                          className="text-xs text-primary hover:underline"
+                        >
+                          Edit
+                        </button>
+                      )}
+                    </div>
+                    {editingLocation ? (
+                      <div className="space-y-2">
+                        <input
+                          type="text"
+                          value={cityDraft}
+                          onChange={(e) => setCityDraft(e.target.value)}
+                          placeholder="City"
+                          className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                        />
+                        <input
+                          type="text"
+                          value={countryDraft}
+                          onChange={(e) => setCountryDraft(e.target.value)}
+                          placeholder="Country"
+                          className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                        />
+                      </div>
+                    ) : (
+                      <p className="text-sm text-foreground">
+                        {activeCharacter.location_city}, {activeCharacter.location_country}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Save edits button (only when editing) */}
+                  {(editingSummary || editingLocation) && (
+                    <button
+                      onClick={handleSaveCompanionEdits}
+                      disabled={isSavingCompanion}
+                      className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-primary text-primary-foreground rounded-xl text-sm font-medium disabled:opacity-50"
+                    >
+                      <Save className="w-4 h-4" />
+                      {isSavingCompanion ? 'Saving...' : 'Save changes'}
+                    </button>
+                  )}
+
                   <button
                     onClick={() => { onClose(); onRegenerate(); }}
                     className="w-full flex items-center justify-center gap-2 px-4 py-3 border border-border rounded-xl text-sm text-foreground hover:border-primary/40 transition-colors"
@@ -162,7 +291,35 @@ export function SettingsPanel({ onClose, onRegenerate }: SettingsPanelProps) {
             </div>
           )}
 
-          {/* B) Preferences */}
+          {/* B) My Profile */}
+          {activeSection === 'profile' && (
+            <div className="space-y-4">
+              <div className="bg-card border border-border rounded-xl p-4 space-y-3">
+                <div>
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">About you</p>
+                  <p className="text-xs text-muted-foreground leading-relaxed mb-3">
+                    Share anything relevant — your learning goals, native language, interests, or context. Your companion will use this to personalise conversations.
+                  </p>
+                  <textarea
+                    value={profileDraft}
+                    onChange={(e) => setProfileDraft(e.target.value)}
+                    placeholder="e.g. I'm a native English speaker learning Vietnamese for a 3-month trip. I'm interested in street food and local culture. I'm a beginner."
+                    rows={6}
+                    className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none"
+                  />
+                </div>
+                <button
+                  onClick={handleSaveProfile}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-primary text-primary-foreground rounded-xl text-sm font-medium"
+                >
+                  <Save className="w-4 h-4" />
+                  Save profile
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* C) Preferences */}
           {activeSection === 'preferences' && (
             <div className="bg-card border border-border rounded-xl p-4 space-y-5">
               <div>
@@ -252,7 +409,7 @@ export function SettingsPanel({ onClose, onRegenerate }: SettingsPanelProps) {
             </div>
           )}
 
-          {/* C) Location */}
+          {/* D) Location */}
           {activeSection === 'location' && (
             <div className="space-y-4">
               <div className="bg-card border border-border rounded-xl p-4 space-y-3">
@@ -316,7 +473,7 @@ export function SettingsPanel({ onClose, onRegenerate }: SettingsPanelProps) {
             </div>
           )}
 
-          {/* D) Memory */}
+          {/* E) Memory */}
           {activeSection === 'memory' && (
             <div className="space-y-3">
               {memories.length === 0 ? (
@@ -357,7 +514,7 @@ export function SettingsPanel({ onClose, onRegenerate }: SettingsPanelProps) {
             </div>
           )}
 
-          {/* E) AI Model */}
+          {/* F) AI Model */}
           {activeSection === 'model' && (
             <div className="bg-card border border-border rounded-xl p-4 space-y-4">
               <div>

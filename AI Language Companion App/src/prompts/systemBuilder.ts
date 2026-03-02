@@ -23,6 +23,7 @@ export function buildSystemPrompt(
   location: LocationContext | null,
   scenario: ScenarioKey | null,
   memories: MemoryEntry[],
+  userProfile?: string,
 ): string {
   const layers: string[] = [];
 
@@ -71,7 +72,12 @@ export function buildSystemPrompt(
     layers.push(`What you remember:\n${recent.map((m) => `- ${m.value}`).join('\n')}`);
   }
 
-  // Layer 6 — Core rules
+  // Layer 6 — User profile / context notes
+  if (userProfile && userProfile.trim()) {
+    layers.push(`About the person you're talking to:\n${userProfile.trim()}`);
+  }
+
+  // Layer 7 — Core rules
   layers.push(promptLoader.get('coreRules.rules'));
 
   return layers.join('\n\n');

@@ -9,7 +9,14 @@ const KEYS = {
   memories:     'navi_memories',
   preferences:  'navi_preferences',
   location:     'navi_location',
+  characters:   'navi_characters',
+  userProfile:  'navi_user_profile',
 };
+
+const convKey = (charId: string) => `navi_conv_${charId}`;
+const memKey  = (charId: string) => `navi_mem_${charId}`;
+
+// ── Legacy single-character storage (kept for migration) ──────────────────────
 
 export async function saveConversation(messages: Message[]): Promise<void> {
   await set(KEYS.conversation, messages);
@@ -35,6 +42,46 @@ export async function loadMemories(): Promise<MemoryEntry[]> {
   return (await get<MemoryEntry[]>(KEYS.memories)) ?? [];
 }
 
+// ── Per-character storage ─────────────────────────────────────────────────────
+
+export async function saveCharacterConversation(charId: string, messages: Message[]): Promise<void> {
+  await set(convKey(charId), messages);
+}
+
+export async function loadCharacterConversation(charId: string): Promise<Message[]> {
+  return (await get<Message[]>(convKey(charId))) ?? [];
+}
+
+export async function saveCharacterMemories(charId: string, memories: MemoryEntry[]): Promise<void> {
+  await set(memKey(charId), memories);
+}
+
+export async function loadCharacterMemories(charId: string): Promise<MemoryEntry[]> {
+  return (await get<MemoryEntry[]>(memKey(charId))) ?? [];
+}
+
+// ── Characters list ───────────────────────────────────────────────────────────
+
+export async function saveCharacters(characters: Character[]): Promise<void> {
+  await set(KEYS.characters, characters);
+}
+
+export async function loadCharacters(): Promise<Character[]> {
+  return (await get<Character[]>(KEYS.characters)) ?? [];
+}
+
+// ── User profile notes ────────────────────────────────────────────────────────
+
+export async function saveUserProfile(text: string): Promise<void> {
+  await set(KEYS.userProfile, text);
+}
+
+export async function loadUserProfile(): Promise<string> {
+  return (await get<string>(KEYS.userProfile)) ?? '';
+}
+
+// ── Preferences / Location ────────────────────────────────────────────────────
+
 export async function savePreferences(preferences: UserPreferences): Promise<void> {
   await set(KEYS.preferences, preferences);
 }
@@ -50,6 +97,8 @@ export async function saveLocation(location: LocationContext): Promise<void> {
 export async function loadLocation(): Promise<LocationContext | null> {
   return (await get<LocationContext>(KEYS.location)) ?? null;
 }
+
+// ── Nuclear reset ─────────────────────────────────────────────────────────────
 
 export async function clearAllData(): Promise<void> {
   await Promise.all(Object.values(KEYS).map((k) => del(k)));

@@ -14,7 +14,7 @@ import { isModelReady } from '../../services/modelManager';
 import { buildSystemPrompt } from '../../prompts/systemBuilder';
 import { buildMessages } from '../../utils/contextManager';
 import { parseResponse } from '../../utils/responseParser';
-import { saveConversation, saveMemories } from '../../utils/storage';
+import { saveCharacterConversation, saveCharacterMemories } from '../../utils/storage';
 import { startRecording, stopRecording, isSTTSupported } from '../../services/stt';
 import { INFERENCE_CONFIGS } from '../../types/inference';
 import type { LLMMessage } from '../../types/inference';
@@ -33,6 +33,8 @@ interface GeneratedCharacter {
   accessory?: string;
 }
 
+import type { Character } from '../../types/character';
+
 interface ConversationScreenProps {
   character: GeneratedCharacter;
   location: string;
@@ -40,6 +42,8 @@ interface ConversationScreenProps {
   onToggleTheme: () => void;
   onRegenerate: () => void;
   onGoHome: () => void;
+  onUpdateCharacter: (updates: Partial<Character>) => Promise<void>;
+  onSaveUserProfile: (text: string) => Promise<void>;
   isDark: boolean;
 }
 
@@ -80,7 +84,9 @@ export function ConversationScreen({
   onOpenCamera,
   onToggleTheme,
   onRegenerate,
-  onGoHome,
+  onGoHome: _onGoHome,
+  onUpdateCharacter,
+  onSaveUserProfile,
   isDark,
 }: ConversationScreenProps) {
   const [inputValue, setInputValue]   = useState('');
@@ -95,7 +101,7 @@ export function ConversationScreen({
 
   const { messages, isGenerating, activeScenario, addMessage, updateLastMessage, setGenerating, setScenario } = useChatStore();
   const { activeCharacter, memories, addMemory } = useCharacterStore();
-  const { userPreferences, currentLocation }     = useAppStore();
+  const { userPreferences, currentLocation, userProfile } = useAppStore();
 
   const languageName = currentLocation?.dialectInfo?.language ?? 'English';
 
@@ -177,6 +183,7 @@ export function ConversationScreen({
         currentLocation,
         detected ?? activeScenario,
         memories,
+        userProfile,
       );
 
       const llmMessages = buildMessages(systemPrompt, historySnapshot, msgText);
@@ -221,9 +228,9 @@ export function ConversationScreen({
         return { messages: msgs };
       });
 
-      // Persist conversation
+      // Persist conversation (per-character)
       const allMessages = useChatStore.getState().messages;
-      await saveConversation(allMessages);
+      if (richChar?.id) await saveCharacterConversation(richChar.id, allMessages);
 
       // Background memory generation every 5 user messages
       const uCount = allMessages.filter(m => m.role === 'user').length;
@@ -239,7 +246,8 @@ export function ConversationScreen({
         generateMemorySummary(recentConvMsgs)
           .then(async (newMemories) => {
             newMemories.forEach(m => addMemory(m));
-            await saveMemories(useCharacterStore.getState().memories);
+            const charId = useCharacterStore.getState().activeCharacter?.id;
+            if (charId) await saveCharacterMemories(charId, useCharacterStore.getState().memories);
           })
           .catch(() => {});
       }
@@ -539,6 +547,8 @@ export function ConversationScreen({
           <SettingsPanel
             onClose={() => setShowSettings(false)}
             onRegenerate={onRegenerate}
+            onUpdateCharacter={onUpdateCharacter}
+            onSaveUserProfile={onSaveUserProfile}
           />
         )}
       </AnimatePresence>

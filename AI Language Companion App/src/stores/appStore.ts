@@ -9,12 +9,14 @@ interface AppStore {
   userPreferences: UserPreferences;
   currentLocation: LocationContext | null;
   isFirstLaunch: boolean;
+  userProfile: string;
 
   setModelStatus: (status: ModelStatus) => void;
   setModelProgress: (progress: number) => void;
   setUserPreferences: (prefs: Partial<UserPreferences>) => void;
   setCurrentLocation: (location: LocationContext) => void;
   setIsFirstLaunch: (value: boolean) => void;
+  setUserProfile: (text: string) => void;
 }
 
 const defaultPreferences: UserPreferences = {
@@ -31,6 +33,7 @@ export const useAppStore = create<AppStore>((set) => ({
   userPreferences: defaultPreferences,
   currentLocation: null,
   isFirstLaunch: true,
+  userProfile: '',
 
   setModelStatus: (status) => set({ modelStatus: status }),
   setModelProgress: (progress) => set({ modelProgress: progress }),
@@ -40,4 +43,5 @@ export const useAppStore = create<AppStore>((set) => ({
     })),
   setCurrentLocation: (location) => set({ currentLocation: location }),
   setIsFirstLaunch: (value) => set({ isFirstLaunch: value }),
+  setUserProfile: (text) => set({ userProfile: text }),
 }));

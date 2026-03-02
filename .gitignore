@@ -1,0 +1,24 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build output
+dist/
+.vercel/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+*.log
+.vscode/
+.idea/
+
+# Optional: uncomment if you want to ignore the app's local build
+# AI Language Companion App/dist/
