@@ -656,7 +656,7 @@ This is why we built the architecture with clean separation — the AI brain is 
 
 ---
 
-## DEBUGGING PROMPT (Use When Stuck)   what does it work...
+## DEBUGGING PROMPT (Use When Stuck)   THIS SHIT BAD....
 
 ```
 I'm building NAVI, an on-device AI language companion. The frontend is Vite + React + TypeScript + shadcn/ui.
