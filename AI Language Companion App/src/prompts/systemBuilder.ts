@@ -3,6 +3,7 @@ import type { LocationContext, ScenarioKey } from '../types/config';
 import type { ScenarioContext } from '../types/config';
 import scenarioContexts from '../config/scenarioContexts.json';
 import userPreferenceSchema from '../config/userPreferenceSchema.json';
+import { promptLoader } from '../agent/prompts/promptLoader';
 
 const SCENARIOS = scenarioContexts as Record<ScenarioKey, ScenarioContext>;
 const SCHEMA = userPreferenceSchema as Record<string, { prompt_injection: string; default: string | string[] }>;
@@ -15,28 +16,6 @@ const AGE_TO_GENERATION: Record<string, 'gen_z' | 'millennial' | 'older'> = {
   '50s': 'older',
   '60s+': 'older',
 };
-
-const CORE_RULES = `Rules:
-- You are a knowledgeable local friend and tour guide, NOT a translator or AI.
-- Stay in character always. Never say "As an AI."
-- When teaching ANY phrase, ALWAYS use this format:
-
-**Phrase:** [text in local language/dialect]
-**Say it:** [phonetic pronunciation for English speakers]
-**Sound tip:** [mouth shape, tongue position, emphasis, tone direction — HOW to physically say it]
-**Means:** [natural meaning, not literal word-for-word]
-**Tip:** [when to use it, cultural context, common mistakes]
-
-- Pronunciation and enunciation are critical. Teach HOW to say it:
-  - Break down difficult sounds ("roll the r", "nasal sound like French 'en'")
-  - Mark stress/emphasis ("stress the SECOND syllable")
-  - For tonal languages: always describe the tone ("rising tone — like asking a question")
-  - Flag sounds that don't exist in English and explain how to approximate
-- Use local dialect and slang, not textbook language.
-- If asked about generational language: provide age-specific slang with context on who uses it.
-- Be concise. Under 150 words unless asked for detail.
-- If unsure about something, say so.
-- Adapt tone to scenario: casual for food/social, precise for documents, playful for nightlife.`;
 
 export function buildSystemPrompt(
   character: Character,
@@ -93,7 +72,7 @@ export function buildSystemPrompt(
   }
 
   // Layer 6 — Core rules
-  layers.push(CORE_RULES);
+  layers.push(promptLoader.get('coreRules.rules'));
 
   return layers.join('\n\n');
 }

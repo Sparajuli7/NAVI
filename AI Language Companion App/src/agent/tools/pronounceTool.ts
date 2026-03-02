@@ -9,6 +9,7 @@ import type { ToolDefinition } from '../core/toolRegistry';
 import type { ChatLLM } from '../models/chatLLM';
 import type { AvatarContextController } from '../avatar/contextController';
 import type { LocationIntelligence } from '../location/locationIntelligence';
+import { promptLoader } from '../prompts/promptLoader';
 
 export function createPronounceTool(
   llmProvider: ChatLLM,
@@ -29,21 +30,13 @@ export function createPronounceTool(
       const language = locationIntelligence.getPrimaryLanguage();
       const dialect = locationIntelligence.getDialect();
 
-      const systemPrompt = `${avatarController.buildSystemPrompt()}
+      const toolConfig = promptLoader.getRaw('toolPrompts.pronounce') as {
+        mode_header: string; template: string; temperature: number; max_tokens: number;
+      };
+      const modeHeader = toolConfig.mode_header;
+      const toolPrompt = promptLoader.get('toolPrompts.pronounce.template', { language, dialect });
 
-PRONUNCIATION MODE ACTIVE.
-Language: ${language} (${dialect})
-
-For every phrase you teach, you MUST use this exact format:
-
-**Phrase:** [text in ${language}]
-**Say it:** [phonetic pronunciation for English speakers]
-**Sound tip:** [detailed mouth position, tongue placement, breath pattern, tone direction]
-**Means:** [natural meaning]
-**Tip:** [when to use, common mistakes]
-
-Break down difficult sounds. For tonal languages, describe each tone.
-Mark stress patterns clearly. Compare to English sounds where possible.`;
+      const systemPrompt = `${avatarController.buildSystemPrompt()}\n\n${modeHeader}\n${toolPrompt}`;
 
       const messages = [
         { role: 'system', content: systemPrompt },
@@ -51,8 +44,8 @@ Mark stress patterns clearly. Compare to English sounds where possible.`;
       ];
 
       const response = await llmProvider.chat(messages, {
-        temperature: 0.4,
-        max_tokens: 500,
+        temperature: toolConfig.temperature,
+        max_tokens: toolConfig.max_tokens,
       });
 
       return { response };

@@ -215,6 +215,105 @@ export interface AvatarContextOverride {
   additionalContext?: string;
 }
 
+// ─── Learner Profile Types ─────────────────────────────────────
+
+export type PhraseMastery = 'new' | 'learning' | 'practiced' | 'mastered';
+
+export interface PhraseAttempt {
+  /** The phrase text */
+  phrase: string;
+  /** Language the phrase is in */
+  language: string;
+  /** When this attempt occurred */
+  timestamp: number;
+  /** What context this was learned in */
+  context: string;
+  /** How well the user did */
+  outcome: 'learned' | 'practiced' | 'struggled';
+}
+
+export interface TrackedPhrase {
+  /** The phrase text */
+  phrase: string;
+  /** Pronunciation guide */
+  pronunciation?: string;
+  /** Natural meaning */
+  meaning?: string;
+  /** Language */
+  language: string;
+  /** Current mastery level */
+  mastery: PhraseMastery;
+  /** Number of times encountered/practiced */
+  attemptCount: number;
+  /** When first encountered */
+  firstSeen: number;
+  /** When last practiced */
+  lastPracticed: number;
+  /** When next review is due (spaced repetition) */
+  nextReviewAt: number;
+  /** Location where this was learned */
+  learnedAt?: string;
+}
+
+export interface TopicProficiency {
+  /** Topic name (e.g., 'ordering food', 'greetings') */
+  topic: string;
+  /** Proficiency score 0-1 */
+  score: number;
+  /** When last practiced */
+  lastPracticed: number;
+  /** Number of attempts */
+  attemptCount: number;
+}
+
+export interface LearnerProfile {
+  /** All tracked phrases */
+  phrases: TrackedPhrase[];
+  /** Per-topic proficiency scores */
+  topics: TopicProficiency[];
+  /** Aggregate stats */
+  stats: {
+    totalPhrases: number;
+    masteredPhrases: number;
+    currentStreak: number;
+    longestStreak: number;
+    lastSessionDate: number;
+    totalSessions: number;
+  };
+}
+
+// ─── Relationship Types ────────────────────────────────────────
+
+export interface SharedMilestone {
+  /** Unique ID */
+  id: string;
+  /** What happened */
+  description: string;
+  /** When it happened */
+  timestamp: number;
+  /** Which avatar this is with */
+  avatarId: string;
+}
+
+export interface RelationshipState {
+  /** Which avatar this relationship is with */
+  avatarId: string;
+  /** Warmth score 0-1 */
+  warmth: number;
+  /** Total interaction count */
+  interactionCount: number;
+  /** Total session count */
+  sessionCount: number;
+  /** Current consecutive day streak */
+  streak: number;
+  /** Last interaction timestamp */
+  lastInteraction: number;
+  /** Shared references / inside jokes */
+  sharedReferences: string[];
+  /** Milestones reached together */
+  milestones: SharedMilestone[];
+}
+
 // ─── Event System ──────────────────────────────────────────────
 
 export type AgentEventType =
@@ -226,7 +325,14 @@ export type AgentEventType =
   | 'avatar:context_change'
   | 'location:change'
   | 'execution:budget_warning'
-  | 'execution:timeout';
+  | 'execution:timeout'
+  | 'learner:phrase_detected'
+  | 'learner:milestone'
+  | 'learner:review_due'
+  | 'relationship:warmth_change'
+  | 'relationship:milestone'
+  | 'director:goals_set'
+  | 'director:suggestion';
 
 export interface AgentEvent {
   type: AgentEventType;

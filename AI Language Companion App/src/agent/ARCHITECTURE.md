@@ -14,10 +14,14 @@ The NAVI Agent Framework is a modular, local-first AI agent system designed to r
 ├─────────────────────────────────────────────────────────────────┤
 │                         NaviAgent                              │
 │        (Unified interface — initialize, handleMessage)         │
-├────────────┬──────────────┬──────────────┬─────────────────────┤
-│   Router   │  Execution   │    Event     │     Tool            │
-│            │   Engine     │     Bus      │   Registry          │
-├────────────┴──────────────┴──────────────┴─────────────────────┤
+├──────────────────────────────┬──────────────────────────────────┤
+│     ConversationDirector     │          PromptLoader            │
+│ (pre/post process, goals,    │  (JSON configs, {{variable}}     │
+│  suggestions, milestones)    │   interpolation, A/B testing)   │
+├────────────┬──────────────┬──┴────────────┬────────────────────┤
+│   Router   │  Execution   │    Event      │     Tool           │
+│            │   Engine     │     Bus       │   Registry         │
+├────────────┴──────────────┴───────────────┴────────────────────┤
 │                           TOOLS                                │
 │  chat │ translate │ pronounce │ camera_read │ slang │ culture  │
 │  generate_phrase │ memory_recall │ memory_store │ tts │ stt    │
@@ -25,13 +29,17 @@ The NAVI Agent Framework is a modular, local-first AI agent system designed to r
 ├────────────┬──────────────┬──────────────┬─────────────────────┤
 │   Avatar   │   Memory     │   Location   │    Pipelines        │
 │  Context   │  Manager     │ Intelligence │  (Image, Pronun.)   │
-│ Controller │              │              │                     │
-├────────────┴──────────────┴──────────────┴─────────────────────┤
+│ Controller │  (6 stores)  │              │                     │
+│ (11 layers)│              │              │                     │
+├────────────┼──────────────┴──────────────┴─────────────────────┤
+│            │  Working │ Episodic │ Semantic │ Profile           │
+│            │  Learner Profile │ Relationship Store              │
+├────────────┴───────────────────────────────────────────────────┤
 │                      Model Registry                            │
 │        LLM │ TTS │ STT │ Vision │ Embedding │ Translation      │
 ├─────────────────────────────────────────────────────────────────┤
 │                     On-Device Runtimes                         │
-│       WebLLM (WebGPU) │ Tesseract (WASM) │ Browser APIs        │
+│    WebLLM (WebGPU) │ Ollama │ Tesseract (WASM) │ Browser APIs  │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -66,10 +74,12 @@ Where existing services work (modelManager.ts, location.ts, ocr.ts), the framewo
 
 ### Memory (`agent/memory/`)
 - **workingMemory.ts** — Ring buffer for current session context (auto-expires)
-- **episodicMemory.ts** — Summarized conversation episodes (persisted to IndexedDB)
+- **episodicMemory.ts** — Summarized conversation episodes (persisted, cross-location queries)
 - **semanticMemory.ts** — Vector store for similarity search (cosine similarity)
 - **profileMemory.ts** — User preferences and learning progress
-- **index.ts** — MemoryManager that unifies all four systems
+- **learnerProfile.ts** — Phrase tracking, topic proficiency, spaced repetition (Leitner-style)
+- **relationshipStore.ts** — Per-avatar warmth progression, milestones, shared references
+- **index.ts** — MemoryManager that unifies all six systems
 
 ### Models (`agent/models/`)
 - **registry.ts** — ModelRegistry with energy-aware model management
@@ -81,8 +91,18 @@ Where existing services work (modelManager.ts, location.ts, ocr.ts), the framewo
 - **translationProvider.ts** — LLM-based translation (replace with NLLB)
 
 ### Avatar (`agent/avatar/`)
-- **contextController.ts** — Builds system prompts from layered context
+- **contextController.ts** — 11-layer system prompt builder (config-driven)
 - **templates.json** — Pre-built avatar profiles (6 examples)
+
+### Director (`agent/director/`)
+- **conversationDirector.ts** — Pre/post-processing for learning-directed conversations
+  - Pre-process: analyzes learner state → selects goals → builds prompt injection
+  - Post-process: detects phrases in response → updates learner/relationship stores
+  - Suggestions: generates proactive UI suggestions (review due, weak topics, streaks)
+
+### Prompts (`agent/prompts/`)
+- **promptLoader.ts** — Singleton that loads JSON configs + interpolates `{{variables}}`
+- **phraseDetector.ts** — Regex-based phrase card detection (no LLM calls)
 
 ### Location (`agent/location/`)
 - **locationIntelligence.ts** — GPS detection, dialect inference, location history
@@ -90,6 +110,10 @@ Where existing services work (modelManager.ts, location.ts, ocr.ts), the framewo
 ### Pipelines (`agent/pipelines/`)
 - **imageUnderstanding.ts** — Image → OCR → Classification → LLM explanation
 - **pronunciation.ts** — STT recording → LLM evaluation → TTS playback
+
+### Config (`config/prompts/`)
+- 7 JSON config files defining all prompt text, temperatures, and behavior instructions
+- Editable without touching TypeScript — just edit JSON and rebuild
 
 ### Tools (`agent/tools/`)
 13 registered tools covering: chat, translate, pronounce, camera_read, explain_culture, teach_slang, generate_phrase, memory_recall, memory_store, switch_scenario, switch_location, tts_speak, stt_listen
@@ -99,14 +123,16 @@ Where existing services work (modelManager.ts, location.ts, ocr.ts), the framewo
 
 ## Data Flow
 
-### User Message → Response
+### User Message → Response (with Director)
 ```
 User types "How do I say hello?"
+  → Director.preProcess(): check learner state → build goals + warmth instruction
   → Router: keyword "how to say" → route to 'pronounce' tool
   → ExecutionEngine: check constraints, execute tool
-  → PronounceTool: build system prompt (avatar + location + memory)
-  → LLMProvider.chat(): WebLLM inference on-device
+  → PronounceTool: build system prompt (avatar + memory + warmth + learning goals)
+  → LLMProvider.chat(): WebLLM/Ollama inference
   → Response with phrase card format
+  → Director.postProcess(): detect phrases → update learner profile → record interaction
   → UI renders phrase card with TTS button
 ```
 
@@ -131,7 +157,37 @@ User takes photo of menu
 | Working memory slots | 32 | Fixed memory footprint |
 | Max episodic memories | 100 | IndexedDB size limit |
 | Max semantic entries | 500 | Brute-force search stays <5ms |
+| Max tracked phrases | 500 | Learner profile IndexedDB ~30KB |
+| Max shared references | 20 | Per-avatar, ring buffer |
 | Memory slot TTL | 10 min | Auto-cleanup |
+
+## Relationship Layer
+
+### Warmth Tiers
+| Range | Label | Behavior |
+|---|---|---|
+| 0.0–0.2 | Stranger | Polite, introduces self, offers help |
+| 0.2–0.4 | Acquaintance | Uses name, remembers basics, more relaxed |
+| 0.4–0.6 | Friend | Casual, teases gently, references shared experiences |
+| 0.6–0.8 | Close Friend | Inside jokes, proactive suggestions, expressive |
+| 0.8–1.0 | Family | Shorthand, celebrates milestones, pushes growth |
+
+### Spaced Repetition Intervals
+| Mastery | Review After |
+|---|---|
+| New | 1 day |
+| Learning | 3 days |
+| Practiced | 7 days |
+| Mastered | 30 days |
+
+### Conversation Goals (selected per-message by Director)
+- `introduce_new_vocab` — weak topics detected
+- `revisit_struggling` — struggling phrases found
+- `review_due_phrases` — spaced repetition items due
+- `challenge_user` — high proficiency, push harder
+- `celebrate_progress` — milestone hit
+- `bridge_locations` — cross-location experiences available
+- `free_conversation` — default, no specific goal
 
 ## Scaling Strategy
 

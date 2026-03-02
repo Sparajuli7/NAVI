@@ -16,12 +16,14 @@ NAVI is an **offline-first AI language companion app** — a local friend in you
 /NAVI/
 ├── AI Language Companion App/        # Main React app (Vite + TypeScript)
 │   ├── src/
-│   │   ├── agent/                    # AGENT FRAMEWORK (new)
-│   │   │   ├── core/                 # Router, ExecutionEngine, ToolRegistry, EventBus
-│   │   │   ├── memory/              # 4-tier memory (working, episodic, semantic, profile)
+│   │   ├── agent/                    # AGENT FRAMEWORK
+│   │   │   ├── core/                 # Router, ExecutionEngine, ToolRegistry, EventBus, Types
+│   │   │   ├── memory/              # 6-tier memory (working, episodic, semantic, profile, learner, relationships)
 │   │   │   ├── models/              # Model providers (LLM, TTS, STT, Vision, Embedding)
 │   │   │   ├── avatar/              # AvatarContextController + template configs
 │   │   │   ├── location/            # LocationIntelligence module
+│   │   │   ├── director/            # ConversationDirector (learning goals, pre/post processing)
+│   │   │   ├── prompts/             # PromptLoader + phraseDetector
 │   │   │   ├── pipelines/           # Multi-step pipelines (image, pronunciation)
 │   │   │   ├── tools/               # 13 registered tools
 │   │   │   ├── react/               # useNaviAgent() hook
@@ -50,14 +52,27 @@ NAVI is an **offline-first AI language companion app** — a local friend in you
 │   │   │   ├── appStore.ts          # Global app config + model status
 │   │   │   ├── characterStore.ts    # Active AI character + memories
 │   │   │   └── chatStore.ts         # Messages + scenario state
-│   │   ├── prompts/                  # LLM prompt templates
+│   │   ├── prompts/                  # LLM prompt templates (legacy, uses PromptLoader)
 │   │   │   ├── systemBuilder.ts     # 6-layer system prompt engine
-│   │   │   └── characterGen.ts      # Character generation prompts
+│   │   │   ├── characterGen.ts      # Character generation prompts
+│   │   │   ├── camera.ts            # Camera/OCR prompt builder
+│   │   │   ├── phrase.ts            # Phrase card prompt builder
+│   │   │   ├── slang.ts             # Slang prompt builder
+│   │   │   ├── scenario.ts          # Scenario/location change prompts
+│   │   │   └── memory.ts            # Memory extraction prompt
 │   │   ├── config/                   # Data files (editable without code)
 │   │   │   ├── avatarTemplates.json # 8 character templates by vocation
 │   │   │   ├── dialectMap.json      # Language/dialect/slang mappings
 │   │   │   ├── scenarioContexts.json # 8 scenario types
-│   │   │   └── userPreferenceSchema.json
+│   │   │   ├── userPreferenceSchema.json
+│   │   │   └── prompts/             # PROMPT CONFIG FILES (edit here to change behavior)
+│   │   │       ├── coreRules.json       # Core rules (phrase format, behavior)
+│   │   │       ├── toolPrompts.json     # Per-tool prompts + temperature/max_tokens
+│   │   │       ├── documentPrompts.json # Image/camera document prompts (6 types)
+│   │   │       ├── systemLayers.json    # System prompt layer templates + conversation goals
+│   │   │       ├── warmthLevels.json    # 5-tier warmth behavior (stranger → family)
+│   │   │       ├── memoryExtraction.json # Memory consolidation prompt
+│   │   │       └── characterGen.json    # Character generation prompts
 │   │   ├── types/                    # TypeScript interfaces
 │   │   ├── utils/                    # Helpers (storage, parsing, tokens, etc.)
 │   │   ├── data/cities.json          # Global city database
@@ -109,20 +124,44 @@ All AI runs locally on the user's device via WebGPU:
 - **TTS**: Browser SpeechSynthesis — phrase playback
 - **STT**: Browser SpeechRecognition — voice input
 
-### 6-Layer System Prompt Engine (`systemBuilder.ts`)
-Each LLM call is guided by a layered system prompt:
-1. **Identity** — Character name, personality, speaking style
+### 11-Layer System Prompt Engine
+Each LLM call is guided by a layered system prompt (assembled by `AvatarContextController`):
+1. **Identity** — Character name, personality, speaking style (from `systemLayers.json`)
 2. **User Preferences** — Age, gender, vocation, formality, learning focus
 3. **Location + Dialect** — City, country, dialect specifics, generational slang
 4. **Scenario** — Context-specific vocab/tone (restaurant, hospital, office, etc.)
-5. **Memory** — Last 8 remembered facts about the user
-6. **Core Rules** — Pronunciation format, phrase card structure, behavior constraints
+5. **Memory** — Episodic memories, profile context, working memory
+6. **Personality Override** — Temporary adjustments
+7. **Additional Context** — Injected context
+8. **Warmth Instruction** — Relationship-tier behavior (from `warmthLevels.json`)
+9. **Learning Context** — Learner profile stats, recent phrases, weak topics
+10. **Conversation Goals** — Director-injected goals (from `systemLayers.json`)
+11. **Core Rules** — Pronunciation format, phrase card structure (from `coreRules.json`)
+
+### Prompt Config System (`src/config/prompts/`)
+All prompt text lives in editable JSON files — edit prompts without touching TypeScript:
+- `coreRules.json` — Immutable behavior rules and phrase card format
+- `toolPrompts.json` — Per-tool prompts with temperature/max_tokens
+- `documentPrompts.json` — Image/camera analysis prompts (6 doc types)
+- `systemLayers.json` — Layer templates + conversation goal definitions (7 goal types)
+- `warmthLevels.json` — 5-tier warmth behavior instructions (stranger → family)
+- `memoryExtraction.json` — Memory consolidation prompt
+- `characterGen.json` — Character generation prompts (free-text + template)
+
+Templates use `{{variable}}` interpolation via `PromptLoader`:
+```typescript
+promptLoader.get('toolPrompts.pronounce.template', { language: 'Korean', dialect: 'Seoul' })
+promptLoader.get('systemLayers.conversationGoals.review_due_phrases', { phrases: '"xin chào"' })
+```
 
 ### Data Models
 - **Character**: name, personality, avatar colors, speaking style, location context
 - **Message**: role (user/character/system), content, type (text/phrase_card/camera_result)
 - **LocationContext**: city, country, dialect key, cultural notes, slang era
 - **MemoryEntry**: fact extracted from conversation, timestamp
+- **TrackedPhrase**: phrase text, pronunciation, mastery level, spaced repetition schedule, location learned
+- **RelationshipState**: per-avatar warmth 0-1, milestones, shared references, streak
+- **TopicProficiency**: topic name, score 0-1, attempt count
 
 ### Agent Framework (`src/agent/`)
 The agent framework sits underneath the UI as an orchestration layer:
@@ -130,10 +169,15 @@ The agent framework sits underneath the UI as an orchestration layer:
 - **Router** — Rule-based intent routing (keyword matching, deterministic)
 - **ExecutionEngine** — Bounded tool execution (recursion limits, token budgets, timeouts)
 - **ToolRegistry** — 13 registered tools (chat, translate, pronounce, camera, culture, slang, etc.)
-- **MemoryManager** — 4-tier memory (working ring buffer, episodic summaries, semantic vectors, profile)
+- **MemoryManager** — 6-system memory (working, episodic, semantic, profile, learner, relationships)
 - **ModelRegistry** — Provider pattern for all models (LLM, TTS, STT, Vision, Embedding, Translation)
-- **AvatarContextController** — Config-driven avatar behavior (JSON-editable, no code changes needed)
-- **LocationIntelligence** — GPS detection + dialect inference + location history
+- **AvatarContextController** — Config-driven avatar behavior (JSON-editable, 11-layer prompt builder)
+- **ConversationDirector** — Pre/post-processing for learning goals (no extra LLM calls)
+- **LearnerProfileStore** — Phrase tracking + spaced repetition (Leitner-style intervals)
+- **RelationshipStore** — Per-avatar warmth progression (~200 interactions stranger → family)
+- **PromptLoader** — Build-time JSON imports + `{{variable}}` interpolation + A/B testing
+- **PhraseDetector** — Regex-based phrase card detection in LLM responses
+- **LocationIntelligence** — GPS detection + dialect inference + cross-location bridging
 - **Pipelines** — Multi-step orchestrations (image understanding, pronunciation evaluation)
 - **useNaviAgent()** — React hook exposing singleton agent instance
 
@@ -146,18 +190,24 @@ The agent framework sits underneath the UI as an orchestration layer:
 - Zustand stores (app, character, chat) with full type definitions
 - IndexedDB persistence layer (character, conversations, memories, preferences, location)
 - Service layer functions (LLM, OCR, TTS, STT, location)
-- System prompt builder (6-layer engine)
-- Character generation prompts
+- System prompt builder (11-layer engine with config-driven prompts)
+- Character generation prompts (config-driven via `characterGen.json`)
 - Configuration data (8 avatar templates, 8 dialects, 8 scenarios, city database)
 - Dark/light theme with custom typography (Playfair Display, DM Sans, Source Serif 4)
-- Model download + loading logic (WebLLM integration)
+- Model download + loading logic (WebLLM + Ollama dual backend)
 - **Agent framework** — full infrastructure (router, tools, memory, models, avatar, pipelines)
-- **4-tier memory system** — working (ring buffer), episodic, semantic (vector store), profile
-- **Model abstraction layer** — provider pattern for swapping models without code changes
-- **Avatar context controller** — config-driven behavior, no code changes to tweak personality
+- **6-system memory** — working (ring buffer), episodic, semantic (vectors), profile, learner, relationships
+- **Model abstraction layer** — provider pattern (WebLLM + Ollama via ChatLLM interface)
+- **Avatar context controller** — config-driven behavior, 11-layer prompt assembly
 - **13 registered tools** — chat, translate, pronounce, camera_read, culture, slang, phrase, memory, scenario, location, tts, stt
 - **Image understanding pipeline** — OCR → classification → LLM explanation
 - **Pronunciation evaluation pipeline** — STT → LLM evaluation → TTS playback
+- **Prompt extraction system** — all prompts in editable JSON configs with PromptLoader
+- **Relationship layer** — per-avatar warmth (5 tiers), milestones, shared references
+- **Learner profile** — phrase tracking, spaced repetition, topic proficiency, streak tracking
+- **Conversation director** — pre/post-processing for learning goals (no extra LLM calls)
+- **Cross-location bridging** — episodic memory queries across locations for continuity
+- **Phrase detector** — regex-based phrase card detection in LLM responses
 
 ### Next: Wire Agent → UI
 - Connect `useNaviAgent()` hook to ConversationScreen's `handleSend()`
@@ -181,9 +231,12 @@ The agent framework sits underneath the UI as an orchestration layer:
 - Keys: `navi_conversation`, `navi_character`, `navi_memories`, `navi_preferences`, `navi_location`
 
 ### Prompt System
-- All prompts in `src/prompts/` directory
-- Reference `navi-prompts-v3.md` for template designs
-- System prompts assembled via `systemBuilder.ts` — never construct raw prompts in components
+- All prompt **text** lives in `src/config/prompts/*.json` — edit there to change behavior
+- All prompt **builders** in `src/prompts/` use `promptLoader` to load from config
+- System prompts assembled via `AvatarContextController.buildSystemPrompt()` — never construct raw prompts in components
+- Use `promptLoader.get('path.to.template', { vars })` for interpolated prompts
+- Use `promptLoader.getRaw('path')` for raw config objects (temperature, max_tokens, etc.)
+- Use `promptLoader.loadConfig('name', newConfig)` for A/B testing / hot-swap
 
 ### Inference Configs
 | Mode | Temperature | Max Tokens | Purpose |

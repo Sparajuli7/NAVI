@@ -21,6 +21,7 @@
 
 import type { AvatarProfile, AvatarContextOverride } from '../core/types';
 import { agentBus } from '../core/eventBus';
+import { promptLoader } from '../prompts/promptLoader';
 
 // Import existing configs from the app
 import avatarTemplatesRaw from '../../config/avatarTemplates.json';
@@ -180,6 +181,9 @@ export class AvatarContextController {
     userPreferences?: Record<string, unknown>;
     memoryContext?: string;
     conversationHistory?: string;
+    warmthInstruction?: string;
+    learningContext?: string;
+    conversationGoals?: string;
   }): string {
     if (!this.activeProfile) {
       return 'You are a helpful language assistant.';
@@ -222,7 +226,22 @@ export class AvatarContextController {
       layers.push(override.additionalContext);
     }
 
-    // Layer 8: Core rules (always last)
+    // Layer 8: Relationship/warmth instruction
+    if (options?.warmthInstruction) {
+      layers.push(options.warmthInstruction);
+    }
+
+    // Layer 9: Learning context
+    if (options?.learningContext) {
+      layers.push(options.learningContext);
+    }
+
+    // Layer 10: Conversation goals
+    if (options?.conversationGoals) {
+      layers.push(options.conversationGoals);
+    }
+
+    // Layer 11: Core rules (always last)
     layers.push(this.buildCoreRules());
 
     return layers.join('\n\n');
@@ -231,17 +250,22 @@ export class AvatarContextController {
   // ── Layer Builders ──────────────────────────────────────────
 
   private buildIdentityLayer(profile: AvatarProfile): string {
-    return [
-      `You are ${profile.name}.`,
-      profile.personality,
-      `You speak like: ${profile.speaksLike}`,
-      `Energy: ${profile.energyLevel}. Humor: ${profile.humorStyle}.`,
-      profile.slangLevel > 0.6
-        ? 'Use plenty of local slang and colloquialisms.'
-        : profile.slangLevel > 0.3
-          ? 'Use some slang naturally but keep it approachable.'
-          : 'Keep language relatively clean and standard.',
-    ].join(' ');
+    const slangKey = profile.slangLevel > 0.6
+      ? 'slang_high'
+      : profile.slangLevel > 0.3
+        ? 'slang_medium'
+        : 'slang_low';
+    const slangInstruction = promptLoader.get(`systemLayers.identity.${slangKey}`);
+
+    const identity = promptLoader.get('systemLayers.identity.template', {
+      name: profile.name,
+      personality: profile.personality,
+      speaksLike: profile.speaksLike,
+      energyLevel: profile.energyLevel,
+      humorStyle: profile.humorStyle,
+    });
+
+    return `${identity} ${slangInstruction}`;
   }
 
   private buildPreferenceLayer(prefs: Record<string, unknown>): string {
@@ -296,36 +320,23 @@ export class AvatarContextController {
     const config = this.scenarios[scenario];
     if (!config) return '';
 
-    let layer = `Current scenario: ${config.label}.`;
-    layer += ` Vocabulary focus: ${config.vocabulary_focus.join(', ')}.`;
-    layer += ` Tone: ${config.tone_shift}.`;
+    let layer = promptLoader.get('systemLayers.scenario.template', {
+      label: config.label,
+      vocabulary: config.vocabulary_focus.join(', '),
+      tone: config.tone_shift,
+    });
 
     if (formalityShift !== undefined) {
       const totalShift = config.formality_adjustment + formalityShift;
-      if (totalShift > 1) layer += ' Be more formal than usual.';
-      else if (totalShift < -1) layer += ' Be more casual than usual.';
+      if (totalShift > 1) layer += ' ' + promptLoader.get('systemLayers.scenario.more_formal');
+      else if (totalShift < -1) layer += ' ' + promptLoader.get('systemLayers.scenario.more_casual');
     }
 
     return layer;
   }
 
   private buildCoreRules(): string {
-    return `Rules:
-- You are a knowledgeable local friend and tour guide, NOT a translator or AI.
-- Stay in character always. Never say "As an AI."
-- When teaching ANY phrase, ALWAYS use this format:
-
-**Phrase:** [text in local language/dialect]
-**Say it:** [phonetic pronunciation for English speakers]
-**Sound tip:** [mouth shape, tongue position, emphasis, tone direction — HOW to physically say it]
-**Means:** [natural meaning, not literal word-for-word]
-**Tip:** [when to use it, cultural context, common mistakes]
-
-- Pronunciation and enunciation are critical. Teach HOW to say it.
-- Use local dialect and slang, not textbook language.
-- Be concise. Under 150 words unless asked for detail.
-- If unsure about something, say so.
-- Adapt tone to scenario: casual for food/social, precise for documents, playful for nightlife.`;
+    return promptLoader.get('coreRules.rules');
   }
 
   // ── Config Management (for runtime swapping) ────────────────

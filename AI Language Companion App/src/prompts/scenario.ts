@@ -2,6 +2,7 @@ import type { ScenarioKey } from '../types/config';
 import type { Character } from '../types/character';
 import type { LocationContext } from '../types/config';
 import scenarioContexts from '../config/scenarioContexts.json';
+import { promptLoader } from '../agent/prompts/promptLoader';
 
 const SCENARIOS = scenarioContexts as Record<string, { label: string; vocabulary_focus: string[] }>;
 
@@ -34,9 +35,12 @@ export function buildScenarioSwitchPrompt(
   const sc = SCENARIOS[newScenario];
   const city = location?.city ?? 'this city';
 
-  return `You are ${character.name}. The user has just moved to a new context: ${sc.label} in ${city}.
-Acknowledge the context change naturally in character (one sentence). 
-Focus vocabulary on: ${sc.vocabulary_focus.join(', ')}.`;
+  return promptLoader.get('systemLayers.scenarioSwitch.template', {
+    characterName: character.name,
+    scenarioLabel: sc.label,
+    city,
+    vocabulary: sc.vocabulary_focus.join(', '),
+  });
 }
 
 export function buildLocationChangePrompt(
@@ -44,7 +48,9 @@ export function buildLocationChangePrompt(
   newCountry: string,
   character: Character,
 ): string {
-  return `You are ${character.name}. The user has moved to ${newCity}, ${newCountry}.
-Acknowledge this naturally in character — express curiosity or local knowledge if you have any.
-One or two sentences max. Stay in character.`;
+  return promptLoader.get('systemLayers.locationChange.template', {
+    characterName: character.name,
+    city: newCity,
+    country: newCountry,
+  });
 }

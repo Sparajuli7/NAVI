@@ -8,6 +8,7 @@ import type { ToolDefinition } from '../core/toolRegistry';
 import type { ChatLLM } from '../models/chatLLM';
 import type { AvatarContextController } from '../avatar/contextController';
 import type { LocationIntelligence } from '../location/locationIntelligence';
+import { promptLoader } from '../prompts/promptLoader';
 
 export function createPhraseTool(
   llmProvider: ChatLLM,
@@ -28,21 +29,12 @@ export function createPhraseTool(
       const language = locationIntelligence.getPrimaryLanguage();
       const dialect = locationIntelligence.getDialect();
 
-      const systemPrompt = `${avatarController.buildSystemPrompt()}
+      const toolConfig = promptLoader.getRaw('toolPrompts.phrase') as {
+        mode_header: string; template: string; temperature: number; max_tokens: number;
+      };
+      const toolPrompt = promptLoader.get('toolPrompts.phrase.template', { language, dialect });
 
-PHRASE GENERATION MODE.
-Language: ${language} (${dialect})
-
-Generate 2-3 useful phrases for the user's situation.
-For EACH phrase use this EXACT format:
-
-**Phrase:** [text in ${language}]
-**Say it:** [phonetic for English speakers]
-**Sound tip:** [how to physically produce the sounds]
-**Means:** [natural meaning]
-**Tip:** [when/how to use it]
-
-After all phrases, add a brief note about which one to use first.`;
+      const systemPrompt = `${avatarController.buildSystemPrompt()}\n\n${toolConfig.mode_header}\n${toolPrompt}`;
 
       const messages = [
         { role: 'system', content: systemPrompt },
@@ -50,8 +42,8 @@ After all phrases, add a brief note about which one to use first.`;
       ];
 
       const response = await llmProvider.chat(messages, {
-        temperature: 0.4,
-        max_tokens: 600,
+        temperature: toolConfig.temperature,
+        max_tokens: toolConfig.max_tokens,
       });
 
       return { response };

@@ -33,10 +33,26 @@ export type {
   EnergyProfile,
   AgentEvent,
   AgentEventType,
+  // Learner + Relationship types
+  PhraseAttempt,
+  TrackedPhrase,
+  PhraseMastery,
+  TopicProficiency,
+  LearnerProfile,
+  SharedMilestone,
+  RelationshipState,
 } from './core/types';
 
 // Memory
-export { MemoryManager } from './memory';
+export { MemoryManager, LearnerProfileStore, RelationshipStore } from './memory';
+
+// Director
+export { ConversationDirector } from './director/conversationDirector';
+export type { ConversationGoal, DirectorContext } from './director/conversationDirector';
+
+// Prompts
+export { promptLoader, PromptLoader } from './prompts/promptLoader';
+export { detectPhrases, detectTopics } from './prompts/phraseDetector';
 
 // Models
 export {
@@ -75,6 +91,7 @@ import { ModelRegistry, LLMProvider, LLM_PRESETS, OllamaProvider, OLLAMA_PRESETS
 import type { ChatLLM } from './models';
 import { AvatarContextController } from './avatar/contextController';
 import { LocationIntelligence } from './location/locationIntelligence';
+import { ConversationDirector } from './director/conversationDirector';
 import { registerAllTools } from './tools';
 import { handleUserInput } from './core/router';
 import { agentBus } from './core/eventBus';
@@ -103,6 +120,7 @@ export class NaviAgent {
   readonly memory: MemoryManager;
   readonly avatar: AvatarContextController;
   readonly location: LocationIntelligence;
+  readonly director: ConversationDirector;
 
   // LLM provider — can be WebLLM or Ollama (both implement ChatLLM)
   private llm: ChatLLM;
@@ -128,6 +146,11 @@ export class NaviAgent {
     this.memory = new MemoryManager(config.workingMemoryCapacity ?? 32);
     this.avatar = new AvatarContextController();
     this.location = new LocationIntelligence();
+    this.director = new ConversationDirector(
+      this.memory.learner,
+      this.memory.relationships,
+      this.memory.episodic,
+    );
 
     // Determine backend — 'auto' is resolved during initialize()
     this.llmBackend = config.backend ?? 'auto';
@@ -281,8 +304,17 @@ export class NaviAgent {
       onToken?: (token: string, full: string) => void;
     },
   ): Promise<{ response: string; tool: string; confidence: number }> {
+    // 1. Director pre-processing — build goals + context injection
+    const avatarId = this.avatar.getActiveProfile()?.id ?? 'default';
+    const directorCtx = this.director.preProcess(message, avatarId);
+    agentBus.emit('director:goals_set', { goals: directorCtx.goals });
+
     const contextParams: Record<string, unknown> = {
       ...options?.context,
+      // Inject director context into tool params
+      warmthInstruction: directorCtx.warmthInstruction,
+      learningContext: directorCtx.learningContext,
+      conversationGoals: directorCtx.promptInjection,
     };
 
     if (options?.history) {
@@ -293,6 +325,7 @@ export class NaviAgent {
       contextParams.onToken = options.onToken;
     }
 
+    // 2. Route + execute tool (existing flow)
     const { decision, result } = await handleUserInput(message, contextParams);
 
     // Extract response string from tool result
@@ -303,6 +336,11 @@ export class NaviAgent {
     } else {
       response = result.error ?? 'Sorry, something went wrong. Try again.';
     }
+
+    // 3. Director post-processing — detect phrases, update learner, record interaction
+    this.director
+      .postProcess(message, response, decision.tool, avatarId)
+      .catch((err) => console.error('[NaviAgent] Director postProcess error:', err));
 
     return {
       response,
@@ -349,7 +387,7 @@ export class NaviAgent {
     llmReady: boolean;
     backend: LLMBackend;
     models: Array<{ id: string; capability: string; status: string }>;
-    memory: { working: number; episodic: number; semantic: number };
+    memory: ReturnType<MemoryManager['getStats']>;
     location: { city: string; language: string } | null;
     avatar: string | null;
     energyMode: string;
@@ -371,6 +409,12 @@ export class NaviAgent {
       avatar: this.avatar.getActiveProfile()?.name ?? null,
       energyMode: this.models.getEnergyMode(),
     };
+  }
+
+  /** Get proactive suggestions from the conversation director */
+  getSuggestions(): string[] {
+    const avatarId = this.avatar.getActiveProfile()?.id ?? 'default';
+    return this.director.getSuggestions(avatarId);
   }
 
   /** Set energy mode */

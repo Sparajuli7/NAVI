@@ -8,6 +8,7 @@ import type { ToolDefinition } from '../core/toolRegistry';
 import type { ChatLLM } from '../models/chatLLM';
 import type { AvatarContextController } from '../avatar/contextController';
 import type { LocationIntelligence } from '../location/locationIntelligence';
+import { promptLoader } from '../prompts/promptLoader';
 
 export function createSlangTool(
   llmProvider: ChatLLM,
@@ -31,21 +32,13 @@ export function createSlangTool(
       const dialect = locationIntelligence.getDialect();
       const locationCtx = locationIntelligence.buildContextForPrompt();
 
-      const systemPrompt = `${avatarController.buildSystemPrompt()}
+      const toolConfig = promptLoader.getRaw('toolPrompts.slang') as {
+        mode_header: string; template: string; temperature: number; max_tokens: number;
+      };
+      const modeHeader = promptLoader.get('toolPrompts.slang.mode_header', { generation });
+      const toolPrompt = promptLoader.get('toolPrompts.slang.template', { generation, language, dialect });
 
-SLANG MODE — Generation: ${generation}
-${locationCtx}
-
-You are teaching ${generation} slang in ${language} (${dialect}).
-For each slang term:
-- Give the slang word/phrase
-- Explain what it means
-- Show how it's used in a real sentence
-- Note if it's text-only (like ㅋㅋㅋ) or spoken too
-- Compare to English slang equivalent if possible
-- Mention if using it wrong could be embarrassing
-
-Be fun and natural. Use the slang yourself while explaining.`;
+      const systemPrompt = `${avatarController.buildSystemPrompt()}\n\n${modeHeader}\n${locationCtx}\n\n${toolPrompt}`;
 
       const messages = [
         { role: 'system', content: systemPrompt },
@@ -53,8 +46,8 @@ Be fun and natural. Use the slang yourself while explaining.`;
       ];
 
       const response = await llmProvider.chat(messages, {
-        temperature: 0.7,
-        max_tokens: 500,
+        temperature: toolConfig.temperature,
+        max_tokens: toolConfig.max_tokens,
       });
 
       return { response };

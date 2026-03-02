@@ -1,7 +1,7 @@
 /**
  * NAVI Agent Framework — Memory Manager
  *
- * Unified interface to all four memory systems.
+ * Unified interface to all memory systems.
  * Components interact with this single manager instead of
  * reaching into individual stores directly.
  *
@@ -10,12 +10,16 @@
  * 2. Episodic Memory — Summarized conversation episodes, persisted
  * 3. Semantic Memory — Vector embeddings for similarity search
  * 4. Profile Memory  — User preferences and learning progress
+ * 5. Learner Profile — Phrase tracking, topic proficiency, spaced repetition
+ * 6. Relationships   — Per-avatar warmth, milestones, shared references
  */
 
 import { WorkingMemory } from './workingMemory';
 import { EpisodicMemoryStore } from './episodicMemory';
 import { SemanticMemoryStore } from './semanticMemory';
 import { ProfileMemoryStore } from './profileMemory';
+import { LearnerProfileStore } from './learnerProfile';
+import { RelationshipStore } from './relationshipStore';
 import type { EpisodicMemory } from '../core/types';
 import { agentBus } from '../core/eventBus';
 
@@ -24,6 +28,8 @@ export class MemoryManager {
   readonly episodic: EpisodicMemoryStore;
   readonly semantic: SemanticMemoryStore;
   readonly profile: ProfileMemoryStore;
+  readonly learner: LearnerProfileStore;
+  readonly relationships: RelationshipStore;
 
   private initialized = false;
 
@@ -32,6 +38,8 @@ export class MemoryManager {
     this.episodic = new EpisodicMemoryStore();
     this.semantic = new SemanticMemoryStore();
     this.profile = new ProfileMemoryStore();
+    this.learner = new LearnerProfileStore();
+    this.relationships = new RelationshipStore();
   }
 
   /** Initialize all persistent stores */
@@ -41,6 +49,8 @@ export class MemoryManager {
       this.episodic.load(),
       this.semantic.load(),
       this.profile.load(),
+      this.learner.load(),
+      this.relationships.load(),
     ]);
     this.initialized = true;
     agentBus.emit('memory:update', { type: 'initialized' });
@@ -117,11 +127,17 @@ export class MemoryManager {
     workingSlots: number;
     episodicCount: number;
     semanticCount: number;
+    phrasesTracked: number;
+    phrasesMastered: number;
+    relationshipCount: number;
   } {
     return {
       workingSlots: this.working.size,
       episodicCount: this.episodic.count,
       semanticCount: this.semantic.count,
+      phrasesTracked: this.learner.stats.totalPhrases,
+      phrasesMastered: this.learner.stats.masteredPhrases,
+      relationshipCount: this.relationships.count,
     };
   }
 
@@ -131,6 +147,8 @@ export class MemoryManager {
     await this.episodic.clear();
     await this.semantic.clear();
     await this.profile.reset();
+    await this.learner.clear();
+    await this.relationships.clear();
     agentBus.emit('memory:update', { type: 'cleared' });
   }
 }
@@ -139,3 +157,5 @@ export { WorkingMemory } from './workingMemory';
 export { EpisodicMemoryStore } from './episodicMemory';
 export { SemanticMemoryStore } from './semanticMemory';
 export { ProfileMemoryStore } from './profileMemory';
+export { LearnerProfileStore } from './learnerProfile';
+export { RelationshipStore } from './relationshipStore';

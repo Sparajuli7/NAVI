@@ -122,6 +122,23 @@ export class EpisodicMemoryStore {
     await this.save();
   }
 
+  /** Get episodes from OTHER locations (for cross-location bridging) */
+  getFromOtherLocations(currentLocation: string, tags?: string[], count: number = 5): EpisodicMemory[] {
+    return this.episodes
+      .filter((ep) => {
+        if (!ep.location) return false;
+        // Exclude current location
+        if (ep.location.toLowerCase().includes(currentLocation.toLowerCase())) return false;
+        // Optional tag filter
+        if (tags && tags.length > 0) {
+          return tags.some((tag) => ep.tags.includes(tag));
+        }
+        return true;
+      })
+      .sort((a, b) => b.importance - a.importance)
+      .slice(0, count);
+  }
+
   /** Get total count */
   get count(): number {
     return this.episodes.length;

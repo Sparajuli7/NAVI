@@ -17,6 +17,7 @@
 import type { VisionProvider, OCRResult } from '../models/visionProvider';
 import type { ChatLLM } from '../models/chatLLM';
 import { classifyOCR, type OCRType } from '../../utils/ocrClassifier';
+import { promptLoader } from '../prompts/promptLoader';
 
 export interface ImageAnalysisResult {
   /** Raw extracted text */
@@ -38,15 +39,10 @@ export interface ImageAnalysisResult {
   };
 }
 
-/** Prompt templates for different document types */
-const DOCUMENT_PROMPTS: Record<OCRType, string> = {
-  MENU: `This is a menu. Explain what each item is, recommend what's good, help with pronunciation of dish names. If there are prices, mention them.`,
-  SIGN: `This is a sign or notice. Explain what it says, why it's there, and if there's anything culturally important about it.`,
-  DOCUMENT: `This is a formal document. Explain what it is (contract, form, letter, etc.), what it requires, and what the user should know. Flag anything important.`,
-  PAGE: `This is a page of text. Summarize what it says and explain any culturally specific references.`,
-  LABEL: `This is a product label. Explain what the product is, any important information (ingredients, warnings), and how to pronounce the brand/product name.`,
-  GENERAL: `Explain what this text says, provide translation, and note anything culturally relevant.`,
-};
+/** Get document prompt from config by OCR type */
+function getDocumentPrompt(type: OCRType): string {
+  return promptLoader.get(`documentPrompts.${type}.short`);
+}
 
 export async function analyzeImage(
   image: File | Blob | string,
@@ -128,7 +124,7 @@ function buildExplanationPrompt(
     parts.push('You are a helpful local guide explaining something to a traveler.');
   }
 
-  parts.push(DOCUMENT_PROMPTS[documentType]);
+  parts.push(getDocumentPrompt(documentType));
 
   if (language) {
     parts.push(`The text is in ${language}. Translate key parts to English.`);

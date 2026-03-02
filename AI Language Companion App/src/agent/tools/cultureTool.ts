@@ -8,6 +8,7 @@ import type { ToolDefinition } from '../core/toolRegistry';
 import type { ChatLLM } from '../models/chatLLM';
 import type { AvatarContextController } from '../avatar/contextController';
 import type { LocationIntelligence } from '../location/locationIntelligence';
+import { promptLoader } from '../prompts/promptLoader';
 
 export function createCultureTool(
   llmProvider: ChatLLM,
@@ -27,15 +28,12 @@ export function createCultureTool(
       const message = params.message as string;
       const locationContext = locationIntelligence.buildContextForPrompt();
 
-      const systemPrompt = `${avatarController.buildSystemPrompt()}
+      const toolConfig = promptLoader.getRaw('toolPrompts.culture') as {
+        mode_header: string; template: string; temperature: number; max_tokens: number;
+      };
+      const toolPrompt = promptLoader.get('toolPrompts.culture.template');
 
-CULTURAL GUIDE MODE.
-${locationContext}
-
-You are explaining cultural nuances as a local who understands both the local culture
-and the user's perspective as an outsider. Give practical, real-life advice.
-Include specific examples. Mention common mistakes outsiders make.
-If relevant, teach the appropriate phrases to use in this cultural context.`;
+      const systemPrompt = `${avatarController.buildSystemPrompt()}\n\n${toolConfig.mode_header}\n${locationContext}\n\n${toolPrompt}`;
 
       const messages = [
         { role: 'system', content: systemPrompt },
@@ -43,8 +41,8 @@ If relevant, teach the appropriate phrases to use in this cultural context.`;
       ];
 
       const response = await llmProvider.chat(messages, {
-        temperature: 0.6,
-        max_tokens: 500,
+        temperature: toolConfig.temperature,
+        max_tokens: toolConfig.max_tokens,
       });
 
       return { response };
