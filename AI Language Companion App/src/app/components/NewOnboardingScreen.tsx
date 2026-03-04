@@ -126,6 +126,13 @@ export function NewOnboardingScreen({ onComplete, onRetryLoadModel }: NewOnboard
       });
   }, []);
 
+  // Extract the first JSON object from an LLM response, stripping markdown fences and preamble
+  const extractJSON = (raw: string): string => {
+    const stripped = raw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+    const match = stripped.match(/\{[\s\S]*\}/);
+    return match ? match[0] : stripped;
+  };
+
   const generateCharacter = async () => {
     if (!promptValue.trim()) return;
     if (!isLLMReady) {
@@ -144,29 +151,27 @@ export function NewOnboardingScreen({ onComplete, onRetryLoadModel }: NewOnboard
 
       // Use agent's LLM for character generation
       const llm = agent.getLLM();
-      let raw = await llm.chat(
+      const raw = await llm.chat(
         [
           { role: 'system', content: 'You are a character generator. Respond ONLY with valid JSON, no markdown fences.' },
           { role: 'user', content: prompt },
         ],
         { temperature: 0.8, max_tokens: 400 },
       );
-      raw = raw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
 
       let richCharacter: Character;
       try {
-        richCharacter = JSON.parse(raw) as Character;
+        richCharacter = JSON.parse(extractJSON(raw)) as Character;
       } catch {
         // Retry with lower temperature
-        let raw2 = await llm.chat(
+        const raw2 = await llm.chat(
           [
             { role: 'system', content: 'You are a character generator. Respond ONLY with valid JSON, no markdown fences.' },
             { role: 'user', content: prompt },
           ],
           { temperature: 0.3, max_tokens: 400 },
         );
-        raw2 = raw2.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-        richCharacter = JSON.parse(raw2) as Character;
+        richCharacter = JSON.parse(extractJSON(raw2)) as Character;
       }
 
       // Ensure we have a stable id
@@ -218,7 +223,7 @@ export function NewOnboardingScreen({ onComplete, onRetryLoadModel }: NewOnboard
     } catch (err) {
       console.error('Character generation failed:', err);
       setIsGenerating(false);
-      setError('Generation failed — make sure the model is loaded and try again.');
+      setError("Couldn't create your companion. Try tweaking your description and tap again.");
     }
   };
 
