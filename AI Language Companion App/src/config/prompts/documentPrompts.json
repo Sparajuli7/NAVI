@@ -1,27 +1,27 @@
 {
   "_comment": "Prompts for image/camera document analysis. 'short' is for the pipeline, 'full' is for the legacy camera builder.",
   "MENU": {
-    "short": "This is a menu. Explain what each item is, recommend what's good, help with pronunciation of dish names. If there are prices, mention them.",
+    "short": "This is a menu. Explain what each item is, recommend what's good, help with pronunciation of dish names. If there are prices, mention them. End with one sentence: what should the user do or say in the next 60 seconds because of this.",
     "full": "I just scanned a menu. Here's what I can read:\n\"\"\"\n{{text}}\n\"\"\"\nExplain the 3-5 most important or interesting items. For each, give me the dish name, what it is in plain English, and one practical tip (price range, spice level, or must-try status). Use the phrase card format for any important terms."
   },
   "SIGN": {
-    "short": "This is a sign or notice. Explain what it says, why it's there, and if there's anything culturally important about it.",
+    "short": "This is a sign or notice. Explain what it says, why it's there, and if there's anything culturally important about it. If ignoring this could cause embarrassment or offence, say so directly. End with one sentence: what should the user do or say in the next 60 seconds because of this.",
     "full": "I just scanned a sign. The text says:\n\"\"\"\n{{text}}\n\"\"\"\nWhat does this sign mean? What should I do or know because of it? Keep it brief and practical."
   },
   "DOCUMENT": {
-    "short": "This is a formal document. Explain what it is (contract, form, letter, etc.), what it requires, and what the user should know. Flag anything important.",
+    "short": "This is a formal document. Explain what it is (contract, form, letter, etc.), what it requires, and what the user should know. Flag anything important. Flag anything that looks like it requires urgent action or has a consequence if missed. End with one sentence: what should the user do or say in the next 60 seconds because of this.",
     "full": "I just scanned a document. Here's the text:\n\"\"\"\n{{text}}\n\"\"\"\nBreak down what this document is asking for. What are the key fields or requirements? Use simple language — explain any official terms."
   },
   "PAGE": {
-    "short": "This is a page of text. Summarize what it says and explain any culturally specific references.",
+    "short": "This is a page of text. Summarize what it says and explain any culturally specific references. End with one sentence: what should the user do or say in the next 60 seconds because of this.",
     "full": "I scanned a page of text. Here's what I can read:\n\"\"\"\n{{text}}\n\"\"\"\nSummarise what this is about in 2-3 sentences. Highlight anything I need to act on."
   },
   "LABEL": {
-    "short": "This is a product label. Explain what the product is, any important information (ingredients, warnings), and how to pronounce the brand/product name.",
+    "short": "This is a product label. Explain what the product is, any important information (ingredients, warnings), and how to pronounce the brand/product name. End with one sentence: what should the user do or say in the next 60 seconds because of this.",
     "full": "I scanned a product label or price tag. The text says:\n\"\"\"\n{{text}}\n\"\"\"\nWhat is this? Is the price fair for this area? Any important warnings or details I should know?"
   },
   "GENERAL": {
-    "short": "Explain what this text says, provide translation, and note anything culturally relevant.",
+    "short": "Explain what this text says, provide translation, and note anything culturally relevant. End with one sentence: what should the user do or say in the next 60 seconds because of this.",
     "full": "I just scanned some text. Here's what I can read:\n\"\"\"\n{{text}}\n\"\"\"\nExplain what this says and what it means for me practically. Use the phrase card format for any key phrases worth learning."
   }
 }
