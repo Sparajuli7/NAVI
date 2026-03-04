@@ -51,7 +51,7 @@ export interface UseNaviAgentReturn {
 export function useNaviAgent(config?: NaviAgentConfig): UseNaviAgentReturn {
   const agentRef = useRef<NaviAgent>(getOrCreateAgent(config));
   const [isInitialized, setIsInitialized] = useState(false);
-  const [isLLMReady, setIsLLMReady] = useState(false);
+  const [isLLMReady, setIsLLMReady] = useState(() => agentRef.current.isLLMReady());
   const [backend, setBackend] = useState<LLMBackend>(config?.backend ?? 'auto');
   const [loadProgress, setLoadProgress] = useState(0);
   const [loadStatusText, setLoadStatusText] = useState('');
