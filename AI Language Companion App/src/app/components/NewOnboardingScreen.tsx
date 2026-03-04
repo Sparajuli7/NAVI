@@ -151,27 +151,63 @@ export function NewOnboardingScreen({ onComplete, onRetryLoadModel }: NewOnboard
 
       // Use agent's LLM for character generation
       const llm = agent.getLLM();
-      const raw = await llm.chat(
-        [
-          { role: 'system', content: 'You are a character generator. Respond ONLY with valid JSON, no markdown fences.' },
-          { role: 'user', content: prompt },
-        ],
-        { temperature: 0.8, max_tokens: 400 },
-      );
+      const sysMsg  = { role: 'system', content: 'You are a character generator. Respond ONLY with valid JSON, no markdown fences.' };
+      const userMsg = { role: 'user', content: prompt };
+
+      const city    = locationCtx?.city ?? location;
+      const country = locationCtx?.country ?? '';
+
+      // Helper: fill in any missing fields so the Character is always complete
+      const fillDefaults = (partial: Partial<Character>): Character => ({
+        id:               `char_${Date.now()}`,
+        name:             partial.name             ?? 'Kai',
+        summary:          partial.summary          ?? `${partial.name ?? 'Kai'} — your local guide in ${city}`,
+        detailed:         partial.detailed         ?? '',
+        style:            partial.style            ?? 'casual',
+        emoji:            partial.emoji            ?? '🌟',
+        avatar_color:     partial.avatar_color     ?? { primary: '#6B7280', secondary: '#F6AD55', accent: '#48BB78' },
+        avatar_accessory: partial.avatar_accessory ?? '🎒',
+        speaks_like:      partial.speaks_like      ?? 'warm and conversational',
+        template_id:      partial.template_id      ?? null,
+        location_city:    partial.location_city    ?? city,
+        location_country: partial.location_country ?? country,
+        first_message:    partial.first_message    ?? `Hey! I'm ${partial.name ?? 'Kai'}, your guide in ${city}. What do you want to explore?`,
+      });
 
       let richCharacter: Character;
+
+      // Attempt 1 — full JSON, creative temperature
       try {
-        richCharacter = JSON.parse(extractJSON(raw)) as Character;
+        const raw = await llm.chat([sysMsg, userMsg], { temperature: 0.8, max_tokens: 700 });
+        console.log('[NAVI] chargen attempt 1:', raw);
+        richCharacter = fillDefaults(JSON.parse(extractJSON(raw)) as Partial<Character>);
       } catch {
-        // Retry with lower temperature
-        const raw2 = await llm.chat(
-          [
-            { role: 'system', content: 'You are a character generator. Respond ONLY with valid JSON, no markdown fences.' },
-            { role: 'user', content: prompt },
-          ],
-          { temperature: 0.3, max_tokens: 400 },
-        );
-        richCharacter = JSON.parse(extractJSON(raw2)) as Character;
+        // Attempt 2 — full JSON, lower temperature
+        try {
+          const raw2 = await llm.chat([sysMsg, userMsg], { temperature: 0.3, max_tokens: 700 });
+          console.log('[NAVI] chargen attempt 2:', raw2);
+          richCharacter = fillDefaults(JSON.parse(extractJSON(raw2)) as Partial<Character>);
+        } catch {
+          // Attempt 3 — minimal 3-field prompt, much smaller output
+          try {
+            const minimalPrompt = `Create a local friend in ${city}${country ? `, ${country}` : ''}. Description: "${promptValue}". Output ONLY this JSON (no other text):\n{"name":"<short name>","summary":"<name> — <one sentence>","first_message":"<one sentence greeting in character>"}`;
+            const raw3 = await llm.chat(
+              [{ role: 'system', content: 'Output ONLY valid JSON.' }, { role: 'user', content: minimalPrompt }],
+              { temperature: 0.2, max_tokens: 200 },
+            );
+            console.log('[NAVI] chargen attempt 3 (minimal):', raw3);
+            richCharacter = fillDefaults(JSON.parse(extractJSON(raw3)) as Partial<Character>);
+          } catch {
+            // Final fallback — synthetic character, no LLM needed
+            console.warn('[NAVI] All LLM attempts failed — using synthetic character');
+            const fallbackName = city.length > 0 ? city[0].toUpperCase() + 'ai' : 'Kai';
+            richCharacter = fillDefaults({
+              name:          fallbackName,
+              summary:       `${fallbackName} — your local guide in ${city}`,
+              first_message: `Hey! I'm ${fallbackName}, your local friend in ${city}. I know this place well — what do you want to do or find?`,
+            });
+          }
+        }
       }
 
       // Ensure we have a stable id
