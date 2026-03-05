@@ -86,6 +86,7 @@ export function useNaviAgent(config?: NaviAgentConfig): UseNaviAgentReturn {
     await agent.initialize();
     setIsInitialized(true);
     setBackend(agent.getBackend());
+    setIsLLMReady(agent.isLLMReady());
   }, []);
 
   const loadLLM = useCallback(async () => {

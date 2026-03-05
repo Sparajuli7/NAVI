@@ -79,7 +79,7 @@ export class AvatarContextController {
     location: string,
     overrides?: Partial<AvatarProfile>,
   ): AvatarProfile {
-    const template = this.templates.find((t) => t.id === templateId);
+    const template = this.templates.find((t) => t.id === templateId) ?? this.templates[0];
     if (!template) {
       throw new Error(`Template not found: ${templateId}`);
     }
