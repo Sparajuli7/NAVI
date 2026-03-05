@@ -54,16 +54,16 @@ export function SettingsPanel({ onClose, onRegenerate, onUpdateCharacter, onSave
   const [isSwitchingModel, setIsSwitchingModel] = useState(false);
   const [modelSwitchError, setModelSwitchError] = useState<string | null>(null);
 
-  // Fetch available Ollama models when the model tab is opened
+  // Fetch available Ollama models when the model tab is opened (regardless of current backend)
   useEffect(() => {
-    if (activeSection === 'model' && backend === 'ollama') {
+    if (activeSection === 'model') {
       setIsLoadingModels(true);
       agent.listOllamaModels()
         .then(setOllamaModels)
         .catch(() => setOllamaModels([]))
         .finally(() => setIsLoadingModels(false));
     }
-  }, [activeSection, backend, agent]);
+  }, [activeSection, agent]);
 
   const handleSwitchOllamaModel = async (model: string) => {
     if (model === ollamaModel || isSwitchingModel) return;
@@ -549,19 +549,25 @@ export function SettingsPanel({ onClose, onRegenerate, onUpdateCharacter, onSave
           {activeSection === 'model' && (
             <div className="bg-card border border-border rounded-xl p-4 space-y-4">
               <div>
-                <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Backend</p>
-                <p className="text-sm text-foreground font-medium capitalize">{backend}</p>
+                <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Active Model</p>
+                <p className="text-sm text-foreground font-medium break-all">
+                  {backend === 'ollama'
+                    ? `Ollama: ${ollamaModel ?? 'unknown'}`
+                    : 'Qwen2.5-1.5B (WebGPU)'}
+                </p>
               </div>
 
-              {/* Ollama model selector */}
-              {backend === 'ollama' && (
-                <div className="border-t border-border pt-4">
-                  <p className="text-xs text-muted-foreground uppercase tracking-wide mb-2">Ollama Model</p>
-                  {isLoadingModels ? (
-                    <p className="text-sm text-muted-foreground">Loading models...</p>
-                  ) : ollamaModels.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">No models found. Pull a model with <code className="text-xs bg-muted px-1.5 py-0.5 rounded">ollama pull</code></p>
-                  ) : (
+              {/* Ollama model selector — shown whenever Ollama has models available */}
+              <div className="border-t border-border pt-4">
+                <p className="text-xs text-muted-foreground uppercase tracking-wide mb-2">Ollama Models</p>
+                {isLoadingModels ? (
+                  <p className="text-sm text-muted-foreground animate-pulse">Checking Ollama...</p>
+                ) : ollamaModels.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    No Ollama models found. Make sure Ollama is running and you've pulled at least one model.
+                  </p>
+                ) : (
+                  <>
                     <div className="relative">
                       <select
                         value={ollamaModel ?? ''}
@@ -569,6 +575,9 @@ export function SettingsPanel({ onClose, onRegenerate, onUpdateCharacter, onSave
                         disabled={isSwitchingModel}
                         className="w-full appearance-none px-3 py-2.5 pr-8 bg-background border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50 cursor-pointer"
                       >
+                        {backend !== 'ollama' && (
+                          <option value="" disabled>Select a model to switch to Ollama</option>
+                        )}
                         {ollamaModels.map((m) => (
                           <option key={m.name} value={m.name}>
                             {m.name} ({(m.size / 1e9).toFixed(1)} GB)
@@ -577,23 +586,18 @@ export function SettingsPanel({ onClose, onRegenerate, onUpdateCharacter, onSave
                       </select>
                       <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
                     </div>
-                  )}
-                  {isSwitchingModel && (
-                    <p className="text-xs text-muted-foreground mt-2 animate-pulse">Switching model...</p>
-                  )}
-                  {modelSwitchError && (
-                    <p className="text-xs text-destructive mt-2">{modelSwitchError}</p>
-                  )}
-                </div>
-              )}
-
-              {/* WebGPU model info */}
-              {backend !== 'ollama' && (
-                <div className="border-t border-border pt-4">
-                  <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Model</p>
-                  <p className="text-sm text-foreground font-medium">Qwen2.5-1.5B (WebGPU)</p>
-                </div>
-              )}
+                    {backend !== 'ollama' && (
+                      <p className="text-xs text-muted-foreground mt-1.5">Pick a model to switch from WebGPU to Ollama</p>
+                    )}
+                  </>
+                )}
+                {isSwitchingModel && (
+                  <p className="text-xs text-muted-foreground mt-2 animate-pulse">Switching model...</p>
+                )}
+                {modelSwitchError && (
+                  <p className="text-xs text-destructive mt-2">{modelSwitchError}</p>
+                )}
+              </div>
 
               <div className="border-t border-border pt-4">
                 <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Status</p>

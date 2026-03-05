@@ -223,12 +223,37 @@ export function NewOnboardingScreen({ onComplete, onRetryLoadModel }: NewOnboard
       }
 
       // Set up agent avatar so the agent context is ready for chat
-      const avatarProfile = agent.createAvatarFromTemplate(
-        richCharacter.template_id ?? 'default',
-        locationCtx?.city ?? location,
+      // Map LLM-generated character fields into a full AvatarProfile
+      const loc = locationCtx?.city ?? location;
+      const dialectKey = locationCtx?.dialectKey ?? '';
+      const dialectInfo = locationCtx?.dialectInfo;
+
+      const avatarProfile = agent.avatar.createFromDescription(
+        richCharacter.detailed || richCharacter.summary,
+        {
+          name: richCharacter.name,
+          personality: richCharacter.detailed || richCharacter.summary,
+          speaksLike: richCharacter.speaks_like || 'a friendly local',
+          energyLevel: (['energetic', 'playful'].includes(richCharacter.style) ? 'high'
+            : ['mysterious', 'dry-humor'].includes(richCharacter.style) ? 'low'
+            : 'medium') as 'low' | 'medium' | 'high',
+          humorStyle: (['playful', 'dry-humor'].includes(richCharacter.style) ? richCharacter.style
+            : 'warm') as string,
+          slangLevel: (['casual', 'streetwise', 'energetic', 'playful'].includes(richCharacter.style) ? 0.7 : 0.4),
+          dialect: dialectInfo?.dialect ?? dialectKey,
+          culturalContext: dialectInfo?.cultural_notes ?? '',
+          location: loc,
+          scenario: '',
+          visual: {
+            primaryColor: richCharacter.avatar_color?.primary ?? '#6BBAA7',
+            secondaryColor: richCharacter.avatar_color?.secondary ?? '#D4A853',
+            accentColor: richCharacter.avatar_color?.accent ?? '#F5F0EB',
+            accessory: richCharacter.avatar_accessory ?? richCharacter.emoji ?? '🌍',
+            emoji: richCharacter.emoji ?? '🌍',
+          },
+        },
+        loc,
       );
-      avatarProfile.name = richCharacter.name;
-      avatarProfile.personality = richCharacter.summary;
       agent.setAvatar(avatarProfile);
 
       // Add the character's first message to chat

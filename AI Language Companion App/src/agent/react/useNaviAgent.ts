@@ -142,6 +142,7 @@ export function useNaviAgent(config?: NaviAgentConfig): UseNaviAgentReturn {
         setModelProgress(progress);
       });
       setOllamaModel(model);
+      setBackend('ollama');
       setIsLLMReady(true);
       setModelStatus('ready');
       setModelProgress(100);

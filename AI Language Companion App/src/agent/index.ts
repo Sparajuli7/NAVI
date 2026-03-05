@@ -443,16 +443,38 @@ export class NaviAgent {
     return listOllamaModels(this.config.ollamaBaseUrl);
   }
 
-  /** Switch the Ollama model at runtime and reload */
+  /**
+   * Switch to Ollama backend with a specific model.
+   * Creates the Ollama provider if it doesn't exist yet (e.g. when switching from WebLLM).
+   */
   async switchOllamaModel(
     model: string,
     onProgress?: (progress: number, text: string) => void,
   ): Promise<void> {
+    // Create provider if we don't have one yet
     if (!this.ollamaProvider) {
-      throw new Error('Cannot switch model: Ollama backend is not active');
+      this.ollamaProvider = this.createOllamaProvider({ ...this.config, ollamaModel: model });
+      this.models.register(this.ollamaProvider);
+    } else {
+      await this.ollamaProvider.switchModel(model);
     }
 
-    await this.ollamaProvider.switchModel(model);
+    // Switch the active LLM to Ollama
+    this.llm = this.ollamaProvider;
+    this.llmBackend = 'ollama';
+
+    // Re-register tools with the new LLM provider
+    registerAllTools({
+      llmProvider: this.llm,
+      ttsProvider: this.ttsProvider,
+      sttProvider: this.sttProvider,
+      visionProvider: this.visionProvider,
+      translationProvider: this.translationProvider,
+      avatarController: this.avatar,
+      memoryManager: this.memory,
+      locationIntelligence: this.location,
+    });
+
     await this.ollamaProvider.load(onProgress);
 
     agentBus.emit('model:status', { backend: 'ollama', model, status: 'ready' });
