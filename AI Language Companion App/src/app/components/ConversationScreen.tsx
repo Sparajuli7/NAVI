@@ -177,7 +177,7 @@ export function ConversationScreen({
       // Build conversation history for the agent
       const history = historySnapshot
         .filter(m => m.role === 'user' || m.role === 'character')
-        .slice(-20)
+        .slice(-8)
         .map(m => ({
           role: m.role === 'user' ? 'user' : 'assistant',
           content: m.content,

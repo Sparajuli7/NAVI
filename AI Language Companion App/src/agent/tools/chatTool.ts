@@ -57,10 +57,11 @@ export function createChatTool(
         conversationGoals,
       });
 
-      // Build message array
+      // Build message array — keep sliding window tight (last 8 turns)
+      // to prevent context degradation and character drift in long conversations
       const messages = [
         { role: 'system', content: systemPrompt },
-        ...history.slice(-20), // Keep last 20 messages for context
+        ...history.slice(-8),
         { role: 'user', content: message },
       ];
 

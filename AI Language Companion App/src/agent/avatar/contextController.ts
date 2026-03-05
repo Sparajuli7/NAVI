@@ -241,8 +241,21 @@ export class AvatarContextController {
       layers.push(options.conversationGoals);
     }
 
-    // Layer 11: Core rules (always last)
+    // Layer 11: Few-shot examples (show ideal tone)
+    const fewShot = promptLoader.get('coreRules.fewShotExamples');
+    if (fewShot) layers.push(fewShot);
+
+    // Layer 12: Core rules
     layers.push(this.buildCoreRules());
+
+    // Layer 13: Internal monologue instruction
+    layers.push('BEFORE responding, think through these in your head (do NOT output them):\n- What is my current mood/energy right now?\n- Did the user make any language mistakes I should address?\n- What is happening around us in this place right now?\n- What does this person actually need from me in this moment?\nThen respond naturally in character. Only output your spoken dialogue.');
+
+    // Layer 14: Reinforcement (always LAST — LLMs pay most attention to the end)
+    const reinforcement = promptLoader.get('coreRules.reinforcement', {
+      name: profile.name,
+    });
+    if (reinforcement) layers.push(reinforcement);
 
     const assembled = layers.join('\n\n');
     console.log(`[NAVI:avatar] buildSystemPrompt layers=${layers.length} avatar=${profile.name} location=${override.location ?? profile.location} scenario=${(override.scenario ?? profile.scenario) || 'none'}`);

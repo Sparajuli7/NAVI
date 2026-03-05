@@ -87,7 +87,7 @@ export { registerAllTools } from './tools';
 // ─── NaviAgent: The unified agent instance ─────────────────────
 
 import { MemoryManager } from './memory';
-import { ModelRegistry, LLMProvider, LLM_PRESETS, OllamaProvider, OLLAMA_PRESETS, isOllamaAvailable, TTSProvider, STTProvider, VisionProvider, EmbeddingProvider, TranslationProvider } from './models';
+import { ModelRegistry, LLMProvider, LLM_PRESETS, OllamaProvider, OLLAMA_PRESETS, isOllamaAvailable, listOllamaModels, TTSProvider, STTProvider, VisionProvider, EmbeddingProvider, TranslationProvider } from './models';
 import type { ChatLLM } from './models';
 import { AvatarContextController } from './avatar/contextController';
 import { LocationIntelligence } from './location/locationIntelligence';
@@ -427,6 +427,35 @@ export class NaviAgent {
   getSuggestions(): string[] {
     const avatarId = this.avatar.getActiveProfile()?.id ?? 'default';
     return this.director.getSuggestions(avatarId);
+  }
+
+  /** Get the current Ollama model name (if using Ollama backend) */
+  getOllamaModelName(): string | null {
+    return this.ollamaProvider?.getModelName() ?? null;
+  }
+
+  /** List all models available in the local Ollama instance */
+  async listOllamaModels(): Promise<Array<{ name: string; size: number }>> {
+    if (this.ollamaProvider) {
+      return this.ollamaProvider.listAvailableModels();
+    }
+    // No provider yet — use the standalone utility
+    return listOllamaModels(this.config.ollamaBaseUrl);
+  }
+
+  /** Switch the Ollama model at runtime and reload */
+  async switchOllamaModel(
+    model: string,
+    onProgress?: (progress: number, text: string) => void,
+  ): Promise<void> {
+    if (!this.ollamaProvider) {
+      throw new Error('Cannot switch model: Ollama backend is not active');
+    }
+
+    await this.ollamaProvider.switchModel(model);
+    await this.ollamaProvider.load(onProgress);
+
+    agentBus.emit('model:status', { backend: 'ollama', model, status: 'ready' });
   }
 
   /** Set energy mode */
