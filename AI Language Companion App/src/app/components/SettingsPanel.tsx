@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { X, RefreshCw, Trash2, MapPin, Save } from 'lucide-react';
+import { X, RefreshCw, Trash2, MapPin, Save, ChevronDown } from 'lucide-react';
 import { useCharacterStore } from '../../stores/characterStore';
 import { useAppStore } from '../../stores/appStore';
 import { saveMemories, savePreferences, saveLocation, saveCharacterMemories } from '../../utils/storage';
@@ -46,7 +46,37 @@ export function SettingsPanel({ onClose, onRegenerate, onUpdateCharacter, onSave
   const { activeCharacter, memories, removeMemory, clearMemories } = useCharacterStore();
   const { userPreferences, currentLocation, modelStatus, modelProgress, setUserPreferences, setCurrentLocation, userProfile } =
     useAppStore();
-  const { agent } = useNaviAgent();
+  const { agent, backend, ollamaModel, switchOllamaModel } = useNaviAgent();
+
+  // Ollama model list state
+  const [ollamaModels, setOllamaModels] = useState<Array<{ name: string; size: number }>>([]);
+  const [isLoadingModels, setIsLoadingModels] = useState(false);
+  const [isSwitchingModel, setIsSwitchingModel] = useState(false);
+  const [modelSwitchError, setModelSwitchError] = useState<string | null>(null);
+
+  // Fetch available Ollama models when the model tab is opened
+  useEffect(() => {
+    if (activeSection === 'model' && backend === 'ollama') {
+      setIsLoadingModels(true);
+      agent.listOllamaModels()
+        .then(setOllamaModels)
+        .catch(() => setOllamaModels([]))
+        .finally(() => setIsLoadingModels(false));
+    }
+  }, [activeSection, backend, agent]);
+
+  const handleSwitchOllamaModel = async (model: string) => {
+    if (model === ollamaModel || isSwitchingModel) return;
+    setIsSwitchingModel(true);
+    setModelSwitchError(null);
+    try {
+      await switchOllamaModel(model);
+    } catch (err) {
+      setModelSwitchError(err instanceof Error ? err.message : 'Failed to switch model');
+    } finally {
+      setIsSwitchingModel(false);
+    }
+  };
 
   // Lazy-init profile draft from store
   if (!profileInitialized) {
@@ -519,11 +549,52 @@ export function SettingsPanel({ onClose, onRegenerate, onUpdateCharacter, onSave
           {activeSection === 'model' && (
             <div className="bg-card border border-border rounded-xl p-4 space-y-4">
               <div>
-                <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Model</p>
-                <p className="text-sm text-foreground font-medium break-all">
-                  {agent.getBackend() === 'ollama' ? `Ollama` : 'Qwen2.5-1.5B (WebGPU)'}
-                </p>
+                <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Backend</p>
+                <p className="text-sm text-foreground font-medium capitalize">{backend}</p>
               </div>
+
+              {/* Ollama model selector */}
+              {backend === 'ollama' && (
+                <div className="border-t border-border pt-4">
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide mb-2">Ollama Model</p>
+                  {isLoadingModels ? (
+                    <p className="text-sm text-muted-foreground">Loading models...</p>
+                  ) : ollamaModels.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No models found. Pull a model with <code className="text-xs bg-muted px-1.5 py-0.5 rounded">ollama pull</code></p>
+                  ) : (
+                    <div className="relative">
+                      <select
+                        value={ollamaModel ?? ''}
+                        onChange={(e) => handleSwitchOllamaModel(e.target.value)}
+                        disabled={isSwitchingModel}
+                        className="w-full appearance-none px-3 py-2.5 pr-8 bg-background border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50 cursor-pointer"
+                      >
+                        {ollamaModels.map((m) => (
+                          <option key={m.name} value={m.name}>
+                            {m.name} ({(m.size / 1e9).toFixed(1)} GB)
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+                    </div>
+                  )}
+                  {isSwitchingModel && (
+                    <p className="text-xs text-muted-foreground mt-2 animate-pulse">Switching model...</p>
+                  )}
+                  {modelSwitchError && (
+                    <p className="text-xs text-destructive mt-2">{modelSwitchError}</p>
+                  )}
+                </div>
+              )}
+
+              {/* WebGPU model info */}
+              {backend !== 'ollama' && (
+                <div className="border-t border-border pt-4">
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Model</p>
+                  <p className="text-sm text-foreground font-medium">Qwen2.5-1.5B (WebGPU)</p>
+                </div>
+              )}
+
               <div className="border-t border-border pt-4">
                 <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Status</p>
                 <div className="flex items-center gap-2">
@@ -554,12 +625,8 @@ export function SettingsPanel({ onClose, onRegenerate, onUpdateCharacter, onSave
                 </div>
               )}
               <div className="border-t border-border pt-4">
-                <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Backend</p>
-                <p className="text-sm text-foreground capitalize">{agent.getBackend()}</p>
-              </div>
-              <div className="border-t border-border pt-4">
                 <p className="text-xs text-muted-foreground leading-relaxed">
-                  {agent.getBackend() === 'ollama'
+                  {backend === 'ollama'
                     ? 'Connected to local Ollama server. All data stays on your machine.'
                     : 'Runs entirely on your device via WebGPU. No data is sent to any server.'}
                 </p>

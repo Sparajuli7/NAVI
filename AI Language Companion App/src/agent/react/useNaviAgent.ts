@@ -46,6 +46,10 @@ export interface UseNaviAgentReturn {
   initialize: () => Promise<void>;
   /** Load the LLM model (call after initialize) */
   loadLLM: () => Promise<void>;
+  /** Current Ollama model name (if using Ollama) */
+  ollamaModel: string | null;
+  /** Switch the active Ollama model */
+  switchOllamaModel: (model: string) => Promise<void>;
 }
 
 export function useNaviAgent(config?: NaviAgentConfig): UseNaviAgentReturn {
@@ -53,6 +57,7 @@ export function useNaviAgent(config?: NaviAgentConfig): UseNaviAgentReturn {
   const [isInitialized, setIsInitialized] = useState(false);
   const [isLLMReady, setIsLLMReady] = useState(() => agentRef.current.isLLMReady());
   const [backend, setBackend] = useState<LLMBackend>(config?.backend ?? 'auto');
+  const [ollamaModel, setOllamaModel] = useState<string | null>(() => agentRef.current.getOllamaModelName());
   const [loadProgress, setLoadProgress] = useState(0);
   const [loadStatusText, setLoadStatusText] = useState('');
   const [lastEvent, setLastEvent] = useState<AgentEvent | null>(null);
@@ -87,6 +92,7 @@ export function useNaviAgent(config?: NaviAgentConfig): UseNaviAgentReturn {
     setIsInitialized(true);
     setBackend(agent.getBackend());
     setIsLLMReady(agent.isLLMReady());
+    setOllamaModel(agent.getOllamaModelName());
   }, []);
 
   const loadLLM = useCallback(async () => {
@@ -122,16 +128,42 @@ export function useNaviAgent(config?: NaviAgentConfig): UseNaviAgentReturn {
     }
   }, []);
 
+  const switchOllamaModel = useCallback(async (model: string) => {
+    const agent = agentRef.current;
+    const { setModelStatus, setModelProgress } = useAppStore.getState();
+
+    setModelStatus('loading');
+    setModelProgress(0);
+
+    try {
+      await agent.switchOllamaModel(model, (progress, text) => {
+        setLoadProgress(progress);
+        setLoadStatusText(text);
+        setModelProgress(progress);
+      });
+      setOllamaModel(model);
+      setIsLLMReady(true);
+      setModelStatus('ready');
+      setModelProgress(100);
+    } catch (err) {
+      setModelStatus('error');
+      setModelProgress(0);
+      throw err;
+    }
+  }, []);
+
   return {
     agent: agentRef.current,
     isInitialized,
     isLLMReady,
     backend,
+    ollamaModel,
     loadProgress,
     loadStatusText,
     lastEvent,
     initialize,
     loadLLM,
+    switchOllamaModel,
   };
 }
 
