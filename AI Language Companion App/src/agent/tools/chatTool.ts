@@ -28,6 +28,7 @@ export function createChatTool(
       warmthInstruction: { type: 'string', required: false, description: 'Warmth-tier behavior' },
       learningContext: { type: 'string', required: false, description: 'Learner profile context' },
       conversationGoals: { type: 'string', required: false, description: 'Director goals injection' },
+      situationContext: { type: 'string', required: false, description: 'Situation model context' },
     },
     requiredModels: ['llm'],
     costTier: 'heavy',
@@ -39,8 +40,9 @@ export function createChatTool(
       const warmthInstruction = params.warmthInstruction as string | undefined;
       const learningContext = params.learningContext as string | undefined;
       const conversationGoals = params.conversationGoals as string | undefined;
+      const situationContext = params.situationContext as string | undefined;
 
-      // Build system prompt from avatar context + memory + relationship + learning
+      // Build system prompt from avatar context + memory + relationship + learning + situation
       const memoryContext = memoryManager.buildContextForPrompt({
         location: avatarController.getActiveProfile()?.location,
         scenario: avatarController.getActiveProfile()?.scenario,
@@ -50,17 +52,30 @@ export function createChatTool(
         temperature: number; max_tokens: number;
       };
 
+      // Get user's native language from profile memory
+      const userNativeLanguage = memoryManager.profile.getProfile().nativeLanguage || 'English';
+
       const systemPrompt = avatarController.buildSystemPrompt({
         memoryContext,
         warmthInstruction,
         learningContext,
         conversationGoals,
+        situationContext,
+        userNativeLanguage,
       });
+
+      // Inject the chat-specific behavioral prompt (friend mode, not teaching mode)
+      const chatBehavior = promptLoader.get('toolPrompts.chat.template', { userNativeLanguage });
+
+      // Build final system message: avatar prompt + chat behavior
+      // Chat behavior template contains adaptive language scaffolding instructions
+      // that tell the LLM to read the conversation and adjust its own language mix
+      const fullSystem = `${systemPrompt}\n\n${chatBehavior}`;
 
       // Build message array — keep sliding window tight (last 8 turns)
       // to prevent context degradation and character drift in long conversations
       const messages = [
-        { role: 'system', content: systemPrompt },
+        { role: 'system', content: fullSystem },
         ...history.slice(-8),
         { role: 'user', content: message },
       ];

@@ -31,11 +31,8 @@ export function ExpandedPhraseCard({ phrase, characterName, languageName = 'Engl
 
   const handlePracticeDown = () => {
     if (!isSTTSupported()) return;
-    const langMap: Record<string, string> = {
-      Vietnamese: 'vi-VN', Japanese: 'ja-JP', French: 'fr-FR',
-      Spanish: 'es-MX', Korean: 'ko-KR', English: 'en-US',
-    };
-    const lang = langMap[languageName] ?? 'en-US';
+    // Pass the language name directly — startRecording resolves it to a BCP-47 code
+    const lang = languageName || 'English';
     setIsPracticing(true);
     startRecording(lang, () => {
       setIsPracticing(false);

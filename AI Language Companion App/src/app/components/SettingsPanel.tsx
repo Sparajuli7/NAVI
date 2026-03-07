@@ -24,7 +24,7 @@ interface SettingsPanelProps {
   onSaveUserProfile: (text: string) => Promise<void>;
 }
 
-export function SettingsPanel({ onClose, onRegenerate, onUpdateCharacter, onSaveUserProfile }: SettingsPanelProps) {
+export function SettingsPanel({ onClose, onRegenerate, onUpdateCharacter, onSaveUserProfile: _onSaveUserProfile }: SettingsPanelProps) {
   const [activeSection, setActiveSection] = useState<Section>('companion');
   const [confirmClear, setConfirmClear] = useState(false);
   const [manualCity, setManualCity] = useState('');
@@ -39,12 +39,14 @@ export function SettingsPanel({ onClose, onRegenerate, onUpdateCharacter, onSave
   const [countryDraft, setCountryDraft] = useState('');
   const [isSavingCompanion, setIsSavingCompanion] = useState(false);
 
-  // Profile state
-  const [profileDraft, setProfileDraft] = useState('');
-  const [profileInitialized, setProfileInitialized] = useState(false);
+  // Situation model state
+  const [situationModel, setSituationModel] = useState<{
+    urgency: string; comfortLevel: string; primaryGoal: string;
+    nextSituation: string; inCountry: boolean | null; assessmentConfidence: number;
+  } | null>(null);
 
   const { activeCharacter, memories, removeMemory, clearMemories } = useCharacterStore();
-  const { userPreferences, currentLocation, modelStatus, modelProgress, setUserPreferences, setCurrentLocation, userProfile } =
+  const { userPreferences, currentLocation, modelStatus, modelProgress, setUserPreferences, setCurrentLocation } =
     useAppStore();
   const { agent, backend, ollamaModel, switchOllamaModel } = useNaviAgent();
 
@@ -53,17 +55,39 @@ export function SettingsPanel({ onClose, onRegenerate, onUpdateCharacter, onSave
   const [isLoadingModels, setIsLoadingModels] = useState(false);
   const [isSwitchingModel, setIsSwitchingModel] = useState(false);
   const [modelSwitchError, setModelSwitchError] = useState<string | null>(null);
+  const [ollamaUrl, setOllamaUrl] = useState(() => agent.getOllamaBaseUrl());
+  const [ollamaUrlDraft, setOllamaUrlDraft] = useState(() => agent.getOllamaBaseUrl());
+  const [ollamaConnected, setOllamaConnected] = useState(false);
 
   // Fetch available Ollama models when the model tab is opened (regardless of current backend)
+  const fetchOllamaModels = (url?: string) => {
+    setIsLoadingModels(true);
+    setModelSwitchError(null);
+    agent.listOllamaModels(url)
+      .then((models) => {
+        setOllamaModels(models);
+        setOllamaConnected(models.length > 0);
+      })
+      .catch(() => {
+        setOllamaModels([]);
+        setOllamaConnected(false);
+      })
+      .finally(() => setIsLoadingModels(false));
+  };
+
   useEffect(() => {
     if (activeSection === 'model') {
-      setIsLoadingModels(true);
-      agent.listOllamaModels()
-        .then(setOllamaModels)
-        .catch(() => setOllamaModels([]))
-        .finally(() => setIsLoadingModels(false));
+      fetchOllamaModels();
     }
-  }, [activeSection, agent]);
+  }, [activeSection]);
+
+  const handleOllamaUrlSave = () => {
+    const trimmed = ollamaUrlDraft.trim().replace(/\/+$/, '');
+    if (!trimmed) return;
+    setOllamaUrl(trimmed);
+    agent.setOllamaBaseUrl(trimmed);
+    fetchOllamaModels(trimmed);
+  };
 
   const handleSwitchOllamaModel = async (model: string) => {
     if (model === ollamaModel || isSwitchingModel) return;
@@ -78,11 +102,13 @@ export function SettingsPanel({ onClose, onRegenerate, onUpdateCharacter, onSave
     }
   };
 
-  // Lazy-init profile draft from store
-  if (!profileInitialized) {
-    setProfileDraft(userProfile);
-    setProfileInitialized(true);
-  }
+  // Load situation model when profile tab is opened
+  useEffect(() => {
+    if (activeSection === 'profile') {
+      const model = agent.memory.situation.getModel();
+      setSituationModel(model);
+    }
+  }, [activeSection]);
 
   const handlePreferenceChange = async (updates: Partial<UserPreferences>) => {
     setUserPreferences(updates);
@@ -146,10 +172,6 @@ export function SettingsPanel({ onClose, onRegenerate, onUpdateCharacter, onSave
     setEditingSummary(false);
     setEditingLocation(false);
     setIsSavingCompanion(false);
-  };
-
-  const handleSaveProfile = async () => {
-    await onSaveUserProfile(profileDraft);
   };
 
   const sections: Array<{ key: Section; label: string }> = [
@@ -322,30 +344,106 @@ export function SettingsPanel({ onClose, onRegenerate, onUpdateCharacter, onSave
             </div>
           )}
 
-          {/* B) My Profile */}
+          {/* B) How NAVI sees you */}
           {activeSection === 'profile' && (
             <div className="space-y-4">
               <div className="bg-card border border-border rounded-xl p-4 space-y-3">
-                <div>
-                  <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">About you</p>
-                  <p className="text-xs text-muted-foreground leading-relaxed mb-3">
-                    Share anything relevant — your learning goals, native language, interests, or context. Your companion will use this to personalise conversations.
-                  </p>
-                  <textarea
-                    value={profileDraft}
-                    onChange={(e) => setProfileDraft(e.target.value)}
-                    placeholder="e.g. I'm a native English speaker learning Vietnamese for a 3-month trip. I'm interested in street food and local culture. I'm a beginner."
-                    rows={6}
-                    className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none"
-                  />
-                </div>
-                <button
-                  onClick={handleSaveProfile}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-primary text-primary-foreground rounded-xl text-sm font-medium"
-                >
-                  <Save className="w-4 h-4" />
-                  Save profile
-                </button>
+                <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">How your companion sees you</p>
+                <p className="text-xs text-muted-foreground leading-relaxed mb-3">
+                  Your companion figures out what you need through conversation. This updates automatically as you talk.
+                </p>
+
+                {situationModel && situationModel.assessmentConfidence > 0 ? (
+                  <div className="space-y-3">
+                    {situationModel.inCountry !== null && (
+                      <div className="flex items-start gap-2">
+                        <span className="text-base mt-0.5">{situationModel.inCountry ? '📍' : '✈️'}</span>
+                        <p className="text-sm text-foreground">
+                          {situationModel.inCountry ? 'Currently in the country' : 'Preparing before arrival'}
+                        </p>
+                      </div>
+                    )}
+
+                    {situationModel.urgency !== 'unknown' && (
+                      <div className="flex items-start gap-2">
+                        <span className="text-base mt-0.5">
+                          {situationModel.urgency === 'immediate' ? '🔥' : situationModel.urgency === 'short_term' ? '📅' : '🌱'}
+                        </span>
+                        <p className="text-sm text-foreground">
+                          {situationModel.urgency === 'immediate' ? 'Needs help right now'
+                            : situationModel.urgency === 'short_term' ? 'Getting ready (days/weeks)'
+                            : 'Long-term learning, no rush'}
+                        </p>
+                      </div>
+                    )}
+
+                    {situationModel.comfortLevel !== 'unknown' && (
+                      <div className="flex items-start gap-2">
+                        <span className="text-base mt-0.5">
+                          {situationModel.comfortLevel === 'zero' ? '🌱' : situationModel.comfortLevel === 'basic' ? '🌿' : situationModel.comfortLevel === 'conversational' ? '🌳' : '🏔️'}
+                        </span>
+                        <p className="text-sm text-foreground">
+                          {situationModel.comfortLevel === 'zero' ? 'Starting from scratch'
+                            : situationModel.comfortLevel === 'basic' ? 'Knows the basics'
+                            : situationModel.comfortLevel === 'conversational' ? 'Can hold a conversation'
+                            : 'Advanced speaker'}
+                        </p>
+                      </div>
+                    )}
+
+                    {situationModel.primaryGoal !== 'unknown' && (
+                      <div className="flex items-start gap-2">
+                        <span className="text-base mt-0.5">
+                          {situationModel.primaryGoal === 'survive' ? '🛟' : situationModel.primaryGoal === 'belong' ? '🏠' : situationModel.primaryGoal === 'connect' ? '💬' : '🌿'}
+                        </span>
+                        <p className="text-sm text-foreground">
+                          {situationModel.primaryGoal === 'survive' ? 'Goal: Get through real situations'
+                            : situationModel.primaryGoal === 'belong' ? 'Goal: Fit in and feel at home'
+                            : situationModel.primaryGoal === 'connect' ? 'Goal: Connect with people'
+                            : 'Goal: Reconnect with heritage'}
+                        </p>
+                      </div>
+                    )}
+
+                    {situationModel.nextSituation && (
+                      <div className="flex items-start gap-2">
+                        <span className="text-base mt-0.5">🎯</span>
+                        <p className="text-sm text-foreground">
+                          Next up: {situationModel.nextSituation}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Confidence indicator */}
+                    <div className="border-t border-border pt-3 mt-3">
+                      <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
+                        <span>Understanding</span>
+                        <span>{Math.round(situationModel.assessmentConfidence * 100)}%</span>
+                      </div>
+                      <div className="w-full bg-border rounded-full h-1.5 overflow-hidden">
+                        <div
+                          className="h-full bg-primary rounded-full transition-all"
+                          style={{ width: `${situationModel.assessmentConfidence * 100}%` }}
+                        />
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {situationModel.assessmentConfidence < 0.6
+                          ? 'Keep chatting — your companion is still getting to know you.'
+                          : 'Your companion has a good sense of what you need.'}
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-4 space-y-2">
+                    <p className="text-3xl">💬</p>
+                    <p className="text-sm text-muted-foreground">
+                      Start a conversation and your companion will figure out what you need.
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      No forms to fill out — just talk naturally.
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -547,27 +645,99 @@ export function SettingsPanel({ onClose, onRegenerate, onUpdateCharacter, onSave
 
           {/* F) AI Model */}
           {activeSection === 'model' && (
-            <div className="bg-card border border-border rounded-xl p-4 space-y-4">
-              <div>
-                <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Active Model</p>
-                <p className="text-sm text-foreground font-medium break-all">
-                  {backend === 'ollama'
-                    ? `Ollama: ${ollamaModel ?? 'unknown'}`
-                    : 'Qwen2.5-1.5B (WebGPU)'}
-                </p>
+            <div className="space-y-4">
+              {/* Active model */}
+              <div className="bg-card border border-border rounded-xl p-4 space-y-4">
+                <div>
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Active Model</p>
+                  <p className="text-sm text-foreground font-medium break-all">
+                    {backend === 'ollama'
+                      ? `Ollama: ${ollamaModel ?? 'unknown'}`
+                      : 'Qwen2.5-1.5B (WebGPU)'}
+                  </p>
+                </div>
+                <div className="border-t border-border pt-4">
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Status</p>
+                  <div className="flex items-center gap-2">
+                    <div
+                      className={`w-2 h-2 rounded-full ${
+                        modelStatus === 'ready'
+                          ? 'bg-green-400'
+                          : modelStatus === 'error'
+                          ? 'bg-red-400'
+                          : 'bg-yellow-400 animate-pulse'
+                      }`}
+                    />
+                    <p className="text-sm text-foreground capitalize">{modelStatus.replace('_', ' ')}</p>
+                  </div>
+                </div>
+                {(modelStatus === 'downloading' || modelStatus === 'loading') && (
+                  <div className="border-t border-border pt-4 space-y-1">
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                      <span>Progress</span>
+                      <span>{modelProgress}%</span>
+                    </div>
+                    <div className="w-full bg-border rounded-full h-1.5 overflow-hidden">
+                      <div
+                        className="h-full bg-primary rounded-full transition-all"
+                        style={{ width: `${modelProgress}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
 
-              {/* Ollama model selector — shown whenever Ollama has models available */}
-              <div className="border-t border-border pt-4">
-                <p className="text-xs text-muted-foreground uppercase tracking-wide mb-2">Ollama Models</p>
-                {isLoadingModels ? (
-                  <p className="text-sm text-muted-foreground animate-pulse">Checking Ollama...</p>
-                ) : ollamaModels.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">
-                    No Ollama models found. Make sure Ollama is running and you've pulled at least one model.
-                  </p>
-                ) : (
-                  <>
+              {/* Ollama connection */}
+              <div className="bg-card border border-border rounded-xl p-4 space-y-4">
+                <div>
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide mb-2">Ollama Server</p>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={ollamaUrlDraft}
+                      onChange={(e) => setOllamaUrlDraft(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && handleOllamaUrlSave()}
+                      placeholder="http://localhost:11434"
+                      className="flex-1 px-3 py-2 bg-background border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                    />
+                    <button
+                      onClick={handleOllamaUrlSave}
+                      disabled={isLoadingModels}
+                      className="px-3 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium disabled:opacity-50"
+                    >
+                      {isLoadingModels ? '...' : 'Connect'}
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-1.5 mt-2">
+                    <div className={`w-2 h-2 rounded-full ${ollamaConnected ? 'bg-green-400' : 'bg-red-400'}`} />
+                    <p className="text-xs text-muted-foreground">
+                      {isLoadingModels ? 'Connecting...' : ollamaConnected ? `Connected (${ollamaModels.length} models)` : 'Not connected'}
+                    </p>
+                  </div>
+                </div>
+
+                {/* CORS help */}
+                {!ollamaConnected && !isLoadingModels && (
+                  <div className="border-t border-border pt-4">
+                    <p className="text-xs text-muted-foreground leading-relaxed mb-2">
+                      If Ollama is running but not connecting, you need to allow CORS. Stop Ollama and restart it with:
+                    </p>
+                    <div className="bg-background border border-border rounded-lg px-3 py-2">
+                      <code className="text-xs text-foreground break-all">OLLAMA_ORIGINS=* ollama serve</code>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-2 leading-relaxed">
+                      On macOS, you can also set it permanently:
+                    </p>
+                    <div className="bg-background border border-border rounded-lg px-3 py-2 mt-1">
+                      <code className="text-xs text-foreground break-all">launchctl setenv OLLAMA_ORIGINS "*"</code>
+                    </div>
+                  </div>
+                )}
+
+                {/* Model selector */}
+                {ollamaConnected && (
+                  <div className="border-t border-border pt-4">
+                    <p className="text-xs text-muted-foreground uppercase tracking-wide mb-2">Select Model</p>
                     <div className="relative">
                       <select
                         value={ollamaModel ?? ''}
@@ -576,7 +746,7 @@ export function SettingsPanel({ onClose, onRegenerate, onUpdateCharacter, onSave
                         className="w-full appearance-none px-3 py-2.5 pr-8 bg-background border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50 cursor-pointer"
                       >
                         {backend !== 'ollama' && (
-                          <option value="" disabled>Select a model to switch to Ollama</option>
+                          <option value="" disabled>Select a model...</option>
                         )}
                         {ollamaModels.map((m) => (
                           <option key={m.name} value={m.name}>
@@ -586,53 +756,22 @@ export function SettingsPanel({ onClose, onRegenerate, onUpdateCharacter, onSave
                       </select>
                       <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
                     </div>
-                    {backend !== 'ollama' && (
-                      <p className="text-xs text-muted-foreground mt-1.5">Pick a model to switch from WebGPU to Ollama</p>
+                    {isSwitchingModel && (
+                      <p className="text-xs text-muted-foreground mt-2 animate-pulse">Switching model...</p>
                     )}
-                  </>
-                )}
-                {isSwitchingModel && (
-                  <p className="text-xs text-muted-foreground mt-2 animate-pulse">Switching model...</p>
-                )}
-                {modelSwitchError && (
-                  <p className="text-xs text-destructive mt-2">{modelSwitchError}</p>
+                    {modelSwitchError && (
+                      <p className="text-xs text-destructive mt-2">{modelSwitchError}</p>
+                    )}
+                  </div>
                 )}
               </div>
 
-              <div className="border-t border-border pt-4">
-                <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Status</p>
-                <div className="flex items-center gap-2">
-                  <div
-                    className={`w-2 h-2 rounded-full ${
-                      modelStatus === 'ready'
-                        ? 'bg-green-400'
-                        : modelStatus === 'error'
-                        ? 'bg-red-400'
-                        : 'bg-yellow-400 animate-pulse'
-                    }`}
-                  />
-                  <p className="text-sm text-foreground capitalize">{modelStatus.replace('_', ' ')}</p>
-                </div>
-              </div>
-              {(modelStatus === 'downloading' || modelStatus === 'loading') && (
-                <div className="border-t border-border pt-4 space-y-1">
-                  <div className="flex justify-between text-xs text-muted-foreground">
-                    <span>Progress</span>
-                    <span>{modelProgress}%</span>
-                  </div>
-                  <div className="w-full bg-border rounded-full h-1.5 overflow-hidden">
-                    <div
-                      className="h-full bg-primary rounded-full transition-all"
-                      style={{ width: `${modelProgress}%` }}
-                    />
-                  </div>
-                </div>
-              )}
-              <div className="border-t border-border pt-4">
+              {/* Info */}
+              <div className="px-1">
                 <p className="text-xs text-muted-foreground leading-relaxed">
                   {backend === 'ollama'
-                    ? 'Connected to local Ollama server. All data stays on your machine.'
-                    : 'Runs entirely on your device via WebGPU. No data is sent to any server.'}
+                    ? 'Connected to Ollama. All inference runs on your machine.'
+                    : 'Using in-browser WebGPU. Connect to Ollama above to use any local model.'}
                 </p>
               </div>
             </div>

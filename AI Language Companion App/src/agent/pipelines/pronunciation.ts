@@ -102,8 +102,8 @@ export async function practicePronunciation(
   console.log(`[NAVI:pipeline] pronunciation feedback score=${feedback.score} assessment=${feedback.assessment}`);
   callbacks?.onFeedback?.(feedback);
 
-  // Step 3: Play correct pronunciation
-  ttsProvider.speak(targetPhrase, targetLanguage, 0.4);
+  // Step 3: Play correct pronunciation slowly for learning
+  ttsProvider.speakSlow(targetPhrase, targetLanguage);
 
   return {
     targetPhrase,

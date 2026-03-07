@@ -12,6 +12,7 @@
  * 4. Profile Memory  — User preferences and learning progress
  * 5. Learner Profile — Phrase tracking, topic proficiency, spaced repetition
  * 6. Relationships   — Per-avatar warmth, milestones, shared references
+ * 7. Situation       — Proactive user situation model (urgency, comfort, goal)
  */
 
 import { WorkingMemory } from './workingMemory';
@@ -20,6 +21,7 @@ import { SemanticMemoryStore } from './semanticMemory';
 import { ProfileMemoryStore } from './profileMemory';
 import { LearnerProfileStore } from './learnerProfile';
 import { RelationshipStore } from './relationshipStore';
+import { SituationAssessor } from './situationAssessor';
 import type { EpisodicMemory } from '../core/types';
 import { agentBus } from '../core/eventBus';
 
@@ -30,6 +32,7 @@ export class MemoryManager {
   readonly profile: ProfileMemoryStore;
   readonly learner: LearnerProfileStore;
   readonly relationships: RelationshipStore;
+  readonly situation: SituationAssessor;
 
   private initialized = false;
 
@@ -40,6 +43,7 @@ export class MemoryManager {
     this.profile = new ProfileMemoryStore();
     this.learner = new LearnerProfileStore();
     this.relationships = new RelationshipStore();
+    this.situation = new SituationAssessor();
   }
 
   /** Initialize all persistent stores */
@@ -51,6 +55,7 @@ export class MemoryManager {
       this.profile.load(),
       this.learner.load(),
       this.relationships.load(),
+      this.situation.load(),
     ]);
     this.initialized = true;
     agentBus.emit('memory:update', { type: 'initialized' });
@@ -152,6 +157,7 @@ export class MemoryManager {
     await this.profile.reset();
     await this.learner.clear();
     await this.relationships.clear();
+    await this.situation.reset();
     agentBus.emit('memory:update', { type: 'cleared' });
   }
 }
@@ -162,3 +168,4 @@ export { SemanticMemoryStore } from './semanticMemory';
 export { ProfileMemoryStore } from './profileMemory';
 export { LearnerProfileStore } from './learnerProfile';
 export { RelationshipStore } from './relationshipStore';
+export { SituationAssessor } from './situationAssessor';

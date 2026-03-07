@@ -367,6 +367,33 @@ export interface EnergyProfile {
   aggressiveCaching: boolean;
 }
 
+// ─── Situation Model ────────────────────────────────────────────
+
+export type Urgency = 'immediate' | 'short_term' | 'long_term' | 'unknown';
+export type ComfortLevel = 'zero' | 'basic' | 'conversational' | 'advanced' | 'unknown';
+export type PrimaryGoal = 'survive' | 'belong' | 'connect' | 'reconnect' | 'unknown';
+
+export interface SituationModel {
+  /** How soon the user needs to use the language */
+  urgency: Urgency;
+  /** User's current comfort level with the language */
+  comfortLevel: ComfortLevel;
+  /** What the user is ultimately trying to achieve */
+  primaryGoal: PrimaryGoal;
+  /** The next real-world situation the user is about to face */
+  nextSituation: string;
+  /** Whether the user is already in the target country */
+  inCountry: boolean | null;
+  /** How much of the initial assessment is complete (0-1) */
+  assessmentConfidence: number;
+  /** Number of assessment signals collected */
+  signalsCollected: number;
+  /** Raw signal notes from conversations */
+  signals: string[];
+  /** Timestamp of last update */
+  lastUpdated: number;
+}
+
 // ─── Cloud Escalation (Stub) ───────────────────────────────────
 
 export interface EscalationRequest {

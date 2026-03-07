@@ -283,11 +283,9 @@ export function ConversationScreen({
 
   const handleMicDown = () => {
     if (!isSTTSupported()) return;
-    const langMap: Record<string, string> = {
-      Vietnamese: 'vi-VN', Japanese: 'ja-JP', French: 'fr-FR',
-      Spanish: 'es-MX', Korean: 'ko-KR',
-    };
-    const lang = languageName in langMap ? langMap[languageName] : 'en-US';
+    // Pass the language name directly — startRecording resolves it to a BCP-47 code
+    // This ensures STT detects the TARGET language, not English
+    const lang = languageName || 'English';
     setIsRecording(true);
     startRecording(lang, (transcript) => {
       setInputValue(transcript);

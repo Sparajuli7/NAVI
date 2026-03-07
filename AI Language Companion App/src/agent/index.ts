@@ -41,10 +41,15 @@ export type {
   LearnerProfile,
   SharedMilestone,
   RelationshipState,
+  // Situation model types
+  SituationModel,
+  Urgency,
+  ComfortLevel,
+  PrimaryGoal,
 } from './core/types';
 
 // Memory
-export { MemoryManager, LearnerProfileStore, RelationshipStore } from './memory';
+export { MemoryManager, LearnerProfileStore, RelationshipStore, SituationAssessor } from './memory';
 
 // Director
 export { ConversationDirector } from './director/conversationDirector';
@@ -151,6 +156,7 @@ export class NaviAgent {
       this.memory.relationships,
       this.memory.episodic,
     );
+    this.director.setSituationAssessor(this.memory.situation);
 
     // Determine backend — 'auto' is resolved during initialize()
     this.llmBackend = config.backend ?? 'auto';
@@ -310,7 +316,9 @@ export class NaviAgent {
 
     // 1. Director pre-processing — build goals + context injection
     const avatarId = this.avatar.getActiveProfile()?.id ?? 'default';
-    const directorCtx = this.director.preProcess(message, avatarId);
+    const historyLen = options?.history?.length ?? 0;
+    const isSessionStart = historyLen <= 2; // first message or just the greeting
+    const directorCtx = this.director.preProcess(message, avatarId, { isSessionStart });
     agentBus.emit('director:goals_set', { goals: directorCtx.goals });
 
     const contextParams: Record<string, unknown> = {
@@ -319,6 +327,7 @@ export class NaviAgent {
       warmthInstruction: directorCtx.warmthInstruction,
       learningContext: directorCtx.learningContext,
       conversationGoals: directorCtx.promptInjection,
+      situationContext: directorCtx.situationContext,
     };
 
     if (options?.history) {
@@ -434,13 +443,23 @@ export class NaviAgent {
     return this.ollamaProvider?.getModelName() ?? null;
   }
 
-  /** List all models available in the local Ollama instance */
-  async listOllamaModels(): Promise<Array<{ name: string; size: number }>> {
-    if (this.ollamaProvider) {
+  /** Get the current Ollama base URL */
+  getOllamaBaseUrl(): string {
+    return this.config.ollamaBaseUrl ?? 'http://localhost:11434';
+  }
+
+  /** Set the Ollama base URL (persists for this session) */
+  setOllamaBaseUrl(url: string): void {
+    this.config.ollamaBaseUrl = url;
+  }
+
+  /** List all models available in a local Ollama instance */
+  async listOllamaModels(baseUrl?: string): Promise<Array<{ name: string; size: number }>> {
+    const url = baseUrl ?? this.config.ollamaBaseUrl;
+    if (this.ollamaProvider && !baseUrl) {
       return this.ollamaProvider.listAvailableModels();
     }
-    // No provider yet — use the standalone utility
-    return listOllamaModels(this.config.ollamaBaseUrl);
+    return listOllamaModels(url);
   }
 
   /**

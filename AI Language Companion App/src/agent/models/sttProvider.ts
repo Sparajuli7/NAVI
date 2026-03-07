@@ -8,6 +8,10 @@
  * SpeechRecognition is Chrome/Edge only. When we add Whisper.cpp
  * via WASM, it registers as a second STT provider with broader
  * browser support.
+ *
+ * Key fix: Language detection now defaults to the user's target
+ * language, not English. The STT must detect the language being
+ * spoken — which is the language the user is learning.
  */
 
 import type { ModelInfo, ModelProvider, ModelStatus } from '../core/types';
@@ -18,6 +22,28 @@ declare global {
     webkitSpeechRecognition: typeof SpeechRecognition;
   }
 }
+
+/** Map language names to BCP-47 codes for speech recognition */
+const STT_LANG_CODE_MAP: Record<string, string> = {
+  Vietnamese: 'vi-VN',
+  Japanese: 'ja-JP',
+  French: 'fr-FR',
+  Spanish: 'es-MX',
+  Korean: 'ko-KR',
+  English: 'en-US',
+  Chinese: 'zh-CN',
+  Portuguese: 'pt-BR',
+  German: 'de-DE',
+  Italian: 'it-IT',
+  Thai: 'th-TH',
+  Arabic: 'ar-SA',
+  Hindi: 'hi-IN',
+  Russian: 'ru-RU',
+  Indonesian: 'id-ID',
+  Tagalog: 'tl-PH',
+  Mandarin: 'zh-CN',
+  Cantonese: 'zh-HK',
+};
 
 export class STTProvider implements ModelProvider<SpeechRecognition | null> {
   private status: ModelStatus;
@@ -40,7 +66,7 @@ export class STTProvider implements ModelProvider<SpeechRecognition | null> {
       runtime: 'browser-api',
       required: false,
       status: this.status,
-      languages: ['multilingual'],
+      languages: Object.keys(STT_LANG_CODE_MAP),
     };
   }
 
@@ -69,7 +95,12 @@ export class STTProvider implements ModelProvider<SpeechRecognition | null> {
     return this.recognition;
   }
 
-  /** Start recording and transcribing */
+  /**
+   * Start recording and transcribing.
+   * @param lang - BCP-47 code (e.g. 'vi-VN') OR language name (e.g. 'Vietnamese').
+   *               This should be the TARGET language the user is learning/practicing,
+   *               NOT English (unless the user is speaking English).
+   */
   startRecording(
     lang: string = 'en-US',
     onResult: (transcript: string) => void,
@@ -83,8 +114,11 @@ export class STTProvider implements ModelProvider<SpeechRecognition | null> {
     const SpeechRecognitionAPI =
       window.SpeechRecognition ?? window.webkitSpeechRecognition;
 
+    // Resolve language name to BCP-47 code if a name was passed
+    const langCode = STT_LANG_CODE_MAP[lang] ?? lang;
+
     this.recognition = new SpeechRecognitionAPI();
-    this.recognition.lang = lang;
+    this.recognition.lang = langCode;
     this.recognition.interimResults = false;
     this.recognition.maxAlternatives = 1;
 
@@ -104,5 +138,10 @@ export class STTProvider implements ModelProvider<SpeechRecognition | null> {
   stop(): void {
     this.recognition?.stop();
     this.recognition = null;
+  }
+
+  /** Get the BCP-47 language code for a language name */
+  getLangCode(language: string): string {
+    return STT_LANG_CODE_MAP[language] ?? 'en-US';
   }
 }

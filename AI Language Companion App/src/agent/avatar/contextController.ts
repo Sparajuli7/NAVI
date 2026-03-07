@@ -188,6 +188,8 @@ export class AvatarContextController {
     warmthInstruction?: string;
     learningContext?: string;
     conversationGoals?: string;
+    situationContext?: string;
+    userNativeLanguage?: string;
   }): string {
     if (!this.activeProfile) {
       return 'You are a helpful language assistant.';
@@ -207,7 +209,8 @@ export class AvatarContextController {
 
     // Layer 3: Location + dialect
     const effectiveLocation = override.location ?? profile.location;
-    layers.push(this.buildLocationLayer(effectiveLocation, profile.ageGroup));
+    const userLang = options?.userNativeLanguage || 'English';
+    layers.push(this.buildLocationLayer(effectiveLocation, profile.ageGroup, userLang));
 
     // Layer 4: Scenario
     const effectiveScenario = override.scenario ?? profile.scenario;
@@ -235,29 +238,35 @@ export class AvatarContextController {
       layers.push(options.warmthInstruction);
     }
 
-    // Layer 9: Learning context
+    // Layer 9: Situation model (proactive assessment of user needs)
+    if (options?.situationContext) {
+      layers.push(options.situationContext);
+    }
+
+    // Layer 10: Learning context
     if (options?.learningContext) {
       layers.push(options.learningContext);
     }
 
-    // Layer 10: Conversation goals
+    // Layer 11: Conversation goals
     if (options?.conversationGoals) {
       layers.push(options.conversationGoals);
     }
 
-    // Layer 11: Few-shot examples (show ideal tone)
+    // Layer 12: Few-shot examples (show ideal tone)
     const fewShot = promptLoader.get('coreRules.fewShotExamples');
     if (fewShot) layers.push(fewShot);
 
-    // Layer 12: Core rules
-    layers.push(this.buildCoreRules());
+    // Layer 13: Core rules
+    layers.push(this.buildCoreRules(userLang));
 
-    // Layer 13: Internal monologue instruction
+    // Layer 14: Internal monologue instruction
     layers.push('BEFORE responding, think through these in your head (do NOT output them):\n- What is my current mood/energy right now?\n- Did the user make any language mistakes I should address?\n- What is happening around us in this place right now?\n- What does this person actually need from me in this moment?\nThen respond naturally in character. Only output your spoken dialogue.');
 
-    // Layer 14: Reinforcement (always LAST — LLMs pay most attention to the end)
+    // Layer 15: Reinforcement (always LAST — LLMs pay most attention to the end)
     const reinforcement = promptLoader.get('coreRules.reinforcement', {
       name: profile.name,
+      userNativeLanguage: userLang,
     });
     if (reinforcement) layers.push(reinforcement);
 
@@ -299,7 +308,7 @@ export class AvatarContextController {
     return lines.length > 0 ? lines.join(' ') : '';
   }
 
-  private buildLocationLayer(location: string, ageGroup: string): string {
+  private buildLocationLayer(location: string, ageGroup: string, userNativeLanguage: string): string {
     // Find dialect info by matching location against dialect keys
     let dialectConfig: DialectConfig | null = null;
     let dialectKey: string | null = null;
@@ -315,7 +324,9 @@ export class AvatarContextController {
 
     let layer = `Location: ${location}.`;
     if (dialectConfig) {
-      layer += ` Speak in ${dialectConfig.dialect}, not standard/textbook.`;
+      layer += ` You are a native ${dialectConfig.language} speaker. Your language is ${dialectConfig.language} (${dialectConfig.dialect}).`;
+      layer += ` SPEAK IN ${dialectConfig.language.toUpperCase()} — use ${dialectConfig.dialect}, not standard/textbook.`;
+      layer += ` When you talk, lead with ${dialectConfig.language} phrases and follow with ${userNativeLanguage} explanation when needed.`;
       if (dialectConfig.cultural_notes) {
         layer += ` ${dialectConfig.cultural_notes}`;
       }
@@ -330,6 +341,9 @@ export class AvatarContextController {
       if (slang) {
         layer += ` Use age-appropriate slang: ${slang}`;
       }
+    } else {
+      // No dialect config — infer language from location name
+      layer += ` Speak in the local language of ${location}. Lead with the local language, support in ${userNativeLanguage}.`;
     }
 
     return layer;
@@ -365,8 +379,8 @@ export class AvatarContextController {
     return layer;
   }
 
-  private buildCoreRules(): string {
-    return promptLoader.get('coreRules.rules');
+  private buildCoreRules(userNativeLanguage: string): string {
+    return promptLoader.get('coreRules.rules', { userNativeLanguage });
   }
 
   // ── Config Management (for runtime swapping) ────────────────

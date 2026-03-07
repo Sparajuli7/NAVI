@@ -74,6 +74,7 @@ export class TranslationProvider implements ModelProvider<null> {
       includeExplanation?: boolean;
       dialect?: string;
       formality?: 'casual' | 'neutral' | 'formal';
+      userNativeLanguage?: string;
     },
   ): string {
     const parts: string[] = [];
@@ -98,7 +99,8 @@ export class TranslationProvider implements ModelProvider<null> {
     parts.push('{');
     parts.push('  "translated": "the translation",');
     if (options?.includePhonetic) {
-      parts.push('  "phonetic": "phonetic pronunciation for English speakers",');
+      const lang = options?.userNativeLanguage || 'English';
+      parts.push(`  "phonetic": "phonetic pronunciation for ${lang} speakers",`);
     }
     if (options?.includeExplanation) {
       parts.push('  "explanation": "brief cultural/contextual notes",');

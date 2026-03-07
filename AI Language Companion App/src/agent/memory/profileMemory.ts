@@ -18,7 +18,7 @@ import { agentBus } from '../core/eventBus';
 const STORAGE_KEY = 'navi_profile_memory';
 
 const DEFAULT_PROFILE: ProfileMemory = {
-  nativeLanguage: 'English',
+  nativeLanguage: '',
   preferences: {},
   learningProgress: {},
   notes: [],
@@ -88,7 +88,9 @@ export class ProfileMemoryStore {
   /** Format profile for prompt injection */
   formatForPrompt(): string {
     const lines: string[] = [];
-    lines.push(`User's native language: ${this.profile.nativeLanguage}`);
+    if (this.profile.nativeLanguage) {
+      lines.push(`User's native language: ${this.profile.nativeLanguage}`);
+    }
 
     const prefs = this.profile.preferences;
     if (Object.keys(prefs).length > 0) {

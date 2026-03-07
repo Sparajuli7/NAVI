@@ -53,6 +53,8 @@ export async function analyzeImage(
     language?: string;
     /** Avatar persona for the explanation */
     avatarContext?: string;
+    /** User's native language for translation output */
+    userNativeLanguage?: string;
     /** Callback for OCR progress */
     onOCRProgress?: (progress: number) => void;
     /** Callback for streaming explanation */
@@ -85,6 +87,7 @@ export async function analyzeImage(
     documentType,
     options?.language,
     options?.avatarContext,
+    options?.userNativeLanguage,
   );
 
   const messages = [
@@ -119,8 +122,10 @@ function buildExplanationPrompt(
   documentType: OCRType,
   language?: string,
   avatarContext?: string,
+  userNativeLanguage?: string,
 ): string {
   const parts: string[] = [];
+  const nativeLang = userNativeLanguage || 'English';
 
   if (avatarContext) {
     parts.push(avatarContext);
@@ -131,7 +136,7 @@ function buildExplanationPrompt(
   parts.push(getDocumentPrompt(documentType));
 
   if (language) {
-    parts.push(`The text is in ${language}. Translate key parts to English.`);
+    parts.push(`The text is in ${language}. Translate key parts to ${nativeLang}.`);
   }
 
   parts.push('Be concise but thorough. Explain cultural context where relevant.');

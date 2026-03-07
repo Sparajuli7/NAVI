@@ -119,7 +119,7 @@ export class LocationIntelligence {
 
   /** Get the primary language for the current location */
   getPrimaryLanguage(): string {
-    return this.state.current?.dialectInfo?.language ?? 'English';
+    return this.state.current?.dialectInfo?.language ?? 'Unknown';
   }
 
   /** Get the dialect for the current location */
@@ -133,7 +133,7 @@ export class LocationIntelligence {
    */
   buildContextForPrompt(): string {
     const loc = this.state.current;
-    if (!loc) return 'Location: Unknown. Use English as default.';
+    if (!loc) return 'Location: Unknown. Use the local language when available.';
 
     const lines: string[] = [];
     lines.push(`Location: ${loc.city}, ${loc.country}`);

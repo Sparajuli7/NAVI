@@ -7,6 +7,7 @@
  * No extra LLM calls — uses heuristics and the phrase detector.
  *
  * Pre-processing (before routing):
+ *   0. Situation assessment — probe new/incomplete users naturally
  *   1. Check for phrases due for spaced repetition review
  *   2. Check for struggling phrases to revisit
  *   3. Check for weak topics to target
@@ -20,12 +21,14 @@
  *   3. Detect topics via keyword matching
  *   4. Update topic proficiency
  *   5. Record interaction in relationshipStore
- *   6. Check for milestones
+ *   6. Extract situation signals from user message
+ *   7. Check for milestones
  */
 
 import type { LearnerProfileStore } from '../memory/learnerProfile';
 import type { RelationshipStore } from '../memory/relationshipStore';
 import type { EpisodicMemoryStore } from '../memory/episodicMemory';
+import type { SituationAssessor } from '../memory/situationAssessor';
 import type { TrackedPhrase } from '../core/types';
 import { detectPhrases, detectTopics } from '../prompts/phraseDetector';
 import { promptLoader } from '../prompts/promptLoader';
@@ -41,7 +44,10 @@ export type ConversationGoal =
   | 'bridge_locations'
   | 'free_conversation'
   | 'assess_comfort_level'
-  | 'avoid_recent_openers';
+  | 'avoid_recent_openers'
+  | 'proactive_memory'
+  | 'session_opener'
+  | 'assess_user';
 
 export interface DirectorContext {
   /** Goals selected for this message */
@@ -52,16 +58,40 @@ export interface DirectorContext {
   learningContext: string;
   /** Warmth instruction for the avatar */
   warmthInstruction: string;
+  /** Situation model context for the avatar */
+  situationContext: string;
 }
+
+// ─── Assessment Question Queue ──────────────────────────────
+
+/** Questions the avatar can naturally weave in to assess the user */
+const ASSESSMENT_QUESTIONS = [
+  // Are they in-country?
+  'Are you here already or still getting ready for the trip?',
+  // Urgency
+  'So what\'s coming up for you — anything you need to handle soon, or just exploring?',
+  // Comfort
+  'Have you tried speaking any of the language yet, or starting totally fresh?',
+  // Goal / next situation
+  'What\'s the first thing you want to be able to do here? Like, what situation are you most nervous about?',
+];
 
 // ─── ConversationDirector ────────────────────────────────────
 
 export class ConversationDirector {
+  private situationAssessor: SituationAssessor | null = null;
+  private assessmentQuestionIndex = 0;
+
   constructor(
     private learner: LearnerProfileStore,
     private relationships: RelationshipStore,
     private episodic: EpisodicMemoryStore,
   ) {}
+
+  /** Set the situation assessor (called after MemoryManager wires it up) */
+  setSituationAssessor(assessor: SituationAssessor): void {
+    this.situationAssessor = assessor;
+  }
 
   // ── Pre-Processing ─────────────────────────────────────────
 
@@ -69,7 +99,11 @@ export class ConversationDirector {
    * Analyze learner state and build conversation goals + prompt injection.
    * Call this before routing the user's message.
    */
-  preProcess(message: string, avatarId: string): DirectorContext {
+  preProcess(
+    message: string,
+    avatarId: string,
+    options?: { isSessionStart?: boolean },
+  ): DirectorContext {
     const goals: ConversationGoal[] = [];
     const goalInstructions: string[] = [];
 
@@ -99,6 +133,49 @@ export class ConversationDirector {
         promptLoader.get('systemLayers.conversationGoals.avoid_recent_openers', {
           recentOpeners: recentOpeners.map((o) => `"${o}"`).join(', '),
         }),
+      );
+    }
+
+    // 0d. Situation assessment — for new or incompletely assessed users
+    const needsAssessment = this.situationAssessor?.needsAssessment() ?? false;
+    if (needsAssessment) {
+      const isNew = this.situationAssessor?.isNewUser() ?? false;
+      const question = this.getNextAssessmentQuestion();
+
+      goals.push('assess_user');
+
+      if (isNew) {
+        goalInstructions.push(
+          promptLoader.get('systemLayers.conversationGoals.assess_new_user', {
+            assessmentQuestion: question,
+          }),
+        );
+      } else {
+        goalInstructions.push(
+          promptLoader.get('systemLayers.conversationGoals.assess_continuing', {
+            assessmentQuestion: question,
+          }),
+        );
+      }
+    }
+
+    // 0e. Check for proactive memory — things the avatar should bring up
+    const recentEpisodes = this.episodic.getRecent(3);
+    if (recentEpisodes.length > 0) {
+      const memoryContext = recentEpisodes
+        .map((ep) => ep.summary)
+        .join('; ');
+      goals.push('proactive_memory');
+      goalInstructions.push(
+        promptLoader.get('systemLayers.conversationGoals.proactive_memory', { memoryContext }),
+      );
+    }
+
+    // 0f. Session opener — if this is the first message in a new session
+    if (options?.isSessionStart && recentEpisodes.length === 0 && !needsAssessment) {
+      goals.push('session_opener');
+      goalInstructions.push(
+        promptLoader.get('systemLayers.conversationGoals.session_opener'),
       );
     }
 
@@ -159,7 +236,7 @@ export class ConversationDirector {
       );
     }
 
-    // Default: free conversation
+    // Default: free conversation (only if no other goals were set)
     if (goals.length === 0) {
       goals.push('free_conversation');
       goalInstructions.push(
@@ -171,9 +248,9 @@ export class ConversationDirector {
     const learningContext = this.learner.formatForPrompt();
     const warmthInstruction = this.relationships.formatForPrompt(avatarId);
     const promptInjection = goalInstructions.join('\n');
+    const situationContext = this.situationAssessor?.formatForPrompt() ?? '';
 
-    console.log(`[NAVI:director] preProcess goals=[${goals.join(', ')}]`);
-    if (promptInjection) console.log(`[NAVI:director] promptInjection: ${promptInjection}`);
+    console.log(`[NAVI:director] preProcess goals=[${goals.join(', ')}] assessment=${needsAssessment ? 'active' : 'complete'}`);
     if (warmthInstruction) console.log(`[NAVI:director] warmth: ${warmthInstruction}`);
 
     return {
@@ -181,6 +258,7 @@ export class ConversationDirector {
       promptInjection,
       learningContext,
       warmthInstruction,
+      situationContext,
     };
   }
 
@@ -223,7 +301,16 @@ export class ConversationDirector {
     // 3. Record interaction in relationship store
     await this.relationships.recordInteraction(avatarId);
 
-    // 4. Check for milestones
+    // 4. Extract situation signals from user message (continuous assessment)
+    if (this.situationAssessor) {
+      const changed = await this.situationAssessor.extractSignals(userMessage);
+      if (changed) {
+        const model = this.situationAssessor.getModel();
+        console.log(`[NAVI:director] situation model updated: urgency=${model.urgency} comfort=${model.comfortLevel} goal=${model.primaryGoal} confidence=${model.assessmentConfidence.toFixed(2)}`);
+      }
+    }
+
+    // 5. Check for milestones
     await this.checkMilestones(avatarId);
   }
 
@@ -273,6 +360,23 @@ export class ConversationDirector {
   }
 
   // ── Private Helpers ────────────────────────────────────────
+
+  private getNextAssessmentQuestion(): string {
+    if (!this.situationAssessor) return ASSESSMENT_QUESTIONS[0];
+
+    const model = this.situationAssessor.getModel();
+
+    // Pick the question for the most important missing signal
+    if (model.inCountry === null) return ASSESSMENT_QUESTIONS[0];
+    if (model.urgency === 'unknown') return ASSESSMENT_QUESTIONS[1];
+    if (model.comfortLevel === 'unknown') return ASSESSMENT_QUESTIONS[2];
+    if (model.primaryGoal === 'unknown' || !model.nextSituation) return ASSESSMENT_QUESTIONS[3];
+
+    // Cycle through if somehow all are filled but confidence is still low
+    const idx = this.assessmentQuestionIndex % ASSESSMENT_QUESTIONS.length;
+    this.assessmentQuestionIndex++;
+    return ASSESSMENT_QUESTIONS[idx];
+  }
 
   private findLocationBridges(avatarId: string): string | null {
     const rel = this.relationships.getRelationship(avatarId);
@@ -337,4 +441,5 @@ export class ConversationDirector {
       }
     }
   }
+
 }
