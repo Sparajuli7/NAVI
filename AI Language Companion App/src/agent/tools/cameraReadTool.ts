@@ -10,6 +10,7 @@ import type { ChatLLM } from '../models/chatLLM';
 import type { VisionProvider } from '../models/visionProvider';
 import type { AvatarContextController } from '../avatar/contextController';
 import type { LocationIntelligence } from '../location/locationIntelligence';
+import type { MemoryManager } from '../memory';
 import { analyzeImage } from '../pipelines/imageUnderstanding';
 
 export function createCameraReadTool(
@@ -17,6 +18,7 @@ export function createCameraReadTool(
   visionProvider: VisionProvider,
   avatarController: AvatarContextController,
   locationIntelligence: LocationIntelligence,
+  memoryManager?: MemoryManager,
 ): ToolDefinition {
   return {
     name: 'camera_read',
@@ -34,12 +36,14 @@ export function createCameraReadTool(
       const onOCRProgress = params.onOCRProgress as ((p: number) => void) | undefined;
       const onExplanationToken = params.onExplanationToken as ((t: string, f: string) => void) | undefined;
 
-      const avatarContext = avatarController.buildSystemPrompt();
+      const userNativeLanguage = memoryManager?.profile.getProfile().nativeLanguage || 'English';
+      const avatarContext = avatarController.buildSystemPrompt({ userNativeLanguage });
       const language = locationIntelligence.getPrimaryLanguage();
 
       const result = await analyzeImage(imageData, visionProvider, llmProvider, {
         language,
         avatarContext,
+        userNativeLanguage,
         onOCRProgress,
         onExplanationToken,
       });

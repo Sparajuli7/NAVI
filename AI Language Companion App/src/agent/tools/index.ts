@@ -44,14 +44,14 @@ export function registerAllTools(deps: ToolDependencies): void {
   toolRegistry.register(createChatTool(deps.llmProvider, deps.avatarController, deps.memoryManager));
 
   // Language tools
-  toolRegistry.register(createTranslateTool(deps.llmProvider, deps.translationProvider, deps.locationIntelligence));
-  toolRegistry.register(createPronounceTool(deps.llmProvider, deps.avatarController, deps.locationIntelligence));
-  toolRegistry.register(createPhraseTool(deps.llmProvider, deps.avatarController, deps.locationIntelligence));
-  toolRegistry.register(createSlangTool(deps.llmProvider, deps.avatarController, deps.locationIntelligence));
-  toolRegistry.register(createCultureTool(deps.llmProvider, deps.avatarController, deps.locationIntelligence));
+  toolRegistry.register(createTranslateTool(deps.llmProvider, deps.translationProvider, deps.locationIntelligence, deps.memoryManager));
+  toolRegistry.register(createPronounceTool(deps.llmProvider, deps.avatarController, deps.locationIntelligence, deps.memoryManager));
+  toolRegistry.register(createPhraseTool(deps.llmProvider, deps.avatarController, deps.locationIntelligence, deps.memoryManager));
+  toolRegistry.register(createSlangTool(deps.llmProvider, deps.avatarController, deps.locationIntelligence, deps.memoryManager));
+  toolRegistry.register(createCultureTool(deps.llmProvider, deps.avatarController, deps.locationIntelligence, deps.memoryManager));
 
   // Vision
-  toolRegistry.register(createCameraReadTool(deps.llmProvider, deps.visionProvider, deps.avatarController, deps.locationIntelligence));
+  toolRegistry.register(createCameraReadTool(deps.llmProvider, deps.visionProvider, deps.avatarController, deps.locationIntelligence, deps.memoryManager));
 
   // Memory
   toolRegistry.register(createMemoryRecallTool(deps.memoryManager));

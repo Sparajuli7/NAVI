@@ -8,12 +8,14 @@ import type { ToolDefinition } from '../core/toolRegistry';
 import type { ChatLLM } from '../models/chatLLM';
 import type { AvatarContextController } from '../avatar/contextController';
 import type { LocationIntelligence } from '../location/locationIntelligence';
+import type { MemoryManager } from '../memory';
 import { promptLoader } from '../prompts/promptLoader';
 
 export function createPhraseTool(
   llmProvider: ChatLLM,
   avatarController: AvatarContextController,
   locationIntelligence: LocationIntelligence,
+  memoryManager: MemoryManager,
 ): ToolDefinition {
   return {
     name: 'generate_phrase',
@@ -32,9 +34,10 @@ export function createPhraseTool(
       const toolConfig = promptLoader.getRaw('toolPrompts.phrase') as {
         mode_header: string; template: string; temperature: number; max_tokens: number;
       };
-      const toolPrompt = promptLoader.get('toolPrompts.phrase.template', { language, dialect });
+      const userNativeLanguage = memoryManager.profile.getProfile().nativeLanguage || 'English';
+      const toolPrompt = promptLoader.get('toolPrompts.phrase.template', { language, dialect, userNativeLanguage });
 
-      const systemPrompt = `${avatarController.buildSystemPrompt()}\n\n${toolConfig.mode_header}\n${toolPrompt}`;
+      const systemPrompt = `${avatarController.buildSystemPrompt({ userNativeLanguage })}\n\n${toolConfig.mode_header}\n${toolPrompt}`;
 
       const messages = [
         { role: 'system', content: systemPrompt },

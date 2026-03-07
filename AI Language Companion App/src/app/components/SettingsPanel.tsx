@@ -113,6 +113,10 @@ export function SettingsPanel({ onClose, onRegenerate, onUpdateCharacter, onSave
   const handlePreferenceChange = async (updates: Partial<UserPreferences>) => {
     setUserPreferences(updates);
     await savePreferences(useAppStore.getState().userPreferences);
+    // Sync native language to agent profile memory
+    if (updates.native_language) {
+      await agent.memory.profile.setNativeLanguage(updates.native_language);
+    }
   };
 
   const handleDeleteMemory = async (id: string) => {
@@ -452,6 +456,25 @@ export function SettingsPanel({ onClose, onRegenerate, onUpdateCharacter, onSave
           {activeSection === 'preferences' && (
             <div className="bg-card border border-border rounded-xl p-4 space-y-5">
               <div>
+                <p className="text-xs text-muted-foreground uppercase tracking-wide mb-2">Your native language</p>
+                <div className="flex flex-wrap gap-2">
+                  {(['English', 'Spanish', 'Mandarin', 'Hindi', 'Arabic', 'Portuguese', 'French', 'Japanese', 'Korean', 'Vietnamese', 'German', 'Italian', 'Russian', 'Thai', 'Indonesian', 'Turkish', 'Polish', 'Dutch'] as const).map((lang) => (
+                    <button
+                      key={lang}
+                      onClick={() => handlePreferenceChange({ native_language: lang })}
+                      className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${
+                        userPreferences.native_language === lang
+                          ? 'bg-primary/20 text-primary'
+                          : 'bg-muted/50 text-muted-foreground hover:bg-muted'
+                      }`}
+                    >
+                      {lang}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="border-t border-border pt-4">
                 <p className="text-xs text-muted-foreground uppercase tracking-wide mb-2">Companion age</p>
                 <div className="flex flex-wrap gap-2">
                   {(['teen', '20s', '30s', '40s', '50s', '60s+'] as const).map((age) => (

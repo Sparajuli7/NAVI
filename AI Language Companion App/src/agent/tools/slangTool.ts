@@ -8,12 +8,14 @@ import type { ToolDefinition } from '../core/toolRegistry';
 import type { ChatLLM } from '../models/chatLLM';
 import type { AvatarContextController } from '../avatar/contextController';
 import type { LocationIntelligence } from '../location/locationIntelligence';
+import type { MemoryManager } from '../memory';
 import { promptLoader } from '../prompts/promptLoader';
 
 export function createSlangTool(
   llmProvider: ChatLLM,
   avatarController: AvatarContextController,
   locationIntelligence: LocationIntelligence,
+  memoryManager: MemoryManager,
 ): ToolDefinition {
   return {
     name: 'teach_slang',
@@ -36,9 +38,10 @@ export function createSlangTool(
         mode_header: string; template: string; temperature: number; max_tokens: number;
       };
       const modeHeader = promptLoader.get('toolPrompts.slang.mode_header', { generation });
+      const userNativeLanguage = memoryManager.profile.getProfile().nativeLanguage || 'English';
       const toolPrompt = promptLoader.get('toolPrompts.slang.template', { generation, language, dialect });
 
-      const systemPrompt = `${avatarController.buildSystemPrompt()}\n\n${modeHeader}\n${locationCtx}\n\n${toolPrompt}`;
+      const systemPrompt = `${avatarController.buildSystemPrompt({ userNativeLanguage })}\n\n${modeHeader}\n${locationCtx}\n\n${toolPrompt}`;
 
       const messages = [
         { role: 'system', content: systemPrompt },

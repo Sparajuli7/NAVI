@@ -107,6 +107,14 @@ export class ConversationDirector {
     const goals: ConversationGoal[] = [];
     const goalInstructions: string[] = [];
 
+    // 0. Extract situation signals from the current message BEFORE building context
+    // This ensures urgent messages like "I'm at a restaurant right now" get
+    // immediate situation-aware responses, not delayed until post-processing.
+    if (this.situationAssessor) {
+      // Fire-and-forget the save — we just need the in-memory model updated
+      this.situationAssessor.extractSignals(message).catch(() => {});
+    }
+
     // 0a. Language calibration — always inject the appropriate tier instruction
     const comfortTier = this.learner.languageComfortTier;
     const tierKey = `tier_${comfortTier}_${['unknown', 'beginner', 'early', 'intermediate', 'advanced'][comfortTier]}`;
@@ -118,7 +126,9 @@ export class ConversationDirector {
     }
 
     // 0b. Comfort level assessment — only on first interactions
-    if (!this.learner.comfortAssessed && this.learner.stats.totalSessions <= 1) {
+    // Skip if situation assessment is also needed (assess_new_user covers this more naturally)
+    const needsAssessment = this.situationAssessor?.needsAssessment() ?? false;
+    if (!this.learner.comfortAssessed && this.learner.stats.totalSessions <= 1 && !needsAssessment) {
       goals.push('assess_comfort_level');
       goalInstructions.push(
         promptLoader.get('systemLayers.conversationGoals.assess_comfort_level'),
@@ -137,7 +147,7 @@ export class ConversationDirector {
     }
 
     // 0d. Situation assessment — for new or incompletely assessed users
-    const needsAssessment = this.situationAssessor?.needsAssessment() ?? false;
+    // (needsAssessment already computed above for comfort level check)
     if (needsAssessment) {
       const isNew = this.situationAssessor?.isNewUser() ?? false;
       const question = this.getNextAssessmentQuestion();

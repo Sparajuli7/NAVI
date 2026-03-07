@@ -8,11 +8,13 @@ import type { ToolDefinition } from '../core/toolRegistry';
 import type { ChatLLM } from '../models/chatLLM';
 import type { TranslationProvider } from '../models/translationProvider';
 import type { LocationIntelligence } from '../location/locationIntelligence';
+import type { MemoryManager } from '../memory';
 
 export function createTranslateTool(
   llmProvider: ChatLLM,
   translationProvider: TranslationProvider,
   locationIntelligence: LocationIntelligence,
+  memoryManager?: MemoryManager,
 ): ToolDefinition {
   return {
     name: 'translate',
@@ -30,6 +32,7 @@ export function createTranslateTool(
       const targetLanguage = (params.targetLanguage as string) ?? locationIntelligence.getPrimaryLanguage();
       const sourceLanguage = params.sourceLanguage as string | undefined;
 
+      const userNativeLanguage = memoryManager?.profile.getProfile().nativeLanguage || 'English';
       const translationPrompt = translationProvider.buildTranslationPrompt(
         message,
         targetLanguage,
@@ -38,6 +41,7 @@ export function createTranslateTool(
           includePhonetic: true,
           includeExplanation: true,
           dialect: locationIntelligence.getDialect(),
+          userNativeLanguage,
         },
       );
 

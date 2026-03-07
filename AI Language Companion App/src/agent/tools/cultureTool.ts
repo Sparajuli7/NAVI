@@ -8,12 +8,14 @@ import type { ToolDefinition } from '../core/toolRegistry';
 import type { ChatLLM } from '../models/chatLLM';
 import type { AvatarContextController } from '../avatar/contextController';
 import type { LocationIntelligence } from '../location/locationIntelligence';
+import type { MemoryManager } from '../memory';
 import { promptLoader } from '../prompts/promptLoader';
 
 export function createCultureTool(
   llmProvider: ChatLLM,
   avatarController: AvatarContextController,
   locationIntelligence: LocationIntelligence,
+  memoryManager: MemoryManager,
 ): ToolDefinition {
   return {
     name: 'explain_culture',
@@ -33,7 +35,8 @@ export function createCultureTool(
       };
       const toolPrompt = promptLoader.get('toolPrompts.culture.template');
 
-      const systemPrompt = `${avatarController.buildSystemPrompt()}\n\n${toolConfig.mode_header}\n${locationContext}\n\n${toolPrompt}`;
+      const userNativeLanguage = memoryManager.profile.getProfile().nativeLanguage || 'English';
+      const systemPrompt = `${avatarController.buildSystemPrompt({ userNativeLanguage })}\n\n${toolConfig.mode_header}\n${locationContext}\n\n${toolPrompt}`;
 
       const messages = [
         { role: 'system', content: systemPrompt },

@@ -20,6 +20,7 @@ interface AppStore {
 }
 
 const defaultPreferences: UserPreferences = {
+  native_language: 'English',
   avatar_age: '30s',
   avatar_gender: 'no_preference',
   avatar_vocation: 'other',

@@ -32,6 +32,7 @@ export interface AvatarTemplate {
 }
 
 export interface UserPreferences {
+  native_language: string;
   avatar_age: 'teen' | '20s' | '30s' | '40s' | '50s' | '60s+';
   avatar_gender: 'male' | 'female' | 'non-binary' | 'no_preference';
   avatar_vocation: 'student' | 'professional' | 'service_worker' | 'retired' | 'traveler' | 'other';
