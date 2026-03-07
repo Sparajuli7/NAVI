@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion } from 'motion/react';
 import { MessageSquare, Plus, ArrowRight, Brain } from 'lucide-react';
-import { BlockyAvatar } from './BlockyAvatar';
+import { AvatarDisplay } from './AvatarDisplay';
 import type { Character } from '../../types/character';
 
 interface HomeScreenProps {
@@ -80,7 +80,7 @@ export function HomeScreen({
             animate={{ y: 0, opacity: 1 }}
             transition={{ delay: 0.1 }}
           >
-            <BlockyAvatar character={charToAvatarShape(solo)} size="lg" animate={true} />
+            <AvatarDisplay character={charToAvatarShape(solo)} size="lg" animate={true} />
             <h2
               className="text-xl mt-4 text-foreground"
               style={{ fontFamily: 'var(--font-display)' }}
@@ -194,7 +194,7 @@ export function HomeScreen({
             animate={{ y: 0, opacity: 1 }}
             transition={{ delay: 0.1 + i * 0.07 }}
           >
-            <BlockyAvatar character={charToAvatarShape(comp)} size="md" animate={false} />
+            <AvatarDisplay character={charToAvatarShape(comp)} size="md" animate={false} />
             <div className="flex-1 min-w-0">
               <p
                 className="font-medium text-foreground"

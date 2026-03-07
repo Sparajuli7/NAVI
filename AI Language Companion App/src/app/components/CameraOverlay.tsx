@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { X, Zap, ZapOff, Volume2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { BlockyAvatar } from './BlockyAvatar';
+import { AvatarDisplay } from './AvatarDisplay';
 import { useNaviAgent } from '../../agent/react/useNaviAgent';
 import { speakPhrase } from '../../services/tts';
 import { parseResponse } from '../../utils/responseParser';
@@ -278,7 +278,7 @@ export function CameraOverlay({ character, onClose }: CameraOverlayProps) {
             <div className="px-6 pb-6">
               {/* Character interpretation */}
               <div className="flex items-start gap-3 mb-6">
-                <BlockyAvatar
+                <AvatarDisplay
                   character={character}
                   size="sm"
                   animate={false}

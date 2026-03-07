@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { MapPin } from 'lucide-react';
-import { BlockyAvatar } from './BlockyAvatar';
+import { AvatarDisplay } from './AvatarDisplay';
+import { AvatarBuilder } from './AvatarBuilder';
+import { loadAvatarPrefs, saveAvatarPrefs } from '../../utils/avatarPrefs';
+import type { AvatarPrefs } from '../../utils/avatarPrefs';
 import { detectLocation } from '../../services/location';
 import { buildCharacterGenPrompt } from '../../prompts/characterGen';
 import { saveCharacter, saveConversation, saveLocation } from '../../utils/storage';
@@ -99,6 +102,8 @@ export function NewOnboardingScreen({ onComplete, onRetryLoadModel }: NewOnboard
   const [generatedCharacter, setGeneratedCharacter] = useState<GeneratedCharacter | null>(null);
   const [error, setError]                       = useState<string | null>(null);
   const [showCityPicker, setShowCityPicker]     = useState(false);
+  const [avatarPrefs, setAvatarPrefs]           = useState<AvatarPrefs>(() => loadAvatarPrefs());
+  const [showAvatarBuilder, setShowAvatarBuilder] = useState(false);
 
   const { setActiveCharacter }  = useCharacterStore();
   const { addMessage }          = useChatStore();
@@ -500,18 +505,21 @@ export function NewOnboardingScreen({ onComplete, onRetryLoadModel }: NewOnboard
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0 }}
-            className="relative z-10 flex-1 flex flex-col items-center justify-center px-8 text-center"
+            className="relative z-10 flex-1 flex flex-col items-center justify-start px-8 py-8 overflow-y-auto"
           >
+            {/* Avatar preview */}
             <motion.div
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
               transition={{ type: 'spring', damping: 15 }}
-              className="mb-8"
+              className="mb-4"
+              style={{ width: 160, height: 160 }}
             >
-              <BlockyAvatar
-                character={generatedCharacter}
-                size="xl"
+              <AvatarDisplay
+                size="full"
                 animate={true}
+                animation="happy"
+                prefs={avatarPrefs}
               />
             </motion.div>
 
@@ -519,24 +527,62 @@ export function NewOnboardingScreen({ onComplete, onRetryLoadModel }: NewOnboard
               initial={{ y: 20, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               transition={{ delay: 0.3 }}
+              className="text-center mb-6"
             >
               <h2
-                className="text-2xl mb-3"
+                className="text-2xl mb-2"
                 style={{ fontFamily: 'var(--font-display)' }}
               >
                 Meet {generatedCharacter.name}
               </h2>
-              <p className="text-foreground/80 max-w-sm mx-auto">
+              <p className="text-foreground/80 max-w-sm mx-auto text-sm">
                 {generatedCharacter.personality.charAt(0).toUpperCase() + generatedCharacter.personality.slice(1)}{' '}
                 {generatedCharacter.accessory}
               </p>
             </motion.div>
 
+            {/* Avatar builder — expand/collapse */}
             <motion.div
-              className="mt-6 text-sm text-muted-foreground"
+              className="w-full max-w-sm"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.5 }}
+            >
+              <button
+                onClick={() => setShowAvatarBuilder((prev: boolean) => !prev)}
+                className="w-full flex items-center justify-between px-4 py-2.5 mb-3 bg-card border border-border rounded-xl text-sm text-foreground hover:border-primary/40 transition-colors"
+              >
+                <span>✏️ Customize your look</span>
+                <span className="text-muted-foreground">{showAvatarBuilder ? '▲' : '▼'}</span>
+              </button>
+
+              <AnimatePresence>
+                {showAvatarBuilder && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="bg-card border border-border rounded-xl p-4 mb-4">
+                      <AvatarBuilder
+                        prefs={avatarPrefs}
+                        onChange={(next) => {
+                          setAvatarPrefs(next);
+                          saveAvatarPrefs(next);
+                        }}
+                      />
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </motion.div>
+
+            <motion.div
+              className="text-sm text-muted-foreground mt-2"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.7 }}
             >
               Starting conversation...
             </motion.div>

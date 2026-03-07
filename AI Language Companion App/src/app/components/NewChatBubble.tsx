@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { BlockyAvatar } from './BlockyAvatar';
+import { AvatarDisplay } from './AvatarDisplay';
 import { Volume2 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { speakPhrase } from '../../services/tts';
@@ -272,7 +272,7 @@ export function ChatLogEntry({
     >
       {character && (
         <div className="flex-shrink-0 mt-0.5">
-          <BlockyAvatar character={character} size="xs" animate={false} />
+          <AvatarDisplay character={character} size="xs" animate={false} />
         </div>
       )}
 
@@ -374,7 +374,7 @@ export function NewChatBubble({
     >
       {showAvatar && character && (
         <div className="flex-shrink-0">
-          <BlockyAvatar character={character} size="xs" animate={false} />
+          <AvatarDisplay character={character} size="xs" animate={false} />
         </div>
       )}
       {!showAvatar && <div className="w-7" />}

@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Settings, Sun, Moon, Camera, Mic, RotateCcw, RefreshCw } from 'lucide-react';
 import { SpeechBubble, ThoughtBubble, ChatLogEntry } from './NewChatBubble';
-import { BlockyAvatar } from './BlockyAvatar';
+import { AvatarDisplay } from './AvatarDisplay';
 import { QuickActionPill } from './QuickActionPill';
 import { ExpandedPhraseCard } from './ExpandedPhraseCard';
 import { SettingsPanel } from './SettingsPanel';
@@ -360,7 +360,12 @@ export function ConversationScreen({
           {/* Avatar — square, fills column width */}
           <div className="flex-1 flex items-center justify-center w-full">
             <div className="w-full aspect-square" style={{ maxWidth: '140px' }}>
-              <BlockyAvatar character={character} size="full" animate={true} />
+              <AvatarDisplay
+                character={character}
+                size="full"
+                animate={true}
+                animation={isGenerating ? 'confused' : 'idle'}
+              />
             </div>
           </div>
 
