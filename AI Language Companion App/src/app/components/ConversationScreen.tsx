@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Settings, Sun, Moon, Camera, Mic, RotateCcw } from 'lucide-react';
-import { NewChatBubble } from './NewChatBubble';
+import { Settings, Sun, Moon, Camera, Mic, RotateCcw, RefreshCw } from 'lucide-react';
+import { SpeechBubble, ThoughtBubble, ChatLogEntry } from './NewChatBubble';
 import { BlockyAvatar } from './BlockyAvatar';
 import { QuickActionPill } from './QuickActionPill';
 import { ExpandedPhraseCard } from './ExpandedPhraseCard';
@@ -11,7 +11,7 @@ import { useCharacterStore } from '../../stores/characterStore';
 import { useAppStore } from '../../stores/appStore';
 import { useNaviAgent } from '../../agent/react/useNaviAgent';
 import { parseResponse } from '../../utils/responseParser';
-import { saveCharacterConversation, saveCharacterMemories } from '../../utils/storage';
+import { saveCharacterConversation } from '../../utils/storage';
 import { startRecording, stopRecording, isSTTSupported } from '../../services/stt';
 import type { Message, PhraseCardData } from '../../types/chat';
 import type { ScenarioKey } from '../../types/config';
@@ -86,7 +86,6 @@ export function ConversationScreen({
   const [inputValue, setInputValue]   = useState('');
   const [showQuickActions, setShowQuickActions] = useState(true);
   const [expandedPhrase, setExpandedPhrase]     = useState<any>(null);
-  const [showProfile, setShowProfile]           = useState(false);
   const [showSettings, setShowSettings]         = useState(false);
   const [isRecording, setIsRecording]           = useState(false);
   const [llmError, setLlmError]                 = useState(false);
@@ -94,7 +93,7 @@ export function ConversationScreen({
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const { messages, isGenerating, activeScenario, addMessage, updateLastMessage, setGenerating, setScenario } = useChatStore();
-  const { activeCharacter, memories, addMemory } = useCharacterStore();
+  const { activeCharacter, addMemory: _addMemory } = useCharacterStore();
   const { currentLocation } = useAppStore();
 
   // Agent framework — routes messages through tools, director, memory
@@ -102,7 +101,7 @@ export function ConversationScreen({
 
   const languageName = currentLocation?.dialectInfo?.language ?? 'English';
 
-  // Auto-scroll on new messages or typing state change
+  // Auto-scroll chat log on new messages
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -189,7 +188,7 @@ export function ConversationScreen({
         context: {
           scenario: detected ?? activeScenario,
         },
-        onToken: (_token, fullText) => {
+        onToken: (_token: string, fullText: string) => {
           updateLastMessage(fullText, false);
         },
       });
@@ -213,12 +212,9 @@ export function ConversationScreen({
       const allMessages = useChatStore.getState().messages;
       if (richChar?.id) await saveCharacterConversation(richChar.id, allMessages);
 
-      // Agent's director handles memory/learning tracking automatically via postProcess,
-      // but we still persist the legacy Zustand memories for the UI
+      // Episodic memory via agent's MemoryManager
       const uCount = allMessages.filter(m => m.role === 'user').length;
       if (uCount > 0 && uCount % 10 === 0) {
-        // Episodic memory is handled by the agent's MemoryManager
-        // Store a summary episode for cross-session continuity
         const recentMsgs = allMessages.slice(-10)
           .filter(m => m.role === 'user' || m.role === 'character')
           .map(m => m.content)
@@ -240,7 +236,6 @@ export function ConversationScreen({
   };
 
   const handleRetry = () => {
-    // Remove the last 2 messages (error bubble + user message) and resend
     useChatStore.setState((state) => ({
       messages: state.messages.slice(0, -2),
     }));
@@ -297,133 +292,168 @@ export function ConversationScreen({
     ? `${countryFlag(currentLocation.countryCode)} ${currentLocation.dialectInfo.dialect}`
     : null;
 
-  return (
-    <div className="min-h-[calc(100vh-57px)] bg-background flex flex-col">
-      {/* Character info bar */}
-      <div className="flex items-center gap-3 px-6 py-2 border-b border-border bg-card/50">
-        <button
-          onClick={() => setShowProfile(!showProfile)}
-          className="flex items-center gap-3 flex-1 hover:opacity-80 transition-opacity min-w-0"
-        >
-          <BlockyAvatar character={character} size="sm" animate={false} />
-          <div className="text-left min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <p className="font-medium text-foreground text-sm">{character.name}</p>
-              {activeScenario && SCENARIOS[activeScenario] && (
-                <span className="px-2 py-0.5 rounded-full text-xs bg-primary/20 text-primary font-medium whitespace-nowrap">
-                  {SCENARIOS[activeScenario].label}
-                </span>
-              )}
-            </div>
-            <p className="text-xs text-muted-foreground truncate">
-              {dialectIndicator ?? location}
-            </p>
-          </div>
-        </button>
+  // Latest character message to show as speech bubble
+  const latestCharMsg = [...messages]
+    .reverse()
+    .find(m =>
+      m.role === 'character' &&
+      !(m.metadata?.isStreaming && m.content.length === 0)
+    ) ?? null;
 
-        <div className="flex items-center gap-2 flex-shrink-0">
+  // All messages visible in the chat log
+  const logMessages = messages.filter(
+    m => m.role !== 'system' && !(m.metadata?.isStreaming && m.content.length === 0)
+  );
+
+  return (
+    <div
+      className="flex flex-col bg-background"
+      style={{ height: 'calc(100vh - 57px)' }}
+    >
+      {/* ── Thin header bar ─────────────────────────────────────────── */}
+      <div className="flex-shrink-0 flex items-center justify-between px-4 py-2 border-b border-border bg-card/50">
+        <div className="flex items-center gap-2 min-w-0">
+          <p className="font-medium text-foreground text-sm truncate">{character.name}</p>
+          {activeScenario && SCENARIOS[activeScenario] && (
+            <span className="px-2 py-0.5 rounded-full text-xs bg-primary/20 text-primary font-medium whitespace-nowrap">
+              {SCENARIOS[activeScenario].label}
+            </span>
+          )}
+          {dialectIndicator && (
+            <span className="text-xs text-muted-foreground whitespace-nowrap hidden sm:inline">
+              {dialectIndicator}
+            </span>
+          )}
+          {!dialectIndicator && (
+            <span className="text-xs text-muted-foreground truncate hidden sm:inline">{location}</span>
+          )}
+        </div>
+
+        <div className="flex items-center gap-1 flex-shrink-0">
           <button
             onClick={onToggleTheme}
             className="p-2 hover:bg-muted/50 rounded-lg transition-colors"
           >
             {isDark ? (
-              <Sun className="w-5 h-5 text-muted-foreground" />
+              <Sun className="w-4 h-4 text-muted-foreground" />
             ) : (
-              <Moon className="w-5 h-5 text-muted-foreground" />
+              <Moon className="w-4 h-4 text-muted-foreground" />
             )}
           </button>
           <button
             onClick={() => setShowSettings(true)}
             className="p-2 hover:bg-muted/50 rounded-lg transition-colors"
           >
-            <Settings className="w-5 h-5 text-muted-foreground" />
+            <Settings className="w-4 h-4 text-muted-foreground" />
           </button>
         </div>
       </div>
 
-      {/* Character profile card */}
-      <AnimatePresence>
-        {showProfile && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            className="border-b border-border bg-card/50 overflow-hidden"
-          >
-            <div className="px-6 py-4 text-center">
-              <BlockyAvatar character={character} size="md" animate={true} />
-              <p className="mt-3 text-sm text-muted-foreground italic">
-                "{character.personality}"
-              </p>
-              <button
-                className="mt-3 text-sm text-secondary hover:underline"
-                onClick={() => { setShowProfile(false); onRegenerate(); }}
+      {/* ── Avatar + speech bubble zone ─────────────────────────────── */}
+      {/* Takes ~55vh — avatar panel left (1/3), speech bubble right (2/3) */}
+      <div className="flex-shrink-0 flex border-b border-border/60" style={{ height: '55vh' }}>
+
+        {/* Avatar panel — 1/3 width */}
+        <div className="flex flex-col items-center justify-between py-4 px-2 border-r border-border/40 bg-card/10"
+          style={{ width: '33.333%' }}
+        >
+          {/* Avatar — square, fills column width */}
+          <div className="flex-1 flex items-center justify-center w-full">
+            <div className="w-full aspect-square" style={{ maxWidth: '140px' }}>
+              <BlockyAvatar character={character} size="full" animate={true} />
+            </div>
+          </div>
+
+          {/* Character info + regenerate */}
+          <div className="w-full text-center space-y-1 px-1">
+            <p className="text-xs font-medium text-foreground truncate">{character.name}</p>
+            <p
+              className="text-xs text-muted-foreground italic leading-tight line-clamp-2"
+              style={{ fontSize: '10px' }}
+            >
+              "{character.personality}"
+            </p>
+            <button
+              onClick={onRegenerate}
+              className="mt-1 p-1.5 hover:bg-muted/50 rounded-lg transition-colors"
+              title="Regenerate companion"
+            >
+              <RefreshCw className="w-3.5 h-3.5 text-muted-foreground/60" />
+            </button>
+          </div>
+        </div>
+
+        {/* Speech / thought bubble zone — 2/3 width */}
+        <div
+          className="flex-1 flex flex-col justify-center p-4 overflow-hidden"
+        >
+          <AnimatePresence mode="wait">
+            {showTypingDots ? (
+              <motion.div key="thought" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                <ThoughtBubble />
+              </motion.div>
+            ) : latestCharMsg ? (
+              <motion.div key={latestCharMsg.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                <SpeechBubble
+                  message={latestCharMsg}
+                  character={character}
+                  languageName={languageName}
+                  onPhraseCardClick={handlePhraseCardClick}
+                />
+              </motion.div>
+            ) : (
+              /* Welcome state — no messages yet */
+              <motion.div
+                key="welcome"
+                className="relative ml-3"
+                initial={{ opacity: 0, x: 8 }}
+                animate={{ opacity: 1, x: 0 }}
               >
-                Regenerate companion
-              </button>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+                <div
+                  className="absolute -left-[7px] top-4 w-3.5 h-3.5 bg-card border-l border-b border-border"
+                  style={{ transform: 'rotate(45deg)' }}
+                />
+                <div className="bg-card border border-border rounded-2xl rounded-tl-none px-4 py-3 shadow-md">
+                  <p
+                    className="text-foreground/70 italic text-sm leading-relaxed"
+                    style={{ fontFamily: 'var(--font-character)' }}
+                  >
+                    Hey! I'm {character.name}. Ask me anything about{' '}
+                    {dialectIndicator ?? location} — slang, phrases, culture, whatever you need.
+                  </p>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      </div>
 
-      {/* Chat messages */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto px-6 py-6">
-        {messages
-          .filter(m => m.role !== 'system' && !(m.metadata?.isStreaming && m.content.length === 0))
-          .map((message) => (
-            <NewChatBubble
-              key={message.id}
-              type={message.role === 'user' ? 'user' : 'character'}
-              content={message.content}
-              character={message.role === 'character' ? character : undefined}
-              phraseHighlight={message.phraseHighlight}
-              showAvatar={message.showAvatar ?? false}
-              onPhraseClick={message.phraseHighlight ? () => {
-                if (message.phraseHighlight) {
-                  setExpandedPhrase({
-                    foreign:      message.phraseHighlight.text,
-                    phonetic:     message.phraseHighlight.phonetic,
-                    literal:      message.phraseHighlight.text,
-                    natural:      message.phraseHighlight.text,
-                    formality:    'casual' as const,
-                    characterTip: 'Use this phrase confidently!',
-                    alternatives: [],
-                  });
-                }
-              } : undefined}
-              onPhraseCardClick={handlePhraseCardClick}
-              segments={message.metadata?.segments}
-              isStreaming={message.metadata?.isStreaming ?? false}
-              languageName={languageName}
-            />
-          ))}
-
-        {showTypingDots && (
-          <motion.div
-            className="flex gap-3 mb-4"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-          >
-            <BlockyAvatar character={character} size="xs" animate={false} />
-            <div className="bg-card border-l-2 border-l-primary/30 border-y border-r border-border rounded-2xl rounded-tl-sm px-4 py-3">
-              <div className="flex gap-1">
-                {[0, 0.2, 0.4].map((delay, i) => (
-                  <motion.div
-                    key={i}
-                    className="w-2 h-2 bg-primary rounded-full"
-                    animate={{ scale: [1, 1.2, 1], opacity: [0.5, 1, 0.5] }}
-                    transition={{ duration: 1, repeat: Infinity, delay }}
-                  />
-                ))}
-              </div>
-            </div>
-          </motion.div>
+      {/* ── Scrollable chat log ──────────────────────────────────────── */}
+      <div
+        ref={scrollRef}
+        className="flex-1 min-h-0 overflow-y-auto px-4 py-3"
+      >
+        {logMessages.length === 0 ? (
+          <p className="text-xs text-muted-foreground text-center pt-2">
+            Conversation history will appear here
+          </p>
+        ) : (
+          logMessages.map((message) => (
+            <React.Fragment key={message.id}>
+              <ChatLogEntry
+                message={message}
+                character={message.role === 'character' ? character : undefined}
+                languageName={languageName}
+                onPhraseCardClick={handlePhraseCardClick}
+              />
+            </React.Fragment>
+          ))
         )}
 
-        {/* LLM error retry button */}
+        {/* LLM error retry */}
         {llmError && !isGenerating && (
           <motion.div
-            className="flex justify-center mb-4"
+            className="flex justify-center mt-3"
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
           >
@@ -438,22 +468,23 @@ export function ConversationScreen({
         )}
       </div>
 
-      {/* Input area */}
-      <div className="border-t border-border bg-card">
+      {/* ── Input area ──────────────────────────────────────────────── */}
+      <div className="flex-shrink-0 border-t border-border bg-card">
         {showQuickActions && (
-          <div className="px-6 pt-3 pb-2 flex gap-2 overflow-x-auto scrollbar-hide">
+          <div className="px-4 pt-2 pb-1 flex gap-2 overflow-x-auto scrollbar-hide">
             {pills.map((pill, idx) => (
-              <QuickActionPill
-                key={idx}
-                icon={pill.icon}
-                label={pill.label}
-                onClick={pill.isCamera ? onOpenCamera : () => handleSend(pill.text)}
-              />
+              <React.Fragment key={idx}>
+                <QuickActionPill
+                  icon={pill.icon}
+                  label={pill.label}
+                  onClick={pill.isCamera ? onOpenCamera : () => handleSend(pill.text)}
+                />
+              </React.Fragment>
             ))}
           </div>
         )}
 
-        <div className="px-6 py-4 flex items-end gap-3">
+        <div className="px-4 py-3 flex items-end gap-2">
           <button
             onClick={onOpenCamera}
             className="p-2.5 hover:bg-muted/50 rounded-lg transition-colors flex-shrink-0"
@@ -465,11 +496,11 @@ export function ConversationScreen({
             <input
               type="text"
               value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && handleSend()}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setInputValue(e.target.value)}
+              onKeyPress={(e: React.KeyboardEvent<HTMLInputElement>) => e.key === 'Enter' && handleSend()}
               onFocus={() => setShowQuickActions(false)}
               placeholder={`Ask ${character.name} anything...`}
-              className="w-full px-4 py-3 bg-background border border-border rounded-xl text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+              className="w-full px-4 py-3 bg-background border border-border rounded-xl text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 text-sm"
             />
           </div>
 
@@ -491,7 +522,7 @@ export function ConversationScreen({
           {inputValue.trim() && (
             <motion.button
               onClick={() => handleSend()}
-              className="px-4 py-3 bg-primary text-primary-foreground rounded-xl font-medium flex-shrink-0"
+              className="px-4 py-3 bg-primary text-primary-foreground rounded-xl font-medium flex-shrink-0 text-sm"
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
               whileTap={{ scale: 0.95 }}
@@ -508,7 +539,7 @@ export function ConversationScreen({
         )}
       </div>
 
-      {/* Expanded phrase card modal */}
+      {/* ── Expanded phrase card modal ───────────────────────────────── */}
       <AnimatePresence>
         {expandedPhrase && (
           <ExpandedPhraseCard
@@ -520,7 +551,7 @@ export function ConversationScreen({
         )}
       </AnimatePresence>
 
-      {/* Settings panel */}
+      {/* ── Settings panel ──────────────────────────────────────────── */}
       <AnimatePresence>
         {showSettings && (
           <SettingsPanel
