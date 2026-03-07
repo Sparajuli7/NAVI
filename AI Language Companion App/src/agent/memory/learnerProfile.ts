@@ -48,6 +48,9 @@ export class LearnerProfileStore {
     return {
       phrases: [],
       topics: [],
+      languageComfortTier: 0,
+      comfortAssessed: false,
+      recentOpeners: [],
       stats: {
         totalPhrases: 0,
         masteredPhrases: 0,
@@ -238,6 +241,9 @@ export class LearnerProfileStore {
     const sections: string[] = [];
     const stats = this.profile.stats;
 
+    // Auto-advance comfort tier based on mastered phrases
+    this.autoAdvanceComfort();
+
     if (stats.totalPhrases > 0) {
       sections.push(
         `Learner stats: ${stats.totalPhrases} phrases tracked, ${stats.masteredPhrases} mastered. ` +
@@ -265,6 +271,46 @@ export class LearnerProfileStore {
     return sections.join('\n');
   }
 
+  // ── Language Comfort & Opener Tracking ───────────────────────
+
+  /**
+   * Set the language comfort tier after assessment.
+   * 0=unknown, 1=beginner, 2=early, 3=intermediate, 4=advanced
+   */
+  async setComfortTier(tier: number): Promise<void> {
+    if (!this.loaded) await this.load();
+    this.profile.languageComfortTier = Math.max(0, Math.min(4, tier));
+    this.profile.comfortAssessed = tier > 0;
+    await this.save();
+  }
+
+  /**
+   * Auto-increment comfort tier when evidence of improvement is detected.
+   * Advances by 1 tier when mastered phrases cross the next threshold.
+   */
+  autoAdvanceComfort(): void {
+    const mastered = this.profile.stats.masteredPhrases;
+    const TIER_THRESHOLDS = [0, 1, 8, 25, 60]; // phrases needed per tier
+    const currentTier = this.profile.languageComfortTier;
+    if (currentTier < 4 && mastered >= TIER_THRESHOLDS[currentTier + 1]) {
+      this.profile.languageComfortTier = currentTier + 1;
+      this.profile.comfortAssessed = true;
+      // Save is handled by the next recordPhraseAttempt or explicit save
+    }
+  }
+
+  /**
+   * Record a conversation opener to prevent repetition.
+   * Keeps the last 5 openers.
+   */
+  async recordOpener(opener: string): Promise<void> {
+    if (!this.loaded) await this.load();
+    // Keep a short summary (first 60 chars) to avoid bloat
+    const summary = opener.trim().slice(0, 60);
+    this.profile.recentOpeners = [summary, ...this.profile.recentOpeners].slice(0, 5);
+    await this.save();
+  }
+
   // ── Accessors ────────────────────────────────────────────────
 
   get phrases(): TrackedPhrase[] {
@@ -277,6 +323,18 @@ export class LearnerProfileStore {
 
   get stats(): LearnerProfile['stats'] {
     return this.profile.stats;
+  }
+
+  get languageComfortTier(): number {
+    return this.profile.languageComfortTier;
+  }
+
+  get comfortAssessed(): boolean {
+    return this.profile.comfortAssessed;
+  }
+
+  get recentOpeners(): string[] {
+    return this.profile.recentOpeners;
   }
 
   async clear(): Promise<void> {

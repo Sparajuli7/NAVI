@@ -39,7 +39,9 @@ export type ConversationGoal =
   | 'challenge_user'
   | 'celebrate_progress'
   | 'bridge_locations'
-  | 'free_conversation';
+  | 'free_conversation'
+  | 'assess_comfort_level'
+  | 'avoid_recent_openers';
 
 export interface DirectorContext {
   /** Goals selected for this message */
@@ -70,6 +72,35 @@ export class ConversationDirector {
   preProcess(message: string, avatarId: string): DirectorContext {
     const goals: ConversationGoal[] = [];
     const goalInstructions: string[] = [];
+
+    // 0a. Language calibration — always inject the appropriate tier instruction
+    const comfortTier = this.learner.languageComfortTier;
+    const tierKey = `tier_${comfortTier}_${['unknown', 'beginner', 'early', 'intermediate', 'advanced'][comfortTier]}`;
+    try {
+      const calibrationInstruction = promptLoader.get(`systemLayers.languageCalibration.${tierKey}`);
+      goalInstructions.push(calibrationInstruction);
+    } catch {
+      // Tier key not found in config — skip calibration injection
+    }
+
+    // 0b. Comfort level assessment — only on first interactions
+    if (!this.learner.comfortAssessed && this.learner.stats.totalSessions <= 1) {
+      goals.push('assess_comfort_level');
+      goalInstructions.push(
+        promptLoader.get('systemLayers.conversationGoals.assess_comfort_level'),
+      );
+    }
+
+    // 0c. Opener anti-repetition — inject if we have recent openers
+    const recentOpeners = this.learner.recentOpeners;
+    if (recentOpeners.length > 0) {
+      goals.push('avoid_recent_openers');
+      goalInstructions.push(
+        promptLoader.get('systemLayers.conversationGoals.avoid_recent_openers', {
+          recentOpeners: recentOpeners.map((o) => `"${o}"`).join(', '),
+        }),
+      );
+    }
 
     // 1. Check for phrases due for review (spaced repetition)
     const reviewDue = this.learner.getPhrasesForReview(3);

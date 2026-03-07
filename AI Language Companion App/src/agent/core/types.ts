@@ -271,6 +271,15 @@ export interface LearnerProfile {
   phrases: TrackedPhrase[];
   /** Per-topic proficiency scores */
   topics: TopicProficiency[];
+  /**
+   * Language comfort tier for the target language.
+   * 0=unknown (not yet assessed), 1=beginner, 2=early, 3=intermediate, 4=advanced
+   */
+  languageComfortTier: number;
+  /** Whether comfort level has been assessed for the current avatar/location */
+  comfortAssessed: boolean;
+  /** Recent conversation opener summaries to prevent repetition (last 5) */
+  recentOpeners: string[];
   /** Aggregate stats */
   stats: {
     totalPhrases: number;
