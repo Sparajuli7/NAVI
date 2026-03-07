@@ -44,9 +44,13 @@ interface AvatarTemplate {
 
 interface ScenarioConfig {
   label: string;
+  emoji?: string;
   vocabulary_focus: string[];
   tone_shift: string;
   formality_adjustment: number;
+  tone_guidance?: string;
+  cultural_guardrails?: string;
+  debrief_focus?: string;
   auto_suggestions: string[];
   pronunciation_priority: string[];
 }
@@ -335,11 +339,22 @@ export class AvatarContextController {
     const config = this.scenarios[scenario];
     if (!config) return '';
 
-    let layer = promptLoader.get('systemLayers.scenario.template', {
-      label: config.label,
-      vocabulary: config.vocabulary_focus.join(', '),
-      tone: config.tone_shift,
-    });
+    // Use the richer scenarioLock template if available, fall back to basic scenario template
+    let layer: string;
+    try {
+      layer = promptLoader.get('systemLayers.scenarioLock', {
+        scenarioLabel: config.label,
+        vocabulary: config.vocabulary_focus.join(', '),
+        toneGuidance: config.tone_guidance ?? config.tone_shift,
+        culturalGuardrails: config.cultural_guardrails ?? '',
+      });
+    } catch {
+      layer = promptLoader.get('systemLayers.scenario.template', {
+        label: config.label,
+        vocabulary: config.vocabulary_focus.join(', '),
+        tone: config.tone_shift,
+      });
+    }
 
     if (formalityShift !== undefined) {
       const totalShift = config.formality_adjustment + formalityShift;

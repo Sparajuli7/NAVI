@@ -14,11 +14,24 @@ export interface DialectInfo {
 
 export interface ScenarioContext {
   label: string;
+  emoji?: string;
   vocabulary_focus: string[];
   tone_shift: string;
   formality_adjustment: number;
+  tone_guidance?: string;
+  cultural_guardrails?: string;
+  debrief_focus?: string;
   auto_suggestions: string[];
   pronunciation_priority: string[];
+}
+
+/** User-provided context before starting a scenario session */
+export interface ParsedScenarioContext {
+  where: string;
+  doing: string;
+  talkingTo: string;
+  nervousAbout: string;
+  customText: string;
 }
 
 export interface PreferenceField {
@@ -36,7 +49,10 @@ export type ScenarioKey =
   | 'nightlife'
   | 'transit'
   | 'school'
-  | 'government';
+  | 'government'
+  | 'directions'
+  | 'hotel'
+  | 'social';
 
 export interface LocationContext {
   city: string;

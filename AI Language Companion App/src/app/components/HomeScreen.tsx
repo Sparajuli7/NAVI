@@ -1,8 +1,13 @@
 import React from 'react';
 import { motion } from 'motion/react';
-import { MessageSquare, Plus, ArrowRight, Brain } from 'lucide-react';
+import { MessageSquare, Plus, ArrowRight, Brain, Zap } from 'lucide-react';
 import { AvatarDisplay } from './AvatarDisplay';
 import type { Character } from '../../types/character';
+import scenarioContexts from '../../config/scenarioContexts.json';
+
+const SCENARIO_HIGHLIGHTS = ['restaurant', 'directions', 'social', 'transit', 'nightlife', 'market'] as const;
+const SCENARIOS = scenarioContexts as Record<string, { label: string; emoji?: string }>;
+
 
 interface HomeScreenProps {
   companions: Character[];
@@ -12,6 +17,7 @@ interface HomeScreenProps {
   onSelectCompanion: (charId: string) => void;
   onContinueChat: () => void;
   onNewCompanion: () => void;
+  onOpenScenarios: () => void;
 }
 
 function charToAvatarShape(c: Character) {
@@ -32,7 +38,45 @@ export function HomeScreen({
   onSelectCompanion,
   onContinueChat,
   onNewCompanion,
+  onOpenScenarios,
 }: HomeScreenProps) {
+  // Scenario quick-pick strip
+  const ScenarioStrip = () => (
+    <motion.div
+      className="bg-card border border-border rounded-2xl p-4"
+      initial={{ y: 20, opacity: 0 }}
+      animate={{ y: 0, opacity: 1 }}
+      transition={{ delay: 0.35 }}
+    >
+      <div className="flex items-center gap-2 mb-3">
+        <Zap className="w-4 h-4 text-primary" />
+        <span className="text-sm font-medium text-foreground">Practice a scenario</span>
+      </div>
+      <div className="grid grid-cols-3 gap-2">
+        {SCENARIO_HIGHLIGHTS.map((key) => {
+          const cfg = SCENARIOS[key];
+          if (!cfg) return null;
+          return (
+            <button
+              key={key}
+              onClick={onOpenScenarios}
+              className="flex flex-col items-center gap-1 p-2.5 bg-background rounded-xl border border-border/60 hover:border-primary/40 transition-colors text-center"
+            >
+              <span className="text-lg">{cfg.emoji ?? '💬'}</span>
+              <p className="text-xs text-muted-foreground leading-tight">{cfg.label}</p>
+            </button>
+          );
+        })}
+      </div>
+      <button
+        onClick={onOpenScenarios}
+        className="w-full mt-3 text-xs text-primary/70 hover:text-primary transition-colors text-center"
+      >
+        See all scenarios →
+      </button>
+    </motion.div>
+  );
+
   // No companions yet — show welcome state
   if (companions.length === 0) {
     return (
@@ -122,6 +166,9 @@ export function HomeScreen({
             </motion.div>
           )}
 
+          {/* Scenario strip */}
+          <ScenarioStrip />
+
           {/* Action buttons */}
           <div className="flex flex-col gap-3 mt-auto">
             {messageCount > 0 && (
@@ -131,7 +178,7 @@ export function HomeScreen({
                 whileTap={{ scale: 0.97 }}
                 initial={{ y: 20, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
-                transition={{ delay: 0.3 }}
+                transition={{ delay: 0.5 }}
               >
                 Continue conversation
                 <ArrowRight className="w-5 h-5" />
@@ -145,7 +192,7 @@ export function HomeScreen({
                 whileTap={{ scale: 0.97 }}
                 initial={{ y: 20, opacity: 0 }}
                 animate={{ y: 0, opacity: 1 }}
-                transition={{ delay: 0.3 }}
+                transition={{ delay: 0.5 }}
               >
                 Start chatting
                 <ArrowRight className="w-5 h-5" />
@@ -158,7 +205,7 @@ export function HomeScreen({
               whileTap={{ scale: 0.97 }}
               initial={{ y: 20, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
-              transition={{ delay: 0.4 }}
+              transition={{ delay: 0.6 }}
             >
               <Plus className="w-4 h-4" />
               New companion
@@ -212,6 +259,8 @@ export function HomeScreen({
             <ArrowRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />
           </motion.button>
         ))}
+
+        <ScenarioStrip />
 
         <motion.button
           className="w-full px-6 py-3 bg-card border border-border text-foreground rounded-full font-medium hover:bg-muted/50 transition-all flex items-center justify-center gap-3"

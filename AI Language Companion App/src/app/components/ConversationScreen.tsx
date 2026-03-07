@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Settings, Sun, Moon, Camera, Mic, RotateCcw, RefreshCw } from 'lucide-react';
+import { Settings, Sun, Moon, Camera, Mic, RotateCcw, RefreshCw, Zap, X as XIcon } from 'lucide-react';
 import { SpeechBubble, ThoughtBubble, ChatLogEntry } from './NewChatBubble';
 import { AvatarDisplay } from './AvatarDisplay';
 import { QuickActionPill } from './QuickActionPill';
@@ -38,21 +38,25 @@ interface ConversationScreenProps {
   onGoHome: () => void;
   onUpdateCharacter: (updates: Partial<Character>) => Promise<void>;
   onSaveUserProfile: (text: string) => Promise<void>;
+  onOpenScenarios: () => void;
   isDark: boolean;
 }
 
 const SCENARIO_KEYWORDS: Record<ScenarioKey, string[]> = {
-  restaurant: ['restaurant', 'food', 'menu', 'eat', 'order', 'drink', 'meal', 'bill', 'tip', 'hungry', 'cafe', 'dine', 'cook'],
-  hospital:   ['hospital', 'doctor', 'sick', 'pain', 'medicine', 'emergency', 'hurt', 'symptom', 'health', 'clinic', 'pharmacy'],
-  market:     ['market', 'buy', 'price', 'cheap', 'expensive', 'haggle', 'bargain', 'shop', 'shopping', 'discount', 'cost'],
-  office:     ['office', 'work', 'meeting', 'email', 'boss', 'colleague', 'professional', 'business', 'workplace', 'job'],
-  nightlife:  ['bar', 'club', 'drink', 'night', 'party', 'beer', 'dance', 'nightlife', 'pub', 'cocktail', 'beer'],
-  transit:    ['bus', 'train', 'taxi', 'station', 'stop', 'ticket', 'direction', 'where', 'subway', 'metro', 'transport', 'ride'],
-  school:     ['school', 'teacher', 'class', 'student', 'homework', 'exam', 'university', 'college', 'study', 'learn'],
-  government: ['visa', 'passport', 'form', 'permit', 'document', 'id', 'government', 'bureaucracy', 'official', 'immigration'],
+  restaurant:  ['restaurant', 'food', 'menu', 'eat', 'order', 'drink', 'meal', 'bill', 'tip', 'hungry', 'cafe', 'dine', 'cook'],
+  hospital:    ['hospital', 'doctor', 'sick', 'pain', 'medicine', 'emergency', 'hurt', 'symptom', 'health', 'clinic', 'pharmacy'],
+  market:      ['market', 'buy', 'price', 'cheap', 'expensive', 'haggle', 'bargain', 'shop', 'shopping', 'discount', 'cost'],
+  office:      ['office', 'work', 'meeting', 'email', 'boss', 'colleague', 'professional', 'business', 'workplace', 'job'],
+  nightlife:   ['bar', 'club', 'drink', 'night', 'party', 'beer', 'dance', 'nightlife', 'pub', 'cocktail', 'beer'],
+  transit:     ['bus', 'train', 'taxi', 'station', 'stop', 'ticket', 'direction', 'where', 'subway', 'metro', 'transport', 'ride'],
+  school:      ['school', 'teacher', 'class', 'student', 'homework', 'exam', 'university', 'college', 'study', 'learn'],
+  government:  ['visa', 'passport', 'form', 'permit', 'document', 'id', 'government', 'bureaucracy', 'official', 'immigration'],
+  directions:  ['directions', 'lost', 'find', 'navigate', 'turn', 'left', 'right', 'straight', 'how far', 'nearest', 'where is'],
+  hotel:       ['hotel', 'check in', 'check-in', 'checkout', 'room', 'reservation', 'lobby', 'reception', 'concierge', 'key card'],
+  social:      ['meet', 'introduce', 'party', 'event', 'stranger', 'friend', 'small talk', 'social', 'networking', 'people'],
 };
 
-const SCENARIOS = scenarioContexts as Record<ScenarioKey, { label: string; auto_suggestions: string[] }>;
+const SCENARIOS = scenarioContexts as Record<string, { label: string; emoji?: string; auto_suggestions: string[] }>;
 
 function detectScenario(text: string): ScenarioKey | null {
   const lower = text.toLowerCase();
@@ -81,6 +85,7 @@ export function ConversationScreen({
   onGoHome: _onGoHome,
   onUpdateCharacter,
   onSaveUserProfile,
+  onOpenScenarios,
   isDark,
 }: ConversationScreenProps) {
   const [inputValue, setInputValue]   = useState('');
@@ -92,7 +97,11 @@ export function ConversationScreen({
   const [retryText, setRetryText]               = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  const { messages, isGenerating, activeScenario, addMessage, updateLastMessage, setGenerating, setScenario } = useChatStore();
+  const {
+    messages, isGenerating, activeScenario, isScenarioActive,
+    addMessage, updateLastMessage, setGenerating, setScenario,
+    setScenarioActive, setScenarioContext,
+  } = useChatStore();
   const { activeCharacter, addMemory: _addMemory } = useCharacterStore();
   const { currentLocation } = useAppStore();
 
@@ -243,6 +252,23 @@ export function ConversationScreen({
     handleSend(retryText);
   };
 
+  const handleEndScenario = async () => {
+    const scenarioLabel = activeScenario ? SCENARIOS[activeScenario]?.label ?? activeScenario : 'the scenario';
+    // Mark scenario as no longer active in the store
+    setScenarioActive(false);
+    setScenarioContext(null);
+    setScenario(null);
+    // Inject debrief instruction into the avatar's context
+    agent.avatar.applyOverride({
+      scenario: '',
+      additionalContext: `DEBRIEF MODE: The user just finished a '${scenarioLabel}' practice session. Step out of scenario mode. Give a brief, honest debrief: what went well, one or two specific things to work on, and any phrases worth saving. Reference specific things from the conversation. 3-4 sentences max. No cheerleading.`,
+    });
+    // Send the trigger message (shown as user message in chat)
+    await handleSend(`[End scenario — debrief: ${scenarioLabel}]`);
+    // After debrief, clear the override so avatar returns to normal
+    agent.avatar.clearOverrides();
+  };
+
   const handlePhraseCardClick = (data: PhraseCardData) => {
     setExpandedPhrase({
       foreign:       data.phrase,
@@ -315,21 +341,39 @@ export function ConversationScreen({
         <div className="flex items-center gap-2 min-w-0">
           <p className="font-medium text-foreground text-sm truncate">{character.name}</p>
           {activeScenario && SCENARIOS[activeScenario] && (
-            <span className="px-2 py-0.5 rounded-full text-xs bg-primary/20 text-primary font-medium whitespace-nowrap">
+            <button
+              onClick={isScenarioActive ? handleEndScenario : undefined}
+              className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors
+                ${isScenarioActive
+                  ? 'bg-primary/20 text-primary hover:bg-primary/30'
+                  : 'bg-primary/10 text-primary/70'}`}
+            >
+              {(SCENARIOS[activeScenario] as { emoji?: string }).emoji && (
+                <span className="text-xs">{(SCENARIOS[activeScenario] as { emoji?: string }).emoji}</span>
+              )}
               {SCENARIOS[activeScenario].label}
-            </span>
+              {isScenarioActive && <XIcon className="w-3 h-3 ml-0.5 opacity-60" />}
+            </button>
           )}
           {dialectIndicator && (
             <span className="text-xs text-muted-foreground whitespace-nowrap hidden sm:inline">
               {dialectIndicator}
             </span>
           )}
-          {!dialectIndicator && (
+          {!dialectIndicator && !activeScenario && (
             <span className="text-xs text-muted-foreground truncate hidden sm:inline">{location}</span>
           )}
         </div>
 
         <div className="flex items-center gap-1 flex-shrink-0">
+          {/* Scenario launcher button — always visible */}
+          <button
+            onClick={onOpenScenarios}
+            className="p-2 hover:bg-muted/50 rounded-lg transition-colors"
+            title="Practice a scenario"
+          >
+            <Zap className="w-4 h-4 text-muted-foreground" />
+          </button>
           <button
             onClick={onToggleTheme}
             className="p-2 hover:bg-muted/50 rounded-lg transition-colors"

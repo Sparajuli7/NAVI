@@ -4,8 +4,10 @@ import { ConversationScreen } from './components/ConversationScreen';
 import { CameraOverlay } from './components/CameraOverlay';
 import { ModelDownloadScreen } from './components/ModelDownloadScreen';
 import { HomeScreen } from './components/HomeScreen';
+import { ScenarioLauncher, buildContextSummary } from './components/ScenarioLauncher';
 import { Navbar } from './components/Navbar';
 import { AnimatePresence } from 'motion/react';
+import type { ScenarioKey, ParsedScenarioContext } from '../types/config';
 import { isWebGPUSupported } from '../services/modelManager';
 import { useNaviAgent } from '../agent/react/useNaviAgent';
 import { useAppStore } from '../stores/appStore';
@@ -53,13 +55,14 @@ function mapCharacterToUI(c: Character): GeneratedCharacter {
 type AppPhase = 'init' | 'no_webgpu' | 'downloading' | 'home' | 'onboarding' | 'chat';
 
 export default function App() {
-  const [appPhase, setAppPhase]         = useState<AppPhase>('init');
-  const [character, setCharacter]       = useState<GeneratedCharacter | null>(null);
-  const [location, setLocation]         = useState('');
-  const [isDark, setIsDark]             = useState(true);
-  const [showCamera, setShowCamera]     = useState(false);
+  const [appPhase, setAppPhase]             = useState<AppPhase>('init');
+  const [character, setCharacter]           = useState<GeneratedCharacter | null>(null);
+  const [location, setLocation]             = useState('');
+  const [isDark, setIsDark]                 = useState(true);
+  const [showCamera, setShowCamera]         = useState(false);
+  const [showScenarioLauncher, setShowScenarioLauncher] = useState(false);
   // Full list of companions (Character objects for HomeScreen)
-  const [companions, setCompanions]     = useState<Character[]>([]);
+  const [companions, setCompanions]         = useState<Character[]>([]);
 
   const { modelStatus, modelProgress } = useAppStore();
 
@@ -268,6 +271,50 @@ export default function App() {
 
   const handleGoHome = () => setAppPhase('home');
 
+  const handleOpenScenarios = () => setShowScenarioLauncher(true);
+
+  const handleStartScenario = (templateKey: ScenarioKey | 'custom', context: ParsedScenarioContext) => {
+    setShowScenarioLauncher(false);
+
+    // Store scenario context in the chat store
+    const { setScenario, setScenarioContext, setScenarioActive } = useChatStore.getState();
+
+    if (templateKey !== 'custom') {
+      setScenario(templateKey);
+    }
+    setScenarioContext(context);
+    setScenarioActive(true);
+
+    // Build a summary string from the user's context inputs
+    const contextSummary = buildContextSummary(context);
+
+    // Apply to the avatar — scenario template + user's specific context
+    if (templateKey !== 'custom') {
+      agent.avatar.applyOverride({
+        scenario: templateKey,
+        additionalContext: contextSummary ? `USER CONTEXT: ${contextSummary}` : undefined,
+      });
+    } else {
+      // Custom scenario: inject the free text as additional context
+      agent.avatar.applyOverride({
+        scenario: '',
+        additionalContext: context.customText
+          ? `SCENARIO: ${context.customText}`
+          : undefined,
+      });
+    }
+
+    // Navigate to chat if not already there
+    if (appPhase !== 'chat') {
+      // Activate the most-recent companion if one exists
+      const activeChar = useCharacterStore.getState().activeCharacter;
+      if (activeChar) {
+        setCharacter(mapCharacterToUI(activeChar));
+        setAppPhase('chat');
+      }
+    }
+  };
+
   const handleToggleTheme = () => {
     setIsDark(!isDark);
     document.documentElement.classList.toggle('dark');
@@ -333,6 +380,7 @@ export default function App() {
           memoryCount={memoryCount}
           onSelectCompanion={handleSelectCompanion}
           onContinueChat={() => setAppPhase('chat')}
+          onOpenScenarios={handleOpenScenarios}
           onNewCompanion={() => {
             // Don't clear — just add a new companion
             useCharacterStore.getState().setActiveCharacter(null);
@@ -359,6 +407,7 @@ export default function App() {
             onGoHome={handleGoHome}
             onUpdateCharacter={handleUpdateCharacter}
             onSaveUserProfile={handleSaveUserProfile}
+            onOpenScenarios={handleOpenScenarios}
             isDark={isDark}
           />
 
@@ -372,6 +421,16 @@ export default function App() {
           </AnimatePresence>
         </>
       ) : null}
+
+      {/* Scenario Launcher — accessible from both home and chat */}
+      <AnimatePresence>
+        {showScenarioLauncher && (
+          <ScenarioLauncher
+            onStart={handleStartScenario}
+            onClose={() => setShowScenarioLauncher(false)}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

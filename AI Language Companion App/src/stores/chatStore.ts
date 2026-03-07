@@ -1,16 +1,20 @@
 import { create } from 'zustand';
 import type { Message } from '../types/chat';
-import type { ScenarioKey } from '../types/config';
+import type { ScenarioKey, ParsedScenarioContext } from '../types/config';
 
 interface ChatStore {
   messages: Message[];
   isGenerating: boolean;
   activeScenario: ScenarioKey | null;
+  scenarioContext: ParsedScenarioContext | null;
+  isScenarioActive: boolean;
 
   addMessage: (message: Message) => void;
   updateLastMessage: (content: string, done?: boolean) => void;
   setGenerating: (value: boolean) => void;
   setScenario: (scenario: ScenarioKey | null) => void;
+  setScenarioContext: (ctx: ParsedScenarioContext | null) => void;
+  setScenarioActive: (active: boolean) => void;
   clearMessages: () => void;
 }
 
@@ -18,6 +22,8 @@ export const useChatStore = create<ChatStore>((set) => ({
   messages: [],
   isGenerating: false,
   activeScenario: null,
+  scenarioContext: null,
+  isScenarioActive: false,
 
   addMessage: (message) =>
     set((state) => ({ messages: [...state.messages, message] })),
@@ -42,5 +48,14 @@ export const useChatStore = create<ChatStore>((set) => ({
 
   setScenario: (scenario) => set({ activeScenario: scenario }),
 
-  clearMessages: () => set({ messages: [] }),
+  setScenarioContext: (ctx) => set({ scenarioContext: ctx }),
+
+  setScenarioActive: (active) => set({ isScenarioActive: active }),
+
+  clearMessages: () => set({
+    messages: [],
+    activeScenario: null,
+    scenarioContext: null,
+    isScenarioActive: false,
+  }),
 }));
