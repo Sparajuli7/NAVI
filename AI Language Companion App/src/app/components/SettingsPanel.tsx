@@ -63,10 +63,14 @@ export function SettingsPanel({ onClose, onRegenerate, onUpdateCharacter, onSave
   const fetchOllamaModels = (url?: string) => {
     setIsLoadingModels(true);
     setModelSwitchError(null);
-    agent.listOllamaModels(url)
-      .then((models) => {
-        setOllamaModels(models);
-        setOllamaConnected(models.length > 0);
+    agent.checkOllamaConnection(url)
+      .then((reachable) => {
+        setOllamaConnected(reachable);
+        if (reachable) {
+          return agent.listOllamaModels(url).then(setOllamaModels);
+        } else {
+          setOllamaModels([]);
+        }
       })
       .catch(() => {
         setOllamaModels([]);
@@ -734,7 +738,7 @@ export function SettingsPanel({ onClose, onRegenerate, onUpdateCharacter, onSave
                   <div className="flex items-center gap-1.5 mt-2">
                     <div className={`w-2 h-2 rounded-full ${ollamaConnected ? 'bg-green-400' : 'bg-red-400'}`} />
                     <p className="text-xs text-muted-foreground">
-                      {isLoadingModels ? 'Connecting...' : ollamaConnected ? `Connected (${ollamaModels.length} models)` : 'Not connected'}
+                      {isLoadingModels ? 'Connecting...' : ollamaConnected ? (ollamaModels.length > 0 ? `Connected (${ollamaModels.length} models)` : 'Connected — no models pulled yet') : 'Not connected'}
                     </p>
                   </div>
                 </div>

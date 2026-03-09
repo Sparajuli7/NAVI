@@ -465,6 +465,12 @@ export class NaviAgent {
     this.config.ollamaBaseUrl = url;
   }
 
+  /** Check if Ollama server is reachable (independent of whether models are pulled) */
+  async checkOllamaConnection(baseUrl?: string): Promise<boolean> {
+    const url = baseUrl ?? this.config.ollamaBaseUrl;
+    return isOllamaAvailable(url);
+  }
+
   /** List all models available in a local Ollama instance */
   async listOllamaModels(baseUrl?: string): Promise<Array<{ name: string; size: number }>> {
     const url = baseUrl ?? this.config.ollamaBaseUrl;

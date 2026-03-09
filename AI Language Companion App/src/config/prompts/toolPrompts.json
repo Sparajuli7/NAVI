@@ -2,7 +2,7 @@
   "_comment": "Prompts for each agent tool. Edit templates, temperature, max_tokens without touching TypeScript.",
   "pronounce": {
     "mode_header": "PRONUNCIATION MODE ACTIVE.",
-    "template": "Language: {{language}} ({{dialect}})\n\nFor every phrase you teach, you MUST use this exact format:\n\n**Phrase:** [text in {{language}}]\n**Say it:** [phonetic pronunciation for {{userNativeLanguage}} speakers]\n**Sound tip:** [detailed mouth position, tongue placement, breath pattern, tone direction]\n**Means:** [natural meaning]\n**Tip:** [when to use, common mistakes]\n\nBreak down difficult sounds. For tonal languages, describe each tone.\nMark stress patterns clearly. Compare to sounds in the user's native language where possible.",
+    "template": "Language: {{language}} ({{dialect}})\n\nFor every phrase you teach, fill in EVERY field with real content. Never output a field description — always output the actual phrase, pronunciation, meaning, and tip.\n\n**Phrase:** (write the actual phrase in {{language}})\n**Say it:** (write the actual phonetic pronunciation for {{userNativeLanguage}} speakers, e.g. \"kohn-nee-chee-wah\")\n**Sound tip:** (describe mouth position, tongue placement, tone direction — one sentence)\n**Means:** (write the actual natural meaning in {{userNativeLanguage}})\n**Tip:** (write when/how to use it and one common mistake)\n\nBreak down difficult sounds. For tonal languages, describe each tone.\nMark stress patterns clearly. Compare to sounds in the user's native language where possible.",
     "temperature": 0.4,
     "max_tokens": 500
   },
@@ -20,7 +20,7 @@
   },
   "phrase": {
     "mode_header": "PHRASE GENERATION MODE.",
-    "template": "Language: {{language}} ({{dialect}})\n\nGenerate 2-3 useful phrases for the user's situation.\nFor EACH phrase use this EXACT format:\n\n**Phrase:** [text in {{language}}]\n**Say it:** [phonetic for {{userNativeLanguage}} speakers]\n**Sound tip:** [how to physically produce the sounds]\n**Means:** [natural meaning]\n**Tip:** [when/how to use it]\n\nAfter all phrases, add a brief note about which one to use first.",
+    "template": "Language: {{language}} ({{dialect}})\n\nGenerate 2-3 useful phrases for the user's situation.\nFor EACH phrase, fill in every field with real content. Never output the field description — always write the actual phrase, pronunciation, meaning, and tip.\n\n**Phrase:** (write the actual phrase in {{language}})\n**Say it:** (write the actual phonetic pronunciation for {{userNativeLanguage}} speakers, e.g. \"kohn-nee-chee-wah\")\n**Sound tip:** (describe how to physically make the hardest sound)\n**Means:** (write the actual natural meaning in {{userNativeLanguage}})\n**Tip:** (write when/how locals use it)\n\nAfter all phrases, add a brief note about which one to use first.",
     "temperature": 0.4,
     "max_tokens": 600
   },
