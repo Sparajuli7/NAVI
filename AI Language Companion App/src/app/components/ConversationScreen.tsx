@@ -1,5 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Settings, Sun, Moon, Camera, Mic, RotateCcw, RefreshCw, Zap, X as XIcon } from 'lucide-react';
+import {
+  Settings, Sun, Moon, Camera, Mic, RotateCcw, RefreshCw, Zap,
+  X as XIcon, MessageSquare, ChevronDown,
+} from 'lucide-react';
 import { SpeechBubble, ThoughtBubble, ChatLogEntry } from './NewChatBubble';
 import { AvatarDisplay } from './AvatarDisplay';
 import { QuickActionPill } from './QuickActionPill';
@@ -95,6 +98,8 @@ export function ConversationScreen({
   const [isRecording, setIsRecording]           = useState(false);
   const [llmError, setLlmError]                 = useState(false);
   const [retryText, setRetryText]               = useState('');
+  // Two-mode layout: 'avatar' = full-screen avatar + voice, 'chat' = scrollable history + text input
+  const [viewMode, setViewMode]                 = useState<'avatar' | 'chat'>('avatar');
   const scrollRef = useRef<HTMLDivElement>(null);
 
   const {
@@ -105,17 +110,22 @@ export function ConversationScreen({
   const { activeCharacter, addMemory: _addMemory } = useCharacterStore();
   const { currentLocation } = useAppStore();
 
-  // Agent framework — routes messages through tools, director, memory
   const { agent, isLLMReady } = useNaviAgent();
 
   const languageName = currentLocation?.dialectInfo?.language ?? 'English';
 
-  // Auto-scroll chat log on new messages
+  // Auto-scroll chat log when in chat mode
   useEffect(() => {
-    if (scrollRef.current) {
+    if (viewMode === 'chat' && scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [messages, isGenerating]);
+  }, [messages, isGenerating, viewMode]);
+
+  // Auto-switch to chat mode when user starts typing
+  const handleInputFocus = () => {
+    setViewMode('chat');
+    setShowQuickActions(false);
+  };
 
   // Show quick action pills again every 5 user messages
   const userMsgCount = messages.filter(m => m.role === 'user').length;
@@ -134,11 +144,9 @@ export function ConversationScreen({
 
     setLlmError(false);
 
-    // Scenario detection (keep for UI pill switching)
     const detected = detectScenario(msgText);
     if (detected) setScenario(detected);
 
-    // Snapshot history BEFORE adding the new user message
     const historySnapshot = useChatStore.getState().messages;
 
     const userMsg: Message = {
@@ -151,6 +159,9 @@ export function ConversationScreen({
     addMessage(userMsg);
     setInputValue('');
     setShowQuickActions(false);
+
+    // Switch to avatar mode to show the response visually
+    setViewMode('avatar');
 
     if (!isLLMReady) {
       const helpMsg: Message = {
@@ -182,7 +193,6 @@ export function ConversationScreen({
     addMessage(placeholderMsg);
 
     try {
-      // Build conversation history for the agent
       const history = historySnapshot
         .filter(m => m.role === 'user' || m.role === 'character')
         .slice(-8)
@@ -191,7 +201,6 @@ export function ConversationScreen({
           content: m.content,
         }));
 
-      // Use the agent framework — routes through director + tools + memory
       const result = await agent.handleMessage(msgText, {
         history,
         context: {
@@ -217,11 +226,9 @@ export function ConversationScreen({
         return { messages: msgs };
       });
 
-      // Persist conversation (per-character)
       const allMessages = useChatStore.getState().messages;
       if (richChar?.id) await saveCharacterConversation(richChar.id, allMessages);
 
-      // Episodic memory via agent's MemoryManager
       const uCount = allMessages.filter(m => m.role === 'user').length;
       if (uCount > 0 && uCount % 10 === 0) {
         const recentMsgs = allMessages.slice(-10)
@@ -255,18 +262,14 @@ export function ConversationScreen({
 
   const handleEndScenario = async () => {
     const scenarioLabel = activeScenario ? SCENARIOS[activeScenario]?.label ?? activeScenario : 'the scenario';
-    // Mark scenario as no longer active in the store
     setScenarioActive(false);
     setScenarioContext(null);
     setScenario(null);
-    // Inject debrief instruction into the avatar's context
     agent.avatar.applyOverride({
       scenario: '',
       additionalContext: `DEBRIEF MODE: The user just finished a '${scenarioLabel}' practice session. Step out of scenario mode. Give a brief, honest debrief: what went well, one or two specific things to work on, and any phrases worth saving. Reference specific things from the conversation. 3-4 sentences max. No cheerleading.`,
     });
-    // Send the trigger message (shown as user message in chat)
     await handleSend(`[End scenario — debrief: ${scenarioLabel}]`);
-    // After debrief, clear the override so avatar returns to normal
     agent.avatar.clearOverrides();
   };
 
@@ -284,13 +287,15 @@ export function ConversationScreen({
 
   const handleMicDown = () => {
     if (!isSTTSupported()) return;
-    // Pass the language name directly — startRecording resolves it to a BCP-47 code
-    // This ensures STT detects the TARGET language, not English
     const lang = languageName || 'English';
     setIsRecording(true);
     startRecording(lang, (transcript) => {
       setInputValue(transcript);
       setIsRecording(false);
+      // Auto-send voice input
+      if (transcript.trim()) {
+        handleSend(transcript.trim());
+      }
     }, () => {
       setIsRecording(false);
     });
@@ -317,7 +322,6 @@ export function ConversationScreen({
     ? `${countryFlag(currentLocation.countryCode)} ${currentLocation.dialectInfo.dialect}`
     : null;
 
-  // Latest character message to show as speech bubble
   const latestCharMsg = [...messages]
     .reverse()
     .find(m =>
@@ -325,267 +329,395 @@ export function ConversationScreen({
       !(m.metadata?.isStreaming && m.content.length === 0)
     ) ?? null;
 
-  // All messages visible in the chat log
   const logMessages = messages.filter(
     m => m.role !== 'system' && !(m.metadata?.isStreaming && m.content.length === 0)
   );
 
+  // ── Shared header ────────────────────────────────────────────────────────
+  const header = (
+    <div className="flex-shrink-0 flex items-center justify-between px-4 py-2 border-b border-border bg-card/50">
+      <div className="flex items-center gap-2 min-w-0">
+        {viewMode === 'chat' && (
+          <button
+            onClick={() => setViewMode('avatar')}
+            className="p-1.5 hover:bg-muted/50 rounded-lg transition-colors mr-1 flex-shrink-0"
+            title="Back to avatar"
+          >
+            <ChevronDown className="w-4 h-4 text-muted-foreground rotate-90" />
+          </button>
+        )}
+        <p className="font-medium text-foreground text-sm truncate">{character.name}</p>
+        {activeScenario && SCENARIOS[activeScenario] && (
+          <button
+            onClick={isScenarioActive ? handleEndScenario : undefined}
+            className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors
+              ${isScenarioActive
+                ? 'bg-primary/20 text-primary hover:bg-primary/30'
+                : 'bg-primary/10 text-primary/70'}`}
+          >
+            {(SCENARIOS[activeScenario] as { emoji?: string }).emoji && (
+              <span className="text-xs">{(SCENARIOS[activeScenario] as { emoji?: string }).emoji}</span>
+            )}
+            {SCENARIOS[activeScenario].label}
+            {isScenarioActive && <XIcon className="w-3 h-3 ml-0.5 opacity-60" />}
+          </button>
+        )}
+        {dialectIndicator && (
+          <span className="text-xs text-muted-foreground whitespace-nowrap hidden sm:inline">
+            {dialectIndicator}
+          </span>
+        )}
+        {!dialectIndicator && !activeScenario && (
+          <span className="text-xs text-muted-foreground truncate hidden sm:inline">{location}</span>
+        )}
+      </div>
+
+      <div className="flex items-center gap-1 flex-shrink-0">
+        <button
+          onClick={onOpenScenarios}
+          className="p-2 hover:bg-muted/50 rounded-lg transition-colors"
+          title="Practice a scenario"
+        >
+          <Zap className="w-4 h-4 text-muted-foreground" />
+        </button>
+        <button
+          onClick={onToggleTheme}
+          className="p-2 hover:bg-muted/50 rounded-lg transition-colors"
+        >
+          {isDark ? (
+            <Sun className="w-4 h-4 text-muted-foreground" />
+          ) : (
+            <Moon className="w-4 h-4 text-muted-foreground" />
+          )}
+        </button>
+        <button
+          onClick={() => setShowSettings(true)}
+          className="p-2 hover:bg-muted/50 rounded-lg transition-colors"
+        >
+          <Settings className="w-4 h-4 text-muted-foreground" />
+        </button>
+      </div>
+    </div>
+  );
+
   return (
     <div
-      className="flex flex-col bg-background"
+      className="flex flex-col bg-background overflow-hidden"
       style={{ height: 'calc(100vh - 57px)' }}
     >
-      {/* ── Thin header bar ─────────────────────────────────────────── */}
-      <div className="flex-shrink-0 flex items-center justify-between px-4 py-2 border-b border-border bg-card/50">
-        <div className="flex items-center gap-2 min-w-0">
-          <p className="font-medium text-foreground text-sm truncate">{character.name}</p>
-          {activeScenario && SCENARIOS[activeScenario] && (
-            <button
-              onClick={isScenarioActive ? handleEndScenario : undefined}
-              className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors
-                ${isScenarioActive
-                  ? 'bg-primary/20 text-primary hover:bg-primary/30'
-                  : 'bg-primary/10 text-primary/70'}`}
-            >
-              {(SCENARIOS[activeScenario] as { emoji?: string }).emoji && (
-                <span className="text-xs">{(SCENARIOS[activeScenario] as { emoji?: string }).emoji}</span>
-              )}
-              {SCENARIOS[activeScenario].label}
-              {isScenarioActive && <XIcon className="w-3 h-3 ml-0.5 opacity-60" />}
-            </button>
-          )}
-          {dialectIndicator && (
-            <span className="text-xs text-muted-foreground whitespace-nowrap hidden sm:inline">
-              {dialectIndicator}
-            </span>
-          )}
-          {!dialectIndicator && !activeScenario && (
-            <span className="text-xs text-muted-foreground truncate hidden sm:inline">{location}</span>
-          )}
-        </div>
+      {header}
 
-        <div className="flex items-center gap-1 flex-shrink-0">
-          {/* Scenario launcher button — always visible */}
-          <button
-            onClick={onOpenScenarios}
-            className="p-2 hover:bg-muted/50 rounded-lg transition-colors"
-            title="Practice a scenario"
-          >
-            <Zap className="w-4 h-4 text-muted-foreground" />
-          </button>
-          <button
-            onClick={onToggleTheme}
-            className="p-2 hover:bg-muted/50 rounded-lg transition-colors"
-          >
-            {isDark ? (
-              <Sun className="w-4 h-4 text-muted-foreground" />
-            ) : (
-              <Moon className="w-4 h-4 text-muted-foreground" />
-            )}
-          </button>
-          <button
-            onClick={() => setShowSettings(true)}
-            className="p-2 hover:bg-muted/50 rounded-lg transition-colors"
-          >
-            <Settings className="w-4 h-4 text-muted-foreground" />
-          </button>
-        </div>
-      </div>
+      <AnimatePresence mode="wait">
 
-      {/* ── Avatar + speech bubble zone ─────────────────────────────── */}
-      {/* Takes ~55vh — avatar panel left (1/3), speech bubble right (2/3) */}
-      <div className="flex-shrink-0 flex border-b border-border/60" style={{ height: '55vh' }}>
-
-        {/* Avatar panel — 1/3 width */}
-        <div className="flex flex-col items-center justify-between py-4 px-2 border-r border-border/40 bg-card/10"
-          style={{ width: '33.333%' }}
-        >
-          {/* Avatar — square, fills column width */}
-          <div className="flex-1 flex items-center justify-center w-full">
-            <div className="w-full aspect-square" style={{ maxWidth: '140px' }}>
-              <AvatarDisplay
-                character={character}
-                size="full"
-                animate={true}
-                animation={isGenerating ? 'confused' : 'idle'}
-              />
-            </div>
-          </div>
-
-          {/* Character info + regenerate */}
-          <div className="w-full text-center space-y-1 px-1">
-            <p className="text-xs font-medium text-foreground truncate">{character.name}</p>
-            <p
-              className="text-xs text-muted-foreground italic leading-tight line-clamp-2"
-              style={{ fontSize: '10px' }}
-            >
-              "{character.personality}"
-            </p>
-            <button
-              onClick={onRegenerate}
-              className="mt-1 p-1.5 hover:bg-muted/50 rounded-lg transition-colors"
-              title="Regenerate companion"
-            >
-              <RefreshCw className="w-3.5 h-3.5 text-muted-foreground/60" />
-            </button>
-          </div>
-        </div>
-
-        {/* Speech / thought bubble zone — 2/3 width */}
-        <div
-          className="flex-1 flex flex-col justify-center p-4 overflow-hidden"
-        >
-          <AnimatePresence mode="wait">
-            {showTypingDots ? (
-              <motion.div key="thought" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-                <ThoughtBubble />
-              </motion.div>
-            ) : latestCharMsg ? (
-              <motion.div key={latestCharMsg.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-                <SpeechBubble
-                  message={latestCharMsg}
-                  character={character}
-                  languageName={languageName}
-                  onPhraseCardClick={handlePhraseCardClick}
-                />
-              </motion.div>
-            ) : (
-              /* Welcome state — no messages yet */
-              <motion.div
-                key="welcome"
-                className="relative ml-3"
-                initial={{ opacity: 0, x: 8 }}
-                animate={{ opacity: 1, x: 0 }}
-              >
-                <div
-                  className="absolute -left-[7px] top-4 w-3.5 h-3.5 bg-card border-l border-b border-border"
-                  style={{ transform: 'rotate(45deg)' }}
-                />
-                <div className="bg-card border border-border rounded-2xl rounded-tl-none px-4 py-3 shadow-md">
-                  <p
-                    className="text-foreground/70 italic text-sm leading-relaxed"
-                    style={{ fontFamily: 'var(--font-character)' }}
-                  >
-                    Hey! I'm {character.name}. Ask me anything about{' '}
-                    {dialectIndicator ?? location} — slang, phrases, culture, whatever you need.
-                  </p>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-      </div>
-
-      {/* ── Scrollable chat log ──────────────────────────────────────── */}
-      <div
-        ref={scrollRef}
-        className="flex-1 min-h-0 overflow-y-auto px-4 py-3"
-      >
-        {logMessages.length === 0 ? (
-          <p className="text-xs text-muted-foreground text-center pt-2">
-            Conversation history will appear here
-          </p>
-        ) : (
-          logMessages.map((message) => (
-            <React.Fragment key={message.id}>
-              <ChatLogEntry
-                message={message}
-                character={message.role === 'character' ? character : undefined}
-                languageName={languageName}
-                onPhraseCardClick={handlePhraseCardClick}
-              />
-            </React.Fragment>
-          ))
-        )}
-
-        {/* LLM error retry */}
-        {llmError && !isGenerating && (
+        {/* ══════════════════════════════════════════════════════════════
+            AVATAR MODE — full screen avatar + voice interaction
+        ══════════════════════════════════════════════════════════════ */}
+        {viewMode === 'avatar' && (
           <motion.div
-            className="flex justify-center mt-3"
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
+            key="avatar-mode"
+            className="flex-1 flex flex-col min-h-0"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0, y: -20 }}
+            transition={{ duration: 0.2 }}
           >
-            <button
-              onClick={handleRetry}
-              className="flex items-center gap-2 px-4 py-2 bg-primary/10 border border-primary/30 text-primary rounded-xl text-sm font-medium hover:bg-primary/20 transition-colors"
-            >
-              <RotateCcw className="w-4 h-4" />
-              Retry
-            </button>
+            {/* Avatar + name */}
+            <div className="flex flex-col items-center justify-center pt-6 pb-2 flex-shrink-0">
+              <div style={{ width: '200px', height: '200px' }}>
+                <AvatarDisplay
+                  character={character}
+                  size="full"
+                  animate={true}
+                  animation={isGenerating ? 'confused' : isRecording ? 'happy' : 'idle'}
+                />
+              </div>
+              <div className="mt-2 text-center">
+                <p className="text-sm font-semibold text-foreground">{character.name}</p>
+                <p
+                  className="text-xs text-muted-foreground italic line-clamp-1 px-6"
+                  style={{ fontSize: '11px' }}
+                >
+                  {character.personality}
+                </p>
+              </div>
+              <button
+                onClick={onRegenerate}
+                className="mt-1 p-1.5 hover:bg-muted/50 rounded-lg transition-colors"
+                title="Regenerate companion"
+              >
+                <RefreshCw className="w-3.5 h-3.5 text-muted-foreground/50" />
+              </button>
+            </div>
+
+            {/* Speech bubble — grows to fill available space, scrolls if needed */}
+            <div className="flex-1 min-h-0 flex flex-col justify-center px-5 pb-2 overflow-hidden">
+              <div className="overflow-y-auto max-h-full">
+                <AnimatePresence mode="wait">
+                  {showTypingDots ? (
+                    <motion.div
+                      key="thought"
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0 }}
+                    >
+                      <ThoughtBubble />
+                    </motion.div>
+                  ) : latestCharMsg ? (
+                    <motion.div
+                      key={latestCharMsg.id}
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0 }}
+                    >
+                      <SpeechBubble
+                        message={latestCharMsg}
+                        character={character}
+                        languageName={languageName}
+                        onPhraseCardClick={handlePhraseCardClick}
+                      />
+                    </motion.div>
+                  ) : (
+                    <motion.div
+                      key="welcome"
+                      className="relative ml-3"
+                      initial={{ opacity: 0, x: 8 }}
+                      animate={{ opacity: 1, x: 0 }}
+                    >
+                      <div
+                        className="absolute -left-[7px] top-4 w-3.5 h-3.5 bg-card border-l border-b border-border"
+                        style={{ transform: 'rotate(45deg)' }}
+                      />
+                      <div className="bg-card border border-border rounded-2xl rounded-tl-none px-4 py-3 shadow-md">
+                        <p
+                          className="text-foreground/70 italic text-sm leading-relaxed"
+                          style={{ fontFamily: 'var(--font-character)' }}
+                        >
+                          Hey! I'm {character.name}. Hold the mic and talk, or tap the chat icon to type.
+                        </p>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                {/* LLM error retry */}
+                {llmError && !isGenerating && (
+                  <motion.div
+                    className="flex justify-center mt-3"
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                  >
+                    <button
+                      onClick={handleRetry}
+                      className="flex items-center gap-2 px-4 py-2 bg-primary/10 border border-primary/30 text-primary rounded-xl text-sm font-medium hover:bg-primary/20 transition-colors"
+                    >
+                      <RotateCcw className="w-4 h-4" />
+                      Retry
+                    </button>
+                  </motion.div>
+                )}
+              </div>
+            </div>
+
+            {/* Quick action pills */}
+            {showQuickActions && (
+              <div className="flex-shrink-0 px-4 pb-2 flex gap-2 overflow-x-auto scrollbar-hide">
+                {pills.map((pill, idx) => (
+                  <React.Fragment key={idx}>
+                    <QuickActionPill
+                      icon={pill.icon}
+                      label={pill.label}
+                      onClick={pill.isCamera ? onOpenCamera : () => handleSend(pill.text)}
+                    />
+                  </React.Fragment>
+                ))}
+              </div>
+            )}
+
+            {/* Bottom bar: Camera | big Mic | Chat toggle */}
+            <div className="flex-shrink-0 border-t border-border bg-card px-6 py-4">
+              <div className="flex items-center justify-between">
+                {/* Camera */}
+                <button
+                  onClick={onOpenCamera}
+                  className="p-3 hover:bg-muted/50 rounded-full transition-colors"
+                  title="Scan with camera"
+                >
+                  <Camera className="w-6 h-6 text-muted-foreground" />
+                </button>
+
+                {/* Large centered mic button */}
+                {isSTTSupported() ? (
+                  <motion.button
+                    className={`w-20 h-20 rounded-full flex items-center justify-center shadow-lg transition-colors
+                      ${isRecording
+                        ? 'bg-primary scale-110'
+                        : 'bg-primary/90 hover:bg-primary'}`}
+                    onPointerDown={handleMicDown}
+                    onPointerUp={handleMicUp}
+                    onPointerLeave={handleMicUp}
+                    whileTap={{ scale: 0.95 }}
+                  >
+                    <Mic className={`w-8 h-8 ${isRecording ? 'text-primary-foreground animate-pulse' : 'text-primary-foreground'}`} />
+                  </motion.button>
+                ) : (
+                  <div
+                    className="w-20 h-20 rounded-full flex items-center justify-center bg-muted/30 opacity-40"
+                    title="Voice input unavailable in this browser"
+                  >
+                    <Mic className="w-8 h-8 text-muted-foreground" />
+                  </div>
+                )}
+
+                {/* Chat toggle */}
+                <button
+                  onClick={() => setViewMode('chat')}
+                  className="p-3 hover:bg-muted/50 rounded-full transition-colors relative"
+                  title="Open chat history"
+                >
+                  <MessageSquare className="w-6 h-6 text-muted-foreground" />
+                  {logMessages.length > 0 && (
+                    <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-primary" />
+                  )}
+                </button>
+              </div>
+
+              {isRecording && (
+                <motion.p
+                  className="text-center text-xs text-primary mt-2"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                >
+                  Listening… release to send
+                </motion.p>
+              )}
+              {!isSTTSupported() && (
+                <p className="text-center text-xs text-muted-foreground mt-2">
+                  Voice input unavailable — tap chat icon to type
+                </p>
+              )}
+            </div>
           </motion.div>
         )}
-      </div>
 
-      {/* ── Input area ──────────────────────────────────────────────── */}
-      <div className="flex-shrink-0 border-t border-border bg-card">
-        {showQuickActions && (
-          <div className="px-4 pt-2 pb-1 flex gap-2 overflow-x-auto scrollbar-hide">
-            {pills.map((pill, idx) => (
-              <React.Fragment key={idx}>
-                <QuickActionPill
-                  icon={pill.icon}
-                  label={pill.label}
-                  onClick={pill.isCamera ? onOpenCamera : () => handleSend(pill.text)}
-                />
-              </React.Fragment>
-            ))}
-          </div>
-        )}
-
-        <div className="px-4 py-3 flex items-end gap-2">
-          <button
-            onClick={onOpenCamera}
-            className="p-2.5 hover:bg-muted/50 rounded-lg transition-colors flex-shrink-0"
+        {/* ══════════════════════════════════════════════════════════════
+            CHAT MODE — scrollable history + text input
+        ══════════════════════════════════════════════════════════════ */}
+        {viewMode === 'chat' && (
+          <motion.div
+            key="chat-mode"
+            className="flex-1 flex flex-col min-h-0"
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 30 }}
+            transition={{ duration: 0.22 }}
           >
-            <Camera className="w-5 h-5 text-muted-foreground" />
-          </button>
-
-          <div className="flex-1 relative">
-            <input
-              type="text"
-              value={inputValue}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setInputValue(e.target.value)}
-              onKeyPress={(e: React.KeyboardEvent<HTMLInputElement>) => e.key === 'Enter' && handleSend()}
-              onFocus={() => setShowQuickActions(false)}
-              placeholder={`Ask ${character.name} anything...`}
-              className="w-full px-4 py-3 bg-background border border-border rounded-xl text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 text-sm"
-            />
-          </div>
-
-          {isSTTSupported() ? (
-            <button
-              className={`p-2.5 rounded-lg transition-colors flex-shrink-0 ${isRecording ? 'bg-primary' : 'bg-primary/10 hover:bg-primary/20'}`}
-              onPointerDown={handleMicDown}
-              onPointerUp={handleMicUp}
-              onPointerLeave={handleMicUp}
+            {/* Scrollable chat log */}
+            <div
+              ref={scrollRef}
+              className="flex-1 min-h-0 overflow-y-auto px-4 py-3"
             >
-              <Mic className={`w-5 h-5 ${isRecording ? 'text-primary-foreground' : 'text-primary'}`} />
-            </button>
-          ) : (
-            <div className="p-2.5 flex-shrink-0 opacity-30" title="Voice input unavailable in this browser">
-              <Mic className="w-5 h-5 text-muted-foreground" />
+              {logMessages.length === 0 ? (
+                <p className="text-xs text-muted-foreground text-center pt-8">
+                  No messages yet — say something!
+                </p>
+              ) : (
+                logMessages.map((message) => (
+                  <React.Fragment key={message.id}>
+                    <ChatLogEntry
+                      message={message}
+                      character={message.role === 'character' ? character : undefined}
+                      languageName={languageName}
+                      onPhraseCardClick={handlePhraseCardClick}
+                    />
+                  </React.Fragment>
+                ))
+              )}
+
+              {llmError && !isGenerating && (
+                <motion.div
+                  className="flex justify-center mt-3"
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                >
+                  <button
+                    onClick={handleRetry}
+                    className="flex items-center gap-2 px-4 py-2 bg-primary/10 border border-primary/30 text-primary rounded-xl text-sm font-medium hover:bg-primary/20 transition-colors"
+                  >
+                    <RotateCcw className="w-4 h-4" />
+                    Retry
+                  </button>
+                </motion.div>
+              )}
             </div>
-          )}
 
-          {inputValue.trim() && (
-            <motion.button
-              onClick={() => handleSend()}
-              className="px-4 py-3 bg-primary text-primary-foreground rounded-xl font-medium flex-shrink-0 text-sm"
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              whileTap={{ scale: 0.95 }}
-            >
-              Send
-            </motion.button>
-          )}
-        </div>
+            {/* Input area */}
+            <div className="flex-shrink-0 border-t border-border bg-card">
+              {showQuickActions && (
+                <div className="px-4 pt-2 pb-1 flex gap-2 overflow-x-auto scrollbar-hide">
+                  {pills.map((pill, idx) => (
+                    <React.Fragment key={idx}>
+                      <QuickActionPill
+                        icon={pill.icon}
+                        label={pill.label}
+                        onClick={pill.isCamera ? onOpenCamera : () => handleSend(pill.text)}
+                      />
+                    </React.Fragment>
+                  ))}
+                </div>
+              )}
 
-        {!isSTTSupported() && (
-          <p className="text-center text-xs text-muted-foreground pb-2">
-            Voice input unavailable in this browser
-          </p>
+              <div className="px-4 py-3 flex items-end gap-2">
+                <button
+                  onClick={onOpenCamera}
+                  className="p-2.5 hover:bg-muted/50 rounded-lg transition-colors flex-shrink-0"
+                >
+                  <Camera className="w-5 h-5 text-muted-foreground" />
+                </button>
+
+                <div className="flex-1 relative">
+                  <input
+                    type="text"
+                    value={inputValue}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setInputValue(e.target.value)}
+                    onKeyPress={(e: React.KeyboardEvent<HTMLInputElement>) => e.key === 'Enter' && handleSend()}
+                    onFocus={handleInputFocus}
+                    placeholder={`Ask ${character.name} anything...`}
+                    className="w-full px-4 py-3 bg-background border border-border rounded-xl text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 text-sm"
+                  />
+                </div>
+
+                {isSTTSupported() ? (
+                  <button
+                    className={`p-2.5 rounded-lg transition-colors flex-shrink-0 ${isRecording ? 'bg-primary' : 'bg-primary/10 hover:bg-primary/20'}`}
+                    onPointerDown={handleMicDown}
+                    onPointerUp={handleMicUp}
+                    onPointerLeave={handleMicUp}
+                  >
+                    <Mic className={`w-5 h-5 ${isRecording ? 'text-primary-foreground' : 'text-primary'}`} />
+                  </button>
+                ) : (
+                  <div className="p-2.5 flex-shrink-0 opacity-30" title="Voice input unavailable in this browser">
+                    <Mic className="w-5 h-5 text-muted-foreground" />
+                  </div>
+                )}
+
+                {inputValue.trim() && (
+                  <motion.button
+                    onClick={() => handleSend()}
+                    className="px-4 py-3 bg-primary text-primary-foreground rounded-xl font-medium flex-shrink-0 text-sm"
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    whileTap={{ scale: 0.95 }}
+                  >
+                    Send
+                  </motion.button>
+                )}
+              </div>
+            </div>
+          </motion.div>
         )}
-      </div>
+
+      </AnimatePresence>
 
       {/* ── Expanded phrase card modal ───────────────────────────────── */}
       <AnimatePresence>
