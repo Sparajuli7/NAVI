@@ -235,7 +235,8 @@ export function ConversationScreen({
           importance: 0.5,
         });
       }
-    } catch {
+    } catch (err) {
+      console.error('[NAVI:chat] handleSend error:', err);
       updateLastMessage("Hmm, let me try that again... 🔄", true);
       setLlmError(true);
       setRetryText(msgText);

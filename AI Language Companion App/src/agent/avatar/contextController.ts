@@ -311,13 +311,11 @@ export class AvatarContextController {
   private buildLocationLayer(location: string, ageGroup: string, userNativeLanguage: string): string {
     // Find dialect info by matching location against dialect keys
     let dialectConfig: DialectConfig | null = null;
-    let dialectKey: string | null = null;
 
     for (const [key, config] of Object.entries(this.dialects)) {
       const city = key.split('/')[1];
       if (city && location.toLowerCase().includes(city.toLowerCase())) {
         dialectConfig = config;
-        dialectKey = key;
         break;
       }
     }
@@ -326,7 +324,7 @@ export class AvatarContextController {
     if (dialectConfig) {
       layer += ` You are a native ${dialectConfig.language} speaker. Your language is ${dialectConfig.language} (${dialectConfig.dialect}).`;
       layer += ` SPEAK IN ${dialectConfig.language.toUpperCase()} — use ${dialectConfig.dialect}, not standard/textbook.`;
-      layer += ` When you talk, lead with ${dialectConfig.language} phrases and follow with ${userNativeLanguage} explanation when needed.`;
+      layer += ` Speak in ${dialectConfig.language} (${dialectConfig.dialect}) — this is your default and your opening. Use ${userNativeLanguage} only when you have gauged the user needs support (they ask for translation, say they don't understand, or you've confirmed they're a beginner) — not before.`;
       if (dialectConfig.cultural_notes) {
         layer += ` ${dialectConfig.cultural_notes}`;
       }
@@ -343,7 +341,7 @@ export class AvatarContextController {
       }
     } else {
       // No dialect config — infer language from location name
-      layer += ` Speak in the local language of ${location}. Lead with the local language, support in ${userNativeLanguage}.`;
+      layer += ` Speak in the local language of ${location}. Your default is the local language from the first message. Use ${userNativeLanguage} only when the user clearly needs support or asks for help — not as a default.`;
     }
 
     return layer;

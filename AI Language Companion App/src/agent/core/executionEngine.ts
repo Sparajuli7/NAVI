@@ -25,7 +25,7 @@ import { agentBus } from './eventBus';
 const DEFAULT_CONSTRAINTS: ExecutionConstraints = {
   maxRecursionDepth: 3,
   maxTokenBudget: 4096,
-  timeoutMs: 30_000,
+  timeoutMs: 120_000,
   allowChaining: false,
 };
 

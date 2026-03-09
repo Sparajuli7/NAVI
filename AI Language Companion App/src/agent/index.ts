@@ -318,8 +318,20 @@ export class NaviAgent {
     const avatarId = this.avatar.getActiveProfile()?.id ?? 'default';
     const historyLen = options?.history?.length ?? 0;
     const isSessionStart = historyLen <= 2; // first message or just the greeting
-    const directorCtx = this.director.preProcess(message, avatarId, { isSessionStart });
-    agentBus.emit('director:goals_set', { goals: directorCtx.goals });
+    let directorCtx: ReturnType<typeof this.director.preProcess>;
+    try {
+      directorCtx = this.director.preProcess(message, avatarId, { isSessionStart });
+      agentBus.emit('director:goals_set', { goals: directorCtx.goals });
+    } catch (err) {
+      console.error('[NaviAgent] Director preProcess error:', err);
+      directorCtx = {
+        goals: [],
+        promptInjection: '',
+        learningContext: '',
+        warmthInstruction: '',
+        situationContext: '',
+      };
+    }
 
     const contextParams: Record<string, unknown> = {
       ...options?.context,
