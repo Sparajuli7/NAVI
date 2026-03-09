@@ -48,8 +48,8 @@ export function buildSystemPrompt(
   if (location) {
     let locationLayer = `Location: ${location.city}, ${location.country}.`;
     if (location.dialectInfo) {
-      const { dialect, cultural_notes, slang_era } = location.dialectInfo;
-      locationLayer += ` Speak in ${dialect}, not standard/textbook.`;
+      const { dialect, language, cultural_notes, slang_era } = location.dialectInfo;
+      locationLayer += ` You MUST respond primarily in ${language}. You are a native ${language} speaker. Lead every response with ${language}, then support in ${preferences.native_language || 'English'} only when needed for clarity. Speak in ${dialect}, not standard/textbook.`;
       if (cultural_notes) locationLayer += ` ${cultural_notes}`;
       const generation = AGE_TO_GENERATION[preferences.avatar_age] ?? 'millennial';
       const slang = slang_era[generation];
@@ -78,7 +78,10 @@ export function buildSystemPrompt(
   }
 
   // Layer 7 — Core rules
-  layers.push(promptLoader.get('coreRules.rules'));
+  layers.push(promptLoader.get('coreRules.rules', {
+    userNativeLanguage: preferences.native_language || 'English',
+    name: character.name,
+  }));
 
   return layers.join('\n\n');
 }
