@@ -93,17 +93,37 @@ function mapToUI(c: Character): GeneratedCharacter {
 
 const presetCities = getPresetCities();
 
+// Clarification chip sets for sparse input
+const VIBE_CHIPS = [
+  { label: 'Chill 😎', text: 'chill and easygoing' },
+  { label: 'Funny 😂', text: 'funny and sarcastic' },
+  { label: 'Warm 🤗', text: 'warm and encouraging' },
+  { label: 'Bold 🔥', text: 'bold and direct' },
+  { label: 'Mysterious 🌙', text: 'mysterious and deep' },
+];
+const EXPERTISE_CHIPS = [
+  { label: 'Street food 🍜', text: 'knows the best street food spots' },
+  { label: 'Nightlife 🌃', text: 'expert in nightlife and bars' },
+  { label: 'Hidden gems 💎', text: 'finds hidden local gems' },
+  { label: 'Culture 🎭', text: 'loves art and local culture' },
+  { label: 'Navigation 🗺', text: 'great at directions and transport' },
+];
+
 export function NewOnboardingScreen({ onComplete, onRetryLoadModel }: NewOnboardingScreenProps) {
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
   const [promptValue, setPromptValue]           = useState('');
+  const [nameInput, setNameInput]               = useState('');
   const [location, setLocation]                 = useState('Ho Chi Minh City');
   const [locationCtx, setLocationCtx]           = useState<LocationContext | null>(null);
   const [isGenerating, setIsGenerating]         = useState(false);
   const [generatedCharacter, setGeneratedCharacter] = useState<GeneratedCharacter | null>(null);
   const [error, setError]                       = useState<string | null>(null);
   const [showCityPicker, setShowCityPicker]     = useState(false);
+  const [showClarify, setShowClarify]           = useState(false);
+  const [selectedVibes, setSelectedVibes]       = useState<string[]>([]);
+  const [selectedExpertise, setSelectedExpertise] = useState<string[]>([]);
   const [avatarPrefs, setAvatarPrefs]           = useState<AvatarPrefs>(() => loadAvatarPrefs());
-  const [showAvatarBuilder, setShowAvatarBuilder] = useState(false);
+  const [showAvatarBuilder, setShowAvatarBuilder] = useState(true);
 
   const { setActiveCharacter }  = useCharacterStore();
   const { addMessage }          = useChatStore();
@@ -138,8 +158,40 @@ export function NewOnboardingScreen({ onComplete, onRetryLoadModel }: NewOnboard
     return match ? match[0] : stripped;
   };
 
+  // Build the enriched description from base input + selected chips
+  const buildEnrichedDescription = (): string => {
+    const parts = [promptValue.trim()];
+    if (selectedVibes.length > 0) parts.push(selectedVibes.join(', '));
+    if (selectedExpertise.length > 0) parts.push(selectedExpertise.join(', '));
+    return parts.filter(Boolean).join('; ');
+  };
+
+  const handleGenerateClick = () => {
+    const desc = promptValue.trim();
+    if (!desc) return;
+    // If description is sparse and clarify panel not shown yet → show it first
+    if (desc.length < 25 && !showClarify) {
+      setShowClarify(true);
+      return;
+    }
+    generateCharacter();
+  };
+
+  const toggleVibe = (text: string) => {
+    setSelectedVibes(prev =>
+      prev.includes(text) ? prev.filter(v => v !== text) : [...prev, text]
+    );
+  };
+
+  const toggleExpertise = (text: string) => {
+    setSelectedExpertise(prev =>
+      prev.includes(text) ? prev.filter(e => e !== text) : [...prev, text]
+    );
+  };
+
   const generateCharacter = async () => {
-    if (!promptValue.trim()) return;
+    const enriched = buildEnrichedDescription();
+    if (!enriched) return;
     if (!isLLMReady) {
       setError(
         modelStatus === 'error'
@@ -150,9 +202,10 @@ export function NewOnboardingScreen({ onComplete, onRetryLoadModel }: NewOnboard
     }
     setIsGenerating(true);
     setError(null);
+    setShowClarify(false);
 
     try {
-      const prompt = buildCharacterGenPrompt(promptValue, locationCtx);
+      const prompt = buildCharacterGenPrompt(enriched, locationCtx, nameInput.trim() || undefined);
 
       // Use agent's LLM for character generation
       const llm = agent.getLLM();
@@ -162,22 +215,43 @@ export function NewOnboardingScreen({ onComplete, onRetryLoadModel }: NewOnboard
       const city    = locationCtx?.city ?? location;
       const country = locationCtx?.country ?? '';
 
+      // Culturally appropriate fallback names per city
+      const fallbackNameFor = (c: string): string => {
+        const n = c.toLowerCase();
+        if (n.includes('seoul'))           return nameInput.trim() || '지훈';
+        if (n.includes('tokyo'))           return nameInput.trim() || 'Aiko';
+        if (n.includes('osaka'))           return nameInput.trim() || 'Nana';
+        if (n.includes('ho chi minh') || n.includes('saigon')) return nameInput.trim() || 'Linh';
+        if (n.includes('paris'))           return nameInput.trim() || 'Léa';
+        if (n.includes('mexico'))          return nameInput.trim() || 'Diego';
+        return nameInput.trim() || 'Kai';
+      };
+
       // Helper: fill in any missing fields so the Character is always complete
-      const fillDefaults = (partial: Partial<Character>): Character => ({
-        id:               `char_${Date.now()}`,
-        name:             partial.name             ?? 'Kai',
-        summary:          partial.summary          ?? `${partial.name ?? 'Kai'} — your local guide in ${city}`,
-        detailed:         partial.detailed         ?? '',
-        style:            partial.style            ?? 'casual',
-        emoji:            partial.emoji            ?? '🌟',
-        avatar_color:     partial.avatar_color     ?? { primary: '#6B7280', secondary: '#F6AD55', accent: '#48BB78' },
-        avatar_accessory: partial.avatar_accessory ?? '🎒',
-        speaks_like:      partial.speaks_like      ?? 'warm and conversational',
-        template_id:      partial.template_id      ?? null,
-        location_city:    partial.location_city    ?? city,
-        location_country: partial.location_country ?? country,
-        first_message:    partial.first_message    ?? `Hey! I'm ${partial.name ?? 'Kai'}, your guide in ${city}. What do you want to explore?`,
-      });
+      const fillDefaults = (partial: Partial<Character>): Character => {
+        const safeName = (partial.name && !partial.name.startsWith('(') && !partial.name.startsWith('<'))
+          ? partial.name
+          : fallbackNameFor(city);
+        return {
+          id:               `char_${Date.now()}`,
+          name:             safeName,
+          summary:          (partial.summary && !partial.summary.startsWith('('))
+                              ? partial.summary
+                              : `${safeName} — your local guide in ${city}`,
+          detailed:         partial.detailed         ?? '',
+          style:            partial.style            ?? 'casual',
+          emoji:            partial.emoji            ?? '🌟',
+          avatar_color:     partial.avatar_color     ?? { primary: '#6B7280', secondary: '#F6AD55', accent: '#48BB78' },
+          avatar_accessory: partial.avatar_accessory ?? '🎒',
+          speaks_like:      partial.speaks_like      ?? 'warm and conversational',
+          template_id:      partial.template_id      ?? null,
+          location_city:    partial.location_city    ?? city,
+          location_country: partial.location_country ?? country,
+          first_message:    (partial.first_message && !partial.first_message.startsWith('('))
+                              ? partial.first_message
+                              : `Hey! I'm ${safeName}, your local friend in ${city}. What do you want to explore?`,
+        };
+      };
 
       let richCharacter: Character;
 
@@ -195,9 +269,10 @@ export function NewOnboardingScreen({ onComplete, onRetryLoadModel }: NewOnboard
         } catch {
           // Attempt 3 — minimal 3-field prompt, much smaller output
           try {
-            const minimalPrompt = `Create a local friend in ${city}${country ? `, ${country}` : ''}. Description: "${promptValue}". Output ONLY this JSON (no other text):\n{"name":"<short name>","summary":"<name> — <one sentence>","first_message":"<one sentence greeting in character>"}`;
+            const fallName = fallbackNameFor(city);
+            const minimalPrompt = `Create a local friend named ${fallName} in ${city}${country ? `, ${country}` : ''}. Description: "${enriched}". Output ONLY this JSON:\n{"name":"${fallName}","summary":"${fallName} — one sentence about them","first_message":"one sentence greeting in the local language of ${city} with pronunciation"}`;
             const raw3 = await llm.chat(
-              [{ role: 'system', content: 'Output ONLY valid JSON.' }, { role: 'user', content: minimalPrompt }],
+              [{ role: 'system', content: 'Output ONLY valid JSON. No markdown.' }, { role: 'user', content: minimalPrompt }],
               { temperature: 0.2, max_tokens: 200 },
             );
             console.log('[NAVI] chargen attempt 3 (minimal):', raw3);
@@ -205,7 +280,7 @@ export function NewOnboardingScreen({ onComplete, onRetryLoadModel }: NewOnboard
           } catch {
             // Final fallback — synthetic character, no LLM needed
             console.warn('[NAVI] All LLM attempts failed — using synthetic character');
-            const fallbackName = city.length > 0 ? city[0].toUpperCase() + 'ai' : 'Kai';
+            const fallbackName = fallbackNameFor(city);
             richCharacter = fillDefaults({
               name:          fallbackName,
               summary:       `${fallbackName} — your local guide in ${city}`,
@@ -346,9 +421,74 @@ export function NewOnboardingScreen({ onComplete, onRetryLoadModel }: NewOnboard
                   />
                 </div>
 
-                <p className="text-sm text-muted-foreground text-center mb-8">
+                <p className="text-sm text-muted-foreground text-center mb-4">
                   Be creative! Your companion's personality comes from this.
                 </p>
+
+                {/* Optional: give them a name */}
+                <div className="mb-4">
+                  <input
+                    type="text"
+                    value={nameInput}
+                    onChange={(e) => setNameInput(e.target.value)}
+                    placeholder="Give them a name (optional)"
+                    className="w-full px-4 py-2.5 bg-card border border-border rounded-xl text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/50 text-sm"
+                  />
+                </div>
+
+                {/* Clarification chips — shown when description is short */}
+                <AnimatePresence>
+                  {showClarify && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className="overflow-hidden mb-4"
+                    >
+                      <div className="bg-card border border-border rounded-2xl p-4 space-y-3">
+                        <p className="text-xs font-medium text-muted-foreground">Add more personality (optional):</p>
+                        <div>
+                          <p className="text-xs text-muted-foreground mb-1.5">Vibe</p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {VIBE_CHIPS.map(chip => (
+                              <button
+                                key={chip.text}
+                                type="button"
+                                onClick={() => toggleVibe(chip.text)}
+                                className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+                                  selectedVibes.includes(chip.text)
+                                    ? 'bg-primary text-primary-foreground border-primary'
+                                    : 'bg-background text-foreground border-border hover:border-primary/40'
+                                }`}
+                              >
+                                {chip.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground mb-1.5">Good at</p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {EXPERTISE_CHIPS.map(chip => (
+                              <button
+                                key={chip.text}
+                                type="button"
+                                onClick={() => toggleExpertise(chip.text)}
+                                className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+                                  selectedExpertise.includes(chip.text)
+                                    ? 'bg-primary text-primary-foreground border-primary'
+                                    : 'bg-background text-foreground border-border hover:border-primary/40'
+                                }`}
+                              >
+                                {chip.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
 
                 {/* Error message — only shown on failure */}
                 {error && (
@@ -425,14 +565,14 @@ export function NewOnboardingScreen({ onComplete, onRetryLoadModel }: NewOnboard
             {/* CTA Button */}
             <motion.button
               className="w-full px-12 py-4 bg-primary text-primary-foreground rounded-full font-medium hover:shadow-[0_0_20px_rgba(212,168,83,0.3)] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-              onClick={generateCharacter}
+              onClick={handleGenerateClick}
               disabled={!promptValue.trim() || !isLLMReady}
               whileTap={{ scale: 0.97 }}
               initial={{ y: 20, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
               transition={{ delay: 0.6 }}
             >
-              Meet your companion
+              {showClarify ? 'Create companion →' : 'Meet your companion'}
             </motion.button>
           </motion.div>
         )}
