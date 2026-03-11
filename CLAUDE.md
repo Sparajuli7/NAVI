@@ -90,19 +90,27 @@ NAVI is an **offline-first AI language companion app** — a local friend in you
 
 ## Tech Stack
 
-| Layer | Technology | Notes |
-|---|---|---|
-| **Framework** | React 18 + TypeScript | Vite 6 build tool |
-| **Styling** | TailwindCSS 4 + shadcn/ui | 50+ Radix-based components |
-| **State** | Zustand 5 | 3 stores: app, character, chat |
-| **Storage** | IndexedDB (idb-keyval) | Persists character, messages, memories, prefs |
-| **On-Device LLM** | @mlc-ai/web-llm | WebGPU inference, Qwen2.5-1.5B model |
-| **Local LLM (Alt)** | Ollama | Local server backend, any model (qwen, llama, mistral) |
-| **OCR** | Tesseract.js 7 | Client-side, 6 languages |
-| **TTS** | Web Speech API | Browser SpeechSynthesis |
-| **STT** | Web Speech API | Browser SpeechRecognition |
-| **Animation** | Motion (Framer Motion v12) | Transitions + AnimatePresence |
-| **Icons** | Lucide React | 400+ icons |
+| Layer | Technology | Version | Notes |
+|---|---|---|---|
+| **Framework** | React + TypeScript | React 18.3.1, TS ^5.9.3 | Vite 6.3.5 build tool |
+| **Styling** | TailwindCSS + shadcn/ui | TailwindCSS 4.1.12 | 50+ Radix-based components |
+| **State** | Zustand | ^5.0.11 | 3 stores: app, character, chat |
+| **Storage** | IndexedDB (idb-keyval) | ^6.2.2 | Persists character, messages, memories, prefs |
+| **On-Device LLM** | @mlc-ai/web-llm | ^0.2.81 | WebGPU inference, Qwen2.5-1.5B model |
+| **Local LLM (Alt)** | Ollama | external | Local server backend, any model (qwen, llama, mistral) |
+| **OCR** | tesseract.js | ^7.0.0 | Client-side, 6 languages |
+| **TTS** | Web Speech API | browser | Browser SpeechSynthesis |
+| **STT** | Web Speech API | browser | Browser SpeechRecognition |
+| **Animation** | motion (Framer Motion) | 12.23.24 | Transitions + AnimatePresence |
+| **Icons** | lucide-react | 0.487.0 | 400+ icons |
+| **Drawer** | vaul | 1.1.2 | Bottom sheet component (used by shadcn/ui) |
+| **Toasts** | sonner | 2.0.3 | Notification toasts (used by shadcn/ui) |
+| **Avatars** | avataaars | ^2.0.0 | Installed; avatar rendering currently via BlockyAvatar (custom) |
+
+**Installed but not actively used:**
+- `react-router` 7.13.0 — navigation is manual via `useState` in App.tsx
+- `next-themes` 0.4.6 — dark mode handled manually via `classList`
+- `@mui/material` 7.3.5 + `@emotion/react` 11.14.0 — not used in custom components
 
 ---
 
@@ -209,12 +217,18 @@ The agent framework sits underneath the UI as an orchestration layer:
 - **Cross-location bridging** — episodic memory queries across locations for continuity
 - **Phrase detector** — regex-based phrase card detection in LLM responses
 
-### Next: Wire Agent → UI
-- Connect `useNaviAgent()` hook to ConversationScreen's `handleSend()`
-- Replace direct service calls with `agent.handleMessage()`
-- Wire CameraOverlay to `agent.handleImage()`
+### Remaining: Wire Agent → UI
+The agent framework is fully built. All UI screens still call legacy services directly (Prompts 3–8 wired the UI to `llm.ts`/`tts.ts`/etc., not to `agent.handleMessage()`).
+
+- Connect `useNaviAgent()` hook to ConversationScreen's `handleSend()` → replace `llm.streamMessage()` with `agent.handleMessage()`
+- Wire CameraOverlay to `agent.handleImage()` — **OCR/LLM pipeline in CameraOverlay is not yet wired** (Prompt 7 incomplete)
 - Wire ExpandedPhraseCard TTS/STT to agent tools
 - Wire SettingsPanel to agent memory/location/energy APIs
+
+### Known Feature Gaps
+- **Native language not collected** — Onboarding does not ask for the user's native language; `{{userNativeLanguage}}` in prompt templates has no source
+- **Immersion mode not enforced** — Language calibration tiers are defined in `systemLayers.json` but there is no UI setting or toggle to control immersion level
+- **Avatar appearance variants** — `BlockyAvatar.tsx` renders a single programmatic 8-bit style driven by color props; `avataaars` is installed but not used for gender/appearance variants
 
 ---
 

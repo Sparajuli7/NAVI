@@ -1,40 +1,40 @@
 # NAVI Codebase Audit
 
+**Last updated: 2026-03-10**
+
 ---
 
 ## Dependencies (`package.json`)
 
-**Runtime:**
+**Runtime (installed):**
 - React 18.3.1, React DOM 18.3.1 (peer deps)
-- **Routing:** `react-router` 7.13.0 ✅ installed but NOT used — `App.tsx` uses manual `useState` to switch screens
+- **Routing:** `react-router` 7.13.0 — installed but NOT used; `App.tsx` uses manual `useState` to switch screens
 - **Animation:** `motion` 12.23.24 (Framer Motion v12)
-- **UI:** Full Radix UI suite (accordion, dialog, dropdown, select, etc.) + shadcn/ui wrappers
+- **UI:** Full Radix UI suite + shadcn/ui wrappers + `vaul` 1.1.2 (bottom sheet) + `sonner` 2.0.3 (toasts)
 - **Icons:** `lucide-react` 0.487.0
 - **Forms:** `react-hook-form` 7.55.0
 - **Charts:** `recharts` 2.15.2
 - **DnD:** `react-dnd` 16.0.1
-- **Carousel:** `embla-carousel-react`
+- **Carousel:** `embla-carousel-react` 8.6.0
 - **Themes:** `next-themes` 0.4.6 — installed but not used; dark mode handled manually via `classList`
-- **MUI:** `@mui/material` + `@emotion/react` — present but not used in custom components
-- **No Zustand, no Redux, no Context API**
+- **MUI:** `@mui/material` 7.3.5 + `@emotion/react` 11.14.0 — present but not used in custom components
+- **Avatars:** `avataaars` ^2.0.0 — installed but not used; avatar rendering is via `BlockyAvatar.tsx` (custom 8-bit style)
+- **State:** `zustand` ^5.0.11 — installed and in use (3 stores: appStore, characterStore, chatStore)
+- **LLM:** `@mlc-ai/web-llm` ^0.2.81 — installed and in use (WebGPU inference)
+- **OCR:** `tesseract.js` ^7.0.0 — installed and in use
+- **Storage:** `idb-keyval` ^6.2.2 — installed and in use
 
 **Dev:**
-- Vite 6.3.5, `@vitejs/plugin-react`, `@tailwindcss/vite` 4.1.12, TailwindCSS 4
-
-**Missing (need to install):**
-- `@mlc-ai/web-llm` or `wllama`
-- `zustand`
-- `tesseract.js`
-- `idb-keyval`
+- Vite 6.3.5, `@vitejs/plugin-react` 4.7.0, `@tailwindcss/vite` 4.1.12, TailwindCSS 4.1.12, TypeScript ^5.9.3
 
 ---
 
 ## State Management
 
-- **Only `useState`** in individual components — no global state at all
-- App-level state lives in `App.tsx`: `hasOnboarded`, `character`, `location`, `isDark`, `showCamera`
-- Conversation state lives in `ConversationScreen.tsx`: `messages`, `inputValue`, `isTyping`, `showQuickActions`, `expandedPhrase`, `showProfile`
-- **No persistence** — full state reset on page refresh
+- **Zustand** is in use — 3 stores: `appStore` (model status, location, preferences), `characterStore` (active character, memories), `chatStore` (messages, scenario, generation state)
+- App-level phase switching in `App.tsx` via `useState` (`phase`: init → downloading → onboarding → chat)
+- All stores persist to IndexedDB via `utils/storage.ts` (idb-keyval)
+- Full state survives page refresh
 
 ---
 
@@ -167,21 +167,41 @@
 
 ---
 
-## What Needs to Be Wired Up
+## Wiring Status
 
-| # | What | Where | Wire To |
+Items from original audit, updated to reflect current implementation state (Prompts 1–6, 8 complete; Prompt 7 incomplete):
+
+| # | What | Where | Status |
 |---|---|---|---|
-| 1 | Character generation | `NewOnboardingScreen` | `llm.generateCharacter()` |
-| 2 | Location detection | `NewOnboardingScreen` | `navigator.geolocation` + `location.ts` + `dialectMap.json` |
-| 3 | All bot responses | `ConversationScreen` | `llm.streamMessage()` |
-| 4 | Message persistence | `ConversationScreen` | IndexedDB via `storage.ts` |
-| 5 | Camera capture | `CameraOverlay` | `<input type="file" capture="environment">` |
-| 6 | OCR | `CameraOverlay` | `ocr.extractText()` + `ocrClassifier` |
-| 7 | Camera LLM results | `CameraOverlay` | `llm.streamMessage()` with camera prompt |
-| 8 | TTS | `NewChatBubble`, `CameraOverlay`, `ExpandedPhraseCard` | `tts.speakPhrase()` |
-| 9 | STT | `ConversationScreen` mic button, `ExpandedPhraseCard` Practice | `stt.startRecording()` |
-| 10 | Quick action pills | `ConversationScreen` | Dynamic from `scenarioContexts.json` |
-| 11 | Settings button | `ConversationScreen` | Settings panel (screen does not exist yet) |
-| 12 | "Regenerate companion" | `ConversationScreen` profile card | Reset to onboarding |
-| 13 | "Help me order this" | `CameraOverlay` | Inject scan context into `chatStore` |
-| 14 | Save phrase | `ExpandedPhraseCard` | Persist to IndexedDB |
+| 1 | Character generation | `NewOnboardingScreen` | ✅ Wired to `llm.generateCharacter()` |
+| 2 | Location detection | `NewOnboardingScreen` | ✅ Wired to `location.ts` + `dialectMap.json` |
+| 3 | All bot responses | `ConversationScreen` | ✅ Wired to `llm.streamMessage()` with streaming |
+| 4 | Message persistence | `ConversationScreen` | ✅ IndexedDB via `storage.ts` |
+| 5 | Camera capture | `CameraOverlay` | ⬜ Not wired — Prompt 7 incomplete |
+| 6 | OCR | `CameraOverlay` | ⬜ Not wired — Prompt 7 incomplete |
+| 7 | Camera LLM results | `CameraOverlay` | ⬜ Not wired — Prompt 7 incomplete |
+| 8 | TTS | `NewChatBubble`, `CameraOverlay`, `ExpandedPhraseCard` | ✅ Wired to `tts.speakPhrase()` |
+| 9 | STT | `ConversationScreen` mic button, `ExpandedPhraseCard` Practice | ✅ Wired to `stt.startRecording()` |
+| 10 | Quick action pills | `ConversationScreen` | ✅ Dynamic from `scenarioContexts.json` |
+| 11 | Settings panel | `ConversationScreen` | ✅ `SettingsPanel.tsx` built and wired |
+| 12 | "Regenerate companion" | `ConversationScreen` profile card | ✅ Resets to onboarding phase |
+| 13 | "Help me order this" | `CameraOverlay` | ⬜ Not wired — Prompt 7 incomplete |
+| 14 | Save phrase | `ExpandedPhraseCard` | ✅ Persists to IndexedDB |
+
+---
+
+## Known Gaps (as of 2026-03-10)
+
+### Agent ↔ UI Wiring
+The full agent framework (`src/agent/`) is built but **not connected to the UI**. The UI currently calls legacy services (`llm.ts`, `tts.ts`, `stt.ts`) directly. `useNaviAgent()` hook exists but `ConversationScreen.handleSend()` has not been updated to call `agent.handleMessage()`.
+
+To fix: replace direct service calls in `ConversationScreen`, `CameraOverlay`, and `ExpandedPhraseCard` with calls through the agent layer (`agent.handleMessage()` / `agent.handleImage()`).
+
+### Native Language Not Collected
+Onboarding (`NewOnboardingScreen.tsx`) collects a personality description and (optionally) a template. It does **not** ask for the user's native language. The prompt system uses `{{userNativeLanguage}}` in `coreRules.json` and `toolPrompts.json`, but this variable has no source — it defaults to an empty string or undefined.
+
+### Immersion Mode Not Enforced
+Language calibration tiers (`languageCalibration` in `systemLayers.json`) define how much the avatar uses the target language vs. the user's native language. There is no UI setting or toggle exposed to the user to control this. The immersion level defaults to the prompt's authored behavior with no per-session override.
+
+### Avatar Generation — Single Template, No Appearance Variants
+`BlockyAvatar.tsx` renders a programmatic 8-bit avatar driven by `colors.primary/secondary/accent` and an `accessory` emoji. It does not support gender, body type, or facial appearance variants. `avataaars ^2.0.0` is installed in `package.json` but is not used anywhere in the codebase. Avatar differentiation is limited to color palette + one emoji accessory.

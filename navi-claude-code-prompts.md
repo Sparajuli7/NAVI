@@ -1,5 +1,11 @@
 # NAVI — Claude Code Integration Prompts
 
+> **Note (2026-03-10):** These prompts assume `agent.handleMessage()` and `agent.handleImage()` as the entry points — not legacy services.
+>
+> Prompts 1–8 were written before the agent framework existed. They wire the UI directly to legacy services (`llm.streamMessage()`, `tts.speakPhrase()`, `ocr.extractText()`, etc.). The agent framework (`src/agent/`) is now fully built and wraps all those services. **New work should call `agent.handleMessage()` / `agent.handleImage()` instead of calling services directly.** Prompts 3–8 are accurate for understanding how the services work internally, but the wiring targets are now the agent layer, not the service layer.
+>
+> **Completion status:** Prompts 1–6 ✅, Prompt 7 ⬜ (CameraOverlay OCR/LLM pipeline not yet wired), Prompt 8 ✅, Prompt 9 ⬜ (final integration test not run).
+
 The frontend is already built (Vite + React + shadcn/ui + TypeScript). These prompts wire up on-device AI, services, configs, and state WITHOUT touching existing UI styling.
 
 **MODEL STRATEGY — NO CLOUD APIs:**
@@ -421,6 +427,8 @@ Read it. Does it accept color/emoji props?
 
 ## PROMPT 6: Wire Conversation Screen
 
+> **Legacy reference:** This prompt wires directly to `llm.streamMessage()` and `systemBuilder.buildSystemPrompt()`. The agent framework is now built — the correct entry point is `agent.handleMessage()` which handles routing, memory, and prompt assembly internally. The direct-service wiring below reflects actual current state of the codebase (implemented as described), but future changes should migrate to the agent layer.
+
 ```
 This is the most important integration. Read ConversationScreen.tsx and NewChatBubble.tsx completely before writing any code.
 
@@ -491,6 +499,8 @@ CRITICAL: Do not restructure component hierarchy. Do not change CSS/styling. Onl
 ---
 
 ## PROMPT 7: Wire Camera Mode
+
+> **Status: Not yet implemented (⬜).** CameraOverlay still shows hardcoded UI. This is the next prompt to execute. When executing, use `agent.handleImage(imageBlob)` instead of wiring directly to `ocr.extractText()` + `llm.streamMessage()` — the `ImageUnderstandingPipeline` in the agent handles OCR → classify → LLM internally.
 
 ```
 Read CameraOverlay.tsx completely. What does it currently show? Does it have:
