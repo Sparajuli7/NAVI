@@ -241,6 +241,25 @@ The agent framework is fully built. All UI screens still call legacy services di
 
 ---
 
+## Platforms
+
+NAVI will ship on three platforms:
+
+| Platform | Status | Notes |
+|---|---|---|
+| **Web (Vercel)** | Active | Current Vite/React app, deployed via `vercel.json` |
+| **iOS** | Planned | TBD — do not assume implementation details |
+| **Android** | Planned | TBD — do not assume implementation details |
+
+### Platform Rules
+
+- **Platform-specific code** must live in clearly named platform directories (e.g., `platform/web/`, `platform/ios/`, `platform/android/`) or behind explicit platform feature flags. Do not mix platform code into shared modules.
+- **Shared code** (`src/agent/`, `src/stores/`, `src/prompts/`, `src/types/`, `src/config/`) must remain platform-agnostic — no platform-specific imports allowed in shared code.
+- **Before any commit touching shared code**, verify it does not assume a web-only API (WebGPU, Web Speech API, DOM, IndexedDB, navigator.geolocation) without a platform-abstracted fallback.
+- Never add web-only APIs to shared code without wrapping in a platform check or abstract service. Platform-specific code belongs in `platform/` directories (to be created when iOS/Android work begins).
+
+---
+
 ## Key Conventions
 
 ### State Management

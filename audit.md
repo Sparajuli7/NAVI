@@ -190,6 +190,30 @@ Items from original audit, updated to reflect current implementation state (Prom
 
 ---
 
+## Platform Status
+
+| Platform | Status | Notes |
+|---|---|---|
+| **Web (Vercel)** | Active | Vite/React app, current primary target |
+| **iOS** | Not started | Planned — no implementation yet |
+| **Android** | Not started | Planned — no implementation yet |
+
+### Shared Core — Web Coupling
+
+The shared agent/store/prompt layer currently assumes web APIs in several places. These will need an abstraction layer before iOS/Android work begins:
+
+| API | Where Used | Risk |
+|---|---|---|
+| **WebGPU** (`navigator.gpu`) | `services/llm.ts`, `services/modelManager.ts`, `App.tsx` phase check | Web-only; iOS/Android will need Core ML / NNAPI alternative |
+| **Web Speech API** (`SpeechSynthesis`, `SpeechRecognition`) | `services/tts.ts`, `services/stt.ts` | Web-only; native platforms need AVSpeechSynthesizer / Android TTS |
+| **IndexedDB** (`idb-keyval`) | `utils/storage.ts` | Web-only; native needs SQLite or AsyncStorage equivalent |
+| **`navigator.geolocation`** | `services/location.ts` | Available on all platforms but requires permission model differences |
+| **`<input capture="environment">`** | `CameraOverlay.tsx` (planned) | Web file input; native needs camera API |
+
+**Action required before iOS/Android:** extract these into a `PlatformServices` abstraction interface so each platform can provide its own implementation without touching shared code.
+
+---
+
 ## Known Gaps (as of 2026-03-10)
 
 ### Agent ↔ UI Wiring
