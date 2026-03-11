@@ -1,3 +1,12 @@
+---
+## STANDING INSTRUCTION FOR CLAUDE CODE
+After completing ANY task, before committing:
+1. Update the "Known Gaps" section in this file if anything was resolved or added
+2. Update audit.md — mark gaps as resolved/in-progress, add new ones discovered
+3. Include all doc updates in the same commit as the code change
+4. Never commit code without updating these two files
+---
+
 # NAVI — Project Guide
 
 ## What Is NAVI?
