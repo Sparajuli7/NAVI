@@ -102,7 +102,7 @@ export class ConversationDirector {
   preProcess(
     message: string,
     avatarId: string,
-    options?: { isSessionStart?: boolean },
+    options?: { isSessionStart?: boolean; userMode?: 'learn' | 'guide' | 'friend' | null },
   ): DirectorContext {
     const goals: ConversationGoal[] = [];
     const goalInstructions: string[] = [];
@@ -115,14 +115,20 @@ export class ConversationDirector {
       this.situationAssessor.extractSignals(message).catch(() => {});
     }
 
-    // 0a. Language calibration — always inject the appropriate tier instruction
+    // If mode is 'guide', skip all learning goals — user just needs navigation/translation
+    const userMode = options?.userMode ?? null;
+    const isGuideMode = userMode === 'guide';
+
+    // 0a. Language calibration — only in learn mode or unset; skip for guide/friend
     const comfortTier = this.learner.languageComfortTier;
     const tierKey = `tier_${comfortTier}_${['unknown', 'beginner', 'early', 'intermediate', 'advanced'][comfortTier]}`;
-    try {
-      const calibrationInstruction = promptLoader.get(`systemLayers.languageCalibration.${tierKey}`);
-      goalInstructions.push(calibrationInstruction);
-    } catch {
-      // Tier key not found in config — skip calibration injection
+    if (!isGuideMode) {
+      try {
+        const calibrationInstruction = promptLoader.get(`systemLayers.languageCalibration.${tierKey}`);
+        goalInstructions.push(calibrationInstruction);
+      } catch {
+        // Tier key not found in config — skip calibration injection
+      }
     }
 
     // 0b. Comfort level assessment — only on first interactions
@@ -189,61 +195,64 @@ export class ConversationDirector {
       );
     }
 
-    // 1. Check for phrases due for review (spaced repetition)
-    const reviewDue = this.learner.getPhrasesForReview(3);
-    if (reviewDue.length > 0) {
-      goals.push('review_due_phrases');
-      const phrases = reviewDue.map((p) => `"${p.phrase}"`).join(', ');
-      goalInstructions.push(
-        promptLoader.get('systemLayers.conversationGoals.review_due_phrases', { phrases }),
-      );
-    }
+    // Learning goals — only active in 'learn' mode or blended (null) mode. Skipped in guide/friend.
+    if (!isGuideMode) {
+      // 1. Check for phrases due for review (spaced repetition)
+      const reviewDue = this.learner.getPhrasesForReview(3);
+      if (reviewDue.length > 0) {
+        goals.push('review_due_phrases');
+        const phrases = reviewDue.map((p) => `"${p.phrase}"`).join(', ');
+        goalInstructions.push(
+          promptLoader.get('systemLayers.conversationGoals.review_due_phrases', { phrases }),
+        );
+      }
 
-    // 2. Check for struggling phrases
-    const struggling = this.learner.getStrugglingPhrases(3);
-    if (struggling.length > 0) {
-      goals.push('revisit_struggling');
-      const phrases = struggling.map((p) => `"${p.phrase}"`).join(', ');
-      goalInstructions.push(
-        promptLoader.get('systemLayers.conversationGoals.revisit_struggling', { phrases }),
-      );
-    }
+      // 2. Check for struggling phrases
+      const struggling = this.learner.getStrugglingPhrases(3);
+      if (struggling.length > 0) {
+        goals.push('revisit_struggling');
+        const phrases = struggling.map((p) => `"${p.phrase}"`).join(', ');
+        goalInstructions.push(
+          promptLoader.get('systemLayers.conversationGoals.revisit_struggling', { phrases }),
+        );
+      }
 
-    // 3. Check weak topics
-    const weakTopics = this.learner.getWeakTopics(2);
-    if (weakTopics.length > 0 && !goals.includes('review_due_phrases')) {
-      goals.push('introduce_new_vocab');
-      const topics = weakTopics.map((t) => t.topic).join(', ');
-      goalInstructions.push(
-        promptLoader.get('systemLayers.conversationGoals.introduce_new_vocab', { topics }),
-      );
-    }
+      // 3. Check weak topics
+      const weakTopics = this.learner.getWeakTopics(2);
+      if (weakTopics.length > 0 && !goals.includes('review_due_phrases')) {
+        goals.push('introduce_new_vocab');
+        const topics = weakTopics.map((t) => t.topic).join(', ');
+        goalInstructions.push(
+          promptLoader.get('systemLayers.conversationGoals.introduce_new_vocab', { topics }),
+        );
+      }
 
-    // 4. Check for cross-location bridges
-    const bridges = this.findLocationBridges(avatarId);
-    if (bridges) {
-      goals.push('bridge_locations');
-      goalInstructions.push(
-        promptLoader.get('systemLayers.conversationGoals.bridge_locations', { bridges }),
-      );
-    }
+      // 4. Check for cross-location bridges
+      const bridges = this.findLocationBridges(avatarId);
+      if (bridges) {
+        goals.push('bridge_locations');
+        goalInstructions.push(
+          promptLoader.get('systemLayers.conversationGoals.bridge_locations', { bridges }),
+        );
+      }
 
-    // 5. Check for relationship milestones
-    const rel = this.relationships.getRelationship(avatarId);
-    if (rel.interactionCount > 0 && rel.interactionCount % 25 === 0) {
-      goals.push('celebrate_progress');
-      goalInstructions.push(
-        promptLoader.get('systemLayers.conversationGoals.celebrate_progress'),
-      );
-    }
+      // 5. Check for relationship milestones
+      const rel = this.relationships.getRelationship(avatarId);
+      if (rel.interactionCount > 0 && rel.interactionCount % 25 === 0) {
+        goals.push('celebrate_progress');
+        goalInstructions.push(
+          promptLoader.get('systemLayers.conversationGoals.celebrate_progress'),
+        );
+      }
 
-    // 6. Challenge advanced users
-    const stats = this.learner.stats;
-    if (stats.masteredPhrases >= 10 && goals.length === 0) {
-      goals.push('challenge_user');
-      goalInstructions.push(
-        promptLoader.get('systemLayers.conversationGoals.challenge_user'),
-      );
+      // 6. Challenge advanced users
+      const stats = this.learner.stats;
+      if (stats.masteredPhrases >= 10 && goals.length === 0) {
+        goals.push('challenge_user');
+        goalInstructions.push(
+          promptLoader.get('systemLayers.conversationGoals.challenge_user'),
+        );
+      }
     }
 
     // Default: free conversation (only if no other goals were set)

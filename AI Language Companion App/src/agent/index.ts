@@ -33,6 +33,7 @@ export type {
   EnergyProfile,
   AgentEvent,
   AgentEventType,
+  ProfileMemory,
   // Learner + Relationship types
   PhraseAttempt,
   TrackedPhrase,
@@ -100,7 +101,80 @@ import { ConversationDirector } from './director/conversationDirector';
 import { registerAllTools } from './tools';
 import { handleUserInput } from './core/router';
 import { agentBus } from './core/eventBus';
-import type { ToolResult, EnergyMode, AvatarProfile } from './core/types';
+import type { ToolResult, EnergyMode, AvatarProfile, ProfileMemory } from './core/types';
+
+// ─── Mode Keyword Classifier ────────────────────────────────────
+
+const MODE_SIGNALS: Record<'learn' | 'guide' | 'friend', string[]> = {
+  learn: ['teach', 'learn', 'practice', 'immerse', 'how do i say', 'how do you say', 'what does', 'say it again', 'what is the word', 'help me pronounce', 'study', 'drill', 'quiz me'],
+  guide: ['translate', 'what are they saying', 'help me understand', 'i don\'t understand', 'lost', 'navigate', 'need to say', 'what does this mean', 'how do i get', 'how do i ask', 'i need to tell'],
+  friend: ['ugh', 'terrible', 'scammed', 'frustrated', 'can you believe', 'just wanna talk', 'venting', 'awful', 'so annoying', 'this is the worst', 'i can\'t believe', 'wtf', 'omg', 'stressed'],
+};
+
+/** Rolling signal accumulator — counts keyword hits across recent messages */
+class ModeClassifier {
+  private scores: Record<'learn' | 'guide' | 'friend', number> = { learn: 0, guide: 0, friend: 0 };
+  private messageCount = 0;
+  private locked = false;
+  private lockedMode: 'learn' | 'guide' | 'friend' | null = null;
+
+  /** Analyze a message and return the mode if threshold crossed */
+  analyze(message: string): 'learn' | 'guide' | 'friend' | null {
+    if (this.locked) return this.lockedMode;
+
+    const lower = message.toLowerCase();
+    this.messageCount++;
+
+    // Check for signals in each mode
+    for (const [mode, keywords] of Object.entries(MODE_SIGNALS) as Array<['learn' | 'guide' | 'friend', string[]]>) {
+      for (const kw of keywords) {
+        if (lower.includes(kw)) {
+          this.scores[mode]++;
+          break; // only count one keyword per mode per message
+        }
+      }
+    }
+
+    // Check if any mode crossed threshold (2 signals within last 5 messages)
+    // Reset scores older than 5 messages by decaying
+    if (this.messageCount > 0 && this.messageCount % 5 === 0) {
+      // Decay scores to keep window rolling
+      this.scores.learn = Math.max(0, this.scores.learn - 1);
+      this.scores.guide = Math.max(0, this.scores.guide - 1);
+      this.scores.friend = Math.max(0, this.scores.friend - 1);
+    }
+
+    // Friend wins ties (empathy > guide > learn)
+    const threshold = 2;
+    if (this.scores.friend >= threshold) {
+      this.locked = true;
+      this.lockedMode = 'friend';
+      return 'friend';
+    }
+    if (this.scores.guide >= threshold) {
+      this.locked = true;
+      this.lockedMode = 'guide';
+      return 'guide';
+    }
+    if (this.scores.learn >= threshold) {
+      this.locked = true;
+      this.lockedMode = 'learn';
+      return 'learn';
+    }
+
+    return null; // not yet determined
+  }
+
+  reset(): void {
+    this.scores = { learn: 0, guide: 0, friend: 0 };
+    this.messageCount = 0;
+    this.locked = false;
+    this.lockedMode = null;
+  }
+
+  isLocked(): boolean { return this.locked; }
+  getCurrentMode(): 'learn' | 'guide' | 'friend' | null { return this.lockedMode; }
+}
 
 /** LLM backend selection */
 export type LLMBackend = 'webllm' | 'ollama' | 'auto';
@@ -142,6 +216,8 @@ export class NaviAgent {
 
   private initialized = false;
   private config: NaviAgentConfig;
+  private modeClassifier = new ModeClassifier();
+  private onModeChange?: (mode: 'learn' | 'guide' | 'friend' | null) => void;
 
   constructor(config: NaviAgentConfig = {}) {
     this.config = config;
@@ -318,9 +394,23 @@ export class NaviAgent {
     const avatarId = this.avatar.getActiveProfile()?.id ?? 'default';
     const historyLen = options?.history?.length ?? 0;
     const isSessionStart = historyLen <= 2; // first message or just the greeting
+
+    // Run keyword classifier on every message — lock mode silently when threshold crossed
+    const previousMode = this.modeClassifier.getCurrentMode();
+    const detectedMode = this.modeClassifier.analyze(message);
+    if (detectedMode !== previousMode && detectedMode !== null) {
+      // Mode just locked — persist to memory and notify
+      this.memory.profile.setUserMode(detectedMode).catch(() => {});
+      if (this.onModeChange) this.onModeChange(detectedMode);
+      console.log(`[NAVI] Mode locked: ${detectedMode}`);
+    }
+
+    const currentMode = this.modeClassifier.getCurrentMode()
+      ?? (this.memory.profile.getUserMode() ?? null);
+
     let directorCtx: ReturnType<typeof this.director.preProcess>;
     try {
-      directorCtx = this.director.preProcess(message, avatarId, { isSessionStart });
+      directorCtx = this.director.preProcess(message, avatarId, { isSessionStart, userMode: currentMode });
       agentBus.emit('director:goals_set', { goals: directorCtx.goals });
     } catch (err) {
       console.error('[NaviAgent] Director preProcess error:', err);
@@ -340,6 +430,8 @@ export class NaviAgent {
       learningContext: directorCtx.learningContext,
       conversationGoals: directorCtx.promptInjection,
       situationContext: directorCtx.situationContext,
+      userMode: currentMode,
+      dialectKey: this.avatar.getActiveProfile()?.dialect || undefined,
     };
 
     if (options?.history) {
@@ -515,6 +607,23 @@ export class NaviAgent {
     await this.ollamaProvider.load(onProgress);
 
     agentBus.emit('model:status', { backend: 'ollama', model, status: 'ready' });
+  }
+
+  /** Register a callback for when mode is silently locked by keyword classifier */
+  onModeDetected(cb: (mode: 'learn' | 'guide' | 'friend' | null) => void): void {
+    this.onModeChange = cb;
+  }
+
+  /** Manually override user mode (from settings panel) */
+  async setUserMode(mode: 'learn' | 'guide' | 'friend' | null): Promise<void> {
+    this.modeClassifier.reset();
+    await this.memory.profile.setUserMode(mode);
+    if (this.onModeChange) this.onModeChange(mode);
+  }
+
+  /** Get current user mode */
+  getUserMode(): 'learn' | 'guide' | 'friend' | null {
+    return this.modeClassifier.getCurrentMode() ?? this.memory.profile.getUserMode();
   }
 
   /** Set energy mode */

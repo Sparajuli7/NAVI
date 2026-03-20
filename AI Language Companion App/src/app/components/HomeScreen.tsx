@@ -5,9 +5,8 @@ import { AvatarDisplay } from './AvatarDisplay';
 import type { Character } from '../../types/character';
 import scenarioContexts from '../../config/scenarioContexts.json';
 
-const SCENARIO_HIGHLIGHTS = ['restaurant', 'directions', 'social', 'transit', 'nightlife', 'market'] as const;
 const SCENARIOS = scenarioContexts as Record<string, { label: string; emoji?: string }>;
-
+const ALL_SCENARIO_KEYS = Object.keys(SCENARIOS);
 
 interface HomeScreenProps {
   companions: Character[];
@@ -17,7 +16,7 @@ interface HomeScreenProps {
   onSelectCompanion: (charId: string) => void;
   onContinueChat: () => void;
   onNewCompanion: () => void;
-  onOpenScenarios: () => void;
+  onOpenScenarios: (key?: string) => void;
 }
 
 function charToAvatarShape(c: Character) {
@@ -40,40 +39,33 @@ export function HomeScreen({
   onNewCompanion,
   onOpenScenarios,
 }: HomeScreenProps) {
-  // Scenario quick-pick strip
+  // Scenario quick-pick strip — horizontal scroll, all scenarios
   const ScenarioStrip = () => (
     <motion.div
-      className="bg-card border border-border rounded-2xl p-4"
       initial={{ y: 20, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
       transition={{ delay: 0.35 }}
     >
-      <div className="flex items-center gap-2 mb-3">
+      <div className="flex items-center gap-2 mb-2 px-1">
         <Zap className="w-4 h-4 text-primary" />
-        <span className="text-sm font-medium text-foreground">Practice a scenario</span>
+        <span className="text-sm font-medium text-foreground">Jump into a scenario</span>
       </div>
-      <div className="grid grid-cols-3 gap-2">
-        {SCENARIO_HIGHLIGHTS.map((key) => {
+      <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-none" style={{ scrollbarWidth: 'none' }}>
+        {ALL_SCENARIO_KEYS.map((key) => {
           const cfg = SCENARIOS[key];
           if (!cfg) return null;
           return (
             <button
               key={key}
-              onClick={onOpenScenarios}
-              className="flex flex-col items-center gap-1 p-2.5 bg-background rounded-xl border border-border/60 hover:border-primary/40 transition-colors text-center"
+              onClick={() => onOpenScenarios(key)}
+              className="flex-shrink-0 flex flex-col items-center gap-1 px-3 py-2.5 bg-card rounded-xl border border-border/60 hover:border-primary/40 transition-colors text-center min-w-[72px]"
             >
-              <span className="text-lg">{cfg.emoji ?? '💬'}</span>
-              <p className="text-xs text-muted-foreground leading-tight">{cfg.label}</p>
+              <span className="text-xl">{cfg.emoji ?? '💬'}</span>
+              <p className="text-xs text-muted-foreground leading-tight w-full" style={{ fontSize: '10px' }}>{cfg.label}</p>
             </button>
           );
         })}
       </div>
-      <button
-        onClick={onOpenScenarios}
-        className="w-full mt-3 text-xs text-primary/70 hover:text-primary transition-colors text-center"
-      >
-        See all scenarios →
-      </button>
     </motion.div>
   );
 

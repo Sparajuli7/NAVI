@@ -124,6 +124,8 @@ export interface ProfileMemory {
   learningProgress: Record<string, unknown>;
   /** Custom user-provided notes */
   notes: string[];
+  /** Inferred interaction mode: learn=immersion, guide=translate/navigate, friend=companion, null=blended */
+  userMode: 'learn' | 'guide' | 'friend' | null;
 }
 
 export interface EpisodicMemory {

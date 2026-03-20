@@ -52,7 +52,16 @@ export type ScenarioKey =
   | 'government'
   | 'directions'
   | 'hotel'
-  | 'social';
+  | 'social'
+  | 'customs'
+  | 'pharmacy'
+  | 'emergency'
+  | 'landlord'
+  | 'bank'
+  | 'taxi'
+  | 'temple'
+  | 'street_food'
+  | 'date';
 
 export interface LocationContext {
   city: string;

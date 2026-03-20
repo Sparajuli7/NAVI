@@ -48,7 +48,14 @@ const COUNTRY_NAMES: Record<string, string> = {
   FR: 'France',
   MX: 'Mexico',
   KR: 'South Korea',
+  NP: 'Nepal',
 };
+
+const NATIVE_LANGUAGES = [
+  'English', 'Spanish', 'Portuguese', 'French', 'Hindi',
+  'Nepali', 'Mandarin', 'Arabic', 'Korean', 'Japanese',
+  'German', 'Italian', 'Other',
+];
 
 type DialectMapType = Record<string, DialectInfo>;
 
@@ -110,6 +117,10 @@ const EXPERTISE_CHIPS = [
 ];
 
 export function NewOnboardingScreen({ onComplete, onRetryLoadModel }: NewOnboardingScreenProps) {
+  const [onboardingStep, setOnboardingStep]     = useState<'language' | 'describe'>('language');
+  const [nativeLanguage, setNativeLanguage]     = useState('English');
+  const [otherLanguageInput, setOtherLanguageInput] = useState('');
+  const [showOtherInput, setShowOtherInput]     = useState(false);
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
   const [promptValue, setPromptValue]           = useState('');
   const [nameInput, setNameInput]               = useState('');
@@ -224,6 +235,7 @@ export function NewOnboardingScreen({ onComplete, onRetryLoadModel }: NewOnboard
         if (n.includes('ho chi minh') || n.includes('saigon')) return nameInput.trim() || 'Linh';
         if (n.includes('paris'))           return nameInput.trim() || 'Léa';
         if (n.includes('mexico'))          return nameInput.trim() || 'Diego';
+        if (n.includes('kathmandu'))       return nameInput.trim() || 'Arjun';
         return nameInput.trim() || 'Kai';
       };
 
@@ -353,6 +365,11 @@ export function NewOnboardingScreen({ onComplete, onRetryLoadModel }: NewOnboard
       // Persist character to IndexedDB
       await saveCharacter(richCharacter);
 
+      // Save native language to agent memory + appStore
+      const finalNativeLang = showOtherInput ? (otherLanguageInput.trim() || 'English') : nativeLanguage;
+      await agent.memory.profile.setNativeLanguage(finalNativeLang);
+      useAppStore.getState().setUserPreferences({ native_language: finalNativeLang });
+
       // Map to the simpler UI shape for display + transition
       const uiChar = mapToUI(richCharacter);
       setGeneratedCharacter(uiChar);
@@ -374,7 +391,101 @@ export function NewOnboardingScreen({ onComplete, onRetryLoadModel }: NewOnboard
       <div className="absolute inset-0 bg-gradient-to-br from-purple-950/20 via-background to-teal-950/20 dark:from-purple-950/10 dark:via-background dark:to-teal-950/10" />
 
       <AnimatePresence mode="wait">
-        {!isGenerating && !generatedCharacter && (
+        {/* Step 0: Language picker */}
+        {onboardingStep === 'language' && !isGenerating && !generatedCharacter && (
+          <motion.div
+            key="language"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="relative z-10 flex-1 flex flex-col px-8 py-12"
+          >
+            <div className="text-center mb-8">
+              <motion.h2
+                className="text-2xl mb-2"
+                style={{ fontFamily: 'var(--font-display)' }}
+                initial={{ y: 20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ delay: 0.1 }}
+              >
+                What language do you speak?
+              </motion.h2>
+              <motion.p
+                className="text-foreground/60 text-sm"
+                initial={{ y: 20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ delay: 0.2 }}
+              >
+                This is your base. I'll use it when you need a translation or I need to explain something.
+              </motion.p>
+            </div>
+
+            <motion.div
+              initial={{ y: 20, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ delay: 0.3 }}
+              className="flex-1"
+            >
+              <div className="grid grid-cols-3 gap-2">
+                {NATIVE_LANGUAGES.map((lang) => (
+                  <button
+                    key={lang}
+                    type="button"
+                    onClick={() => {
+                      if (lang === 'Other') {
+                        setShowOtherInput(true);
+                        setNativeLanguage('Other');
+                      } else {
+                        setNativeLanguage(lang);
+                        setShowOtherInput(false);
+                        setOnboardingStep('describe');
+                      }
+                    }}
+                    className={`px-3 py-3 rounded-xl border text-sm font-medium transition-all ${
+                      nativeLanguage === lang
+                        ? 'bg-primary text-primary-foreground border-primary'
+                        : 'bg-card border-border text-foreground hover:border-primary/40'
+                    }`}
+                  >
+                    {lang}
+                  </button>
+                ))}
+              </div>
+
+              {showOtherInput && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  className="mt-4"
+                >
+                  <input
+                    type="text"
+                    value={otherLanguageInput}
+                    onChange={(e) => setOtherLanguageInput(e.target.value)}
+                    placeholder="Type your language..."
+                    autoFocus
+                    className="w-full px-4 py-3 bg-card border border-border rounded-xl text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/50 text-sm"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && otherLanguageInput.trim()) {
+                        setOnboardingStep('describe');
+                      }
+                    }}
+                  />
+                  <button
+                    type="button"
+                    disabled={!otherLanguageInput.trim()}
+                    onClick={() => setOnboardingStep('describe')}
+                    className="w-full mt-3 px-6 py-3 bg-primary text-primary-foreground rounded-xl font-medium disabled:opacity-40"
+                  >
+                    Continue →
+                  </button>
+                </motion.div>
+              )}
+            </motion.div>
+          </motion.div>
+        )}
+
+        {!isGenerating && !generatedCharacter && onboardingStep === 'describe' && (
           <motion.div
             key="input"
             initial={{ opacity: 0 }}

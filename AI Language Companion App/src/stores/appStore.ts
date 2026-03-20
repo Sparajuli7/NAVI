@@ -10,6 +10,7 @@ interface AppStore {
   currentLocation: LocationContext | null;
   isFirstLaunch: boolean;
   userProfile: string;
+  userMode: 'learn' | 'guide' | 'friend' | null;
 
   setModelStatus: (status: ModelStatus) => void;
   setModelProgress: (progress: number) => void;
@@ -17,6 +18,7 @@ interface AppStore {
   setCurrentLocation: (location: LocationContext) => void;
   setIsFirstLaunch: (value: boolean) => void;
   setUserProfile: (text: string) => void;
+  setUserMode: (mode: 'learn' | 'guide' | 'friend' | null) => void;
 }
 
 const defaultPreferences: UserPreferences = {
@@ -35,6 +37,7 @@ export const useAppStore = create<AppStore>((set) => ({
   currentLocation: null,
   isFirstLaunch: true,
   userProfile: '',
+  userMode: null,
 
   setModelStatus: (status) => set({ modelStatus: status }),
   setModelProgress: (progress) => set({ modelProgress: progress }),
@@ -45,4 +48,5 @@ export const useAppStore = create<AppStore>((set) => ({
   setCurrentLocation: (location) => set({ currentLocation: location }),
   setIsFirstLaunch: (value) => set({ isFirstLaunch: value }),
   setUserProfile: (text) => set({ userProfile: text }),
+  setUserMode: (mode) => set({ userMode: mode }),
 }));

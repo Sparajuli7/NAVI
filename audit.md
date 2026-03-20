@@ -1,6 +1,6 @@
 # NAVI Codebase Audit
 
-**Last updated: 2026-03-10**
+**Last updated: 2026-03-20**
 
 ---
 
@@ -169,7 +169,7 @@
 
 ## Wiring Status
 
-Items from original audit, updated to reflect current implementation state (Prompts 1–6, 8 complete; Prompt 7 incomplete):
+Items from original audit, updated to reflect current implementation state (Prompts 1–6, 8 complete; Prompt 7 incomplete; Master Plan Batches 1–4 complete):
 
 | # | What | Where | Status |
 |---|---|---|---|
@@ -214,18 +214,41 @@ The shared agent/store/prompt layer currently assumes web APIs in several places
 
 ---
 
-## Known Gaps (as of 2026-03-10)
+## Known Gaps (as of 2026-03-20)
 
-### Agent ↔ UI Wiring
-The full agent framework (`src/agent/`) is built but **not connected to the UI**. The UI currently calls legacy services (`llm.ts`, `tts.ts`, `stt.ts`) directly. `useNaviAgent()` hook exists but `ConversationScreen.handleSend()` has not been updated to call `agent.handleMessage()`.
+### Agent ↔ UI Wiring (partially resolved)
+`ConversationScreen.handleSend()` now calls `agent.handleMessage()` via `useNaviAgent()`. `CameraOverlay` OCR/LLM pipeline is still not wired (Prompt 7 incomplete). `ExpandedPhraseCard` TTS/STT are wired to service layer, not agent tools.
 
-To fix: replace direct service calls in `ConversationScreen`, `CameraOverlay`, and `ExpandedPhraseCard` with calls through the agent layer (`agent.handleMessage()` / `agent.handleImage()`).
+### AvatarRenderer Not Wired in ConversationScreen
+`AvatarRenderer.tsx` was created and wraps `avataaars` with Framer Motion animated states. However, `ConversationScreen.tsx` still uses `AvatarDisplay`/`BlockyAvatar`. The component reference needs to be swapped to activate the new cartoon SVG avatar.
 
-### Native Language Not Collected
-Onboarding (`NewOnboardingScreen.tsx`) collects a personality description and (optionally) a template. It does **not** ask for the user's native language. The prompt system uses `{{userNativeLanguage}}` in `coreRules.json` and `toolPrompts.json`, but this variable has no source — it defaults to an empty string or undefined.
+### CameraOverlay Pipeline Incomplete (Prompt 7)
+`CameraOverlay.tsx` still uses a mocked scan + static results. `agent.handleImage()` exists and the OCR→classification→LLM pipeline is implemented in the agent framework but is not wired to the UI.
 
-### Immersion Mode Not Enforced
-Language calibration tiers (`languageCalibration` in `systemLayers.json`) define how much the avatar uses the target language vs. the user's native language. There is no UI setting or toggle exposed to the user to control this. The immersion level defaults to the prompt's authored behavior with no per-session override.
+### Cloudflare Worker Setup Required
+`web/wrangler.toml` has `database_id = "YOUR_D1_DATABASE_ID"` placeholder. Steps to activate:
+1. `wrangler d1 create navi-feedback` → copy the returned ID into `wrangler.toml`
+2. `wrangler d1 execute navi-feedback --command "CREATE TABLE IF NOT EXISTS feedback (id INTEGER PRIMARY KEY AUTOINCREMENT, type TEXT NOT NULL DEFAULT 'general', message TEXT NOT NULL, email TEXT, app_version TEXT, created_at TEXT NOT NULL);"`
+3. `wrangler deploy`
+4. Update the `WORKER_URL` constant in `web/feedback.html` if the subdomain differs
 
-### Avatar Generation — Single Template, No Appearance Variants
-`BlockyAvatar.tsx` renders a programmatic 8-bit avatar driven by `colors.primary/secondary/accent` and an `accessory` emoji. It does not support gender, body type, or facial appearance variants. `avataaars ^2.0.0` is installed in `package.json` but is not used anywhere in the codebase. Avatar differentiation is limited to color palette + one emoji accessory.
+### Pending Feedback Offline Queue
+`feedback.html` stores failed submissions in `localStorage('navi_pending_feedback')` but there is no background sync to retry when connectivity is restored.
+
+---
+
+## Resolved Gaps (2026-03-20)
+
+| Gap | Resolution |
+|---|---|
+| Native language not collected | Language picker step added first in `NewOnboardingScreen.tsx` (13 options + Other). Saved to `profileMemory` + `appStore.userPreferences`. |
+| `{{userNativeLanguage}}` had no source | Populated from `profileMemory.getNativeLanguage()` in agent context params. |
+| Immersion mode not enforced | `ModeClassifier` in `agent/index.ts` detects learn/guide/friend from rolling keyword scoring (threshold=2). Mode injected as instruction layer by `contextController`. |
+| Language mismatch bug | `contextController.resolveDialect()` uses explicit `dialectKey` from `AvatarProfile.dialect` first, bypassing city string matching. |
+| Nepali not supported | `NP/Kathmandu` added to `dialectMap.json`, Kathmandu to `cities.json`, `ne-NP` to TTS/STT with `hi-IN` fallback, Devanagari script note injection added. |
+| Avatar appearance variants | `AvatarRenderer.tsx` created with avataaars + Framer Motion animated states (idle, generating, speaking, success, thinking, blink). |
+| ScenarioLauncher rigid 4-field form | Redesigned to single free-text + chips. 9 new scenario templates added. |
+| No scenario access from HomeScreen | Horizontal scroll scenario strip added directly to HomeScreen. |
+| No web presence | `web/index.html` (landing page), `web/feedback.html` (feedback form + offline fallback), `web/worker.js` (Cloudflare Worker + D1) created. |
+| Avatar opens with canned greeting | Mode system adds `gauging_question` first-message layer: avatar opens with "What do you need from me?" in its language + pronunciation guide. |
+| Avatar double-questions + filler openers | `coreRules.json` + `systemLayers.conversationNaturalness` rules added. |

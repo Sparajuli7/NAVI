@@ -1,4 +1,5 @@
 [
+  {"name":"Kathmandu","country":"Nepal","country_code":"NP","lat":27.7172,"lng":85.3240},
   {"name":"Ho Chi Minh City","country":"Vietnam","country_code":"VN","lat":10.8231,"lng":106.6297},
   {"name":"Hanoi","country":"Vietnam","country_code":"VN","lat":21.0285,"lng":105.8542},
   {"name":"Da Nang","country":"Vietnam","country_code":"VN","lat":16.0544,"lng":108.2022},

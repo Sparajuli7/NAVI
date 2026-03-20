@@ -47,7 +47,9 @@ const SCENARIOS = scenarioContexts as Record<string, {
 
 const SCENARIO_KEYS: Array<ScenarioKey | 'custom'> = [
   'restaurant', 'directions', 'market', 'hotel', 'social',
-  'government', 'transit', 'nightlife', 'hospital', 'office', 'school', 'custom',
+  'government', 'transit', 'nightlife', 'hospital', 'office', 'school',
+  'customs', 'pharmacy', 'emergency', 'landlord', 'bank',
+  'taxi', 'temple', 'street_food', 'date', 'custom',
 ];
 
 function getTemplates(): ScenarioTemplate[] {
@@ -77,25 +79,36 @@ const TEMPLATES = getTemplates();
 
 // ─── Component ─────────────────────────────────────────────────
 
+const NEED_CHIPS = [
+  { label: 'Understand what\'s being said', value: 'understand' },
+  { label: 'Say something specific', value: 'say' },
+  { label: 'Survive a negotiation', value: 'negotiate' },
+  { label: 'Just practice', value: 'practice' },
+  { label: 'Have fun with it', value: 'fun' },
+];
+
 export function ScenarioLauncher({ onStart, onClose }: ScenarioLauncherProps) {
   const [step, setStep] = useState<'pick' | 'context'>('pick');
   const [selected, setSelected] = useState<ScenarioTemplate | null>(null);
-  const [ctx, setCtx] = useState<ParsedScenarioContext>({
-    where: '',
-    doing: '',
-    talkingTo: '',
-    nervousAbout: '',
-    customText: '',
-  });
+  const [situationText, setSituationText] = useState('');
+  const [selectedNeed, setSelectedNeed] = useState<string | null>(null);
 
   const handleSelectTemplate = (t: ScenarioTemplate) => {
     setSelected(t);
-    setCtx({ where: '', doing: '', talkingTo: '', nervousAbout: '', customText: '' });
+    setSituationText('');
+    setSelectedNeed(null);
     setStep('context');
   };
 
   const handleStart = () => {
     if (!selected) return;
+    const ctx: ParsedScenarioContext = {
+      where: '',
+      doing: selectedNeed ? NEED_CHIPS.find(c => c.value === selectedNeed)?.label ?? '' : '',
+      talkingTo: '',
+      nervousAbout: '',
+      customText: situationText,
+    };
     onStart(selected.key, ctx);
   };
 
@@ -180,66 +193,50 @@ export function ScenarioLauncher({ onStart, onClose }: ScenarioLauncherProps) {
                 <span className="text-2xl flex-shrink-0">{selected.emoji}</span>
                 <div>
                   <p className="font-medium text-foreground text-sm">{selected.label}</p>
-                  {selected.cultural_guardrails && (
+                  {selected.tone_guidance && (
                     <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-                      {selected.cultural_guardrails}
+                      {selected.tone_guidance}
                     </p>
                   )}
                 </div>
               </div>
             )}
 
-            <p className="text-sm text-muted-foreground">
-              All fields are optional — more context makes the session better.
-            </p>
+            {/* Single free-text input */}
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">
+                Tell me what's happening.
+              </label>
+              <textarea
+                rows={4}
+                value={situationText}
+                onChange={(e) => setSituationText(e.target.value)}
+                placeholder="e.g. I'm at a market in Istanbul and I need to buy a carpet without getting ripped off"
+                className="w-full px-4 py-3 bg-background border border-border rounded-xl text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/40 text-sm resize-none leading-relaxed"
+                autoFocus
+              />
+            </div>
 
-            {selected?.key === 'custom' ? (
-              /* Custom: single free text area */
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">
-                  Describe the situation ✏️
-                </label>
-                <textarea
-                  rows={5}
-                  value={ctx.customText}
-                  onChange={(e) => setCtx({ ...ctx, customText: e.target.value })}
-                  placeholder="e.g. I'm at a night market in Bangkok. I want to buy a silk scarf but I don't know how to haggle without offending the vendor. I'm nervous about getting ripped off."
-                  className="w-full px-4 py-3 bg-background border border-border rounded-xl text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/40 text-sm resize-none leading-relaxed"
-                />
+            {/* What do you need? chips */}
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-foreground">What do you need? <span className="text-muted-foreground font-normal">(optional)</span></p>
+              <div className="flex flex-wrap gap-2">
+                {NEED_CHIPS.map((chip) => (
+                  <button
+                    key={chip.value}
+                    type="button"
+                    onClick={() => setSelectedNeed(prev => prev === chip.value ? null : chip.value)}
+                    className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+                      selectedNeed === chip.value
+                        ? 'bg-primary text-primary-foreground border-primary'
+                        : 'bg-background text-foreground border-border hover:border-primary/40'
+                    }`}
+                  >
+                    {chip.label}
+                  </button>
+                ))}
               </div>
-            ) : (
-              /* Template: structured form */
-              <>
-                <ContextField
-                  icon="📍"
-                  label="Where exactly are you?"
-                  placeholder="e.g. small local restaurant, street market, hotel lobby"
-                  value={ctx.where}
-                  onChange={(v) => setCtx({ ...ctx, where: v })}
-                />
-                <ContextField
-                  icon="🎯"
-                  label="What are you trying to do?"
-                  placeholder="e.g. order without a menu in English, check in early, return something"
-                  value={ctx.doing}
-                  onChange={(v) => setCtx({ ...ctx, doing: v })}
-                />
-                <ContextField
-                  icon="🧑"
-                  label="Who are you talking to?"
-                  placeholder="e.g. older waiter, young market vendor, front desk receptionist"
-                  value={ctx.talkingTo}
-                  onChange={(v) => setCtx({ ...ctx, talkingTo: v })}
-                />
-                <ContextField
-                  icon="😬"
-                  label="What are you nervous about?"
-                  placeholder="e.g. getting the pronunciation wrong, not understanding the response"
-                  value={ctx.nervousAbout}
-                  onChange={(v) => setCtx({ ...ctx, nervousAbout: v })}
-                />
-              </>
-            )}
+            </div>
 
             {/* Start button */}
             <motion.button
@@ -255,38 +252,6 @@ export function ScenarioLauncher({ onStart, onClose }: ScenarioLauncherProps) {
         )}
       </AnimatePresence>
     </motion.div>
-  );
-}
-
-// ─── ContextField ───────────────────────────────────────────────
-
-function ContextField({
-  icon,
-  label,
-  placeholder,
-  value,
-  onChange,
-}: {
-  icon: string;
-  label: string;
-  placeholder: string;
-  value: string;
-  onChange: (v: string) => void;
-}) {
-  return (
-    <div className="space-y-2">
-      <label className="flex items-center gap-2 text-sm font-medium text-foreground">
-        <span>{icon}</span>
-        {label}
-      </label>
-      <input
-        type="text"
-        value={value}
-        onChange={(e: React.ChangeEvent<HTMLInputElement>) => onChange(e.target.value)}
-        placeholder={placeholder}
-        className="w-full px-4 py-3 bg-background border border-border rounded-xl text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/40 text-sm"
-      />
-    </div>
   );
 }
 

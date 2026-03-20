@@ -130,5 +130,113 @@
     "debrief_focus": "understanding school procedures, parent-teacher communication, forms and documents",
     "auto_suggestions": ["Parent meeting phrases", "Ask about homework", "Understand this form", "School schedule"],
     "pronunciation_priority": ["teacher titles", "questions", "days of the week"]
+  },
+  "customs": {
+    "label": "Airport Customs",
+    "emoji": "✈️",
+    "vocabulary_focus": ["purpose of visit", "duration of stay", "declaration forms", "nothing to declare", "I am a tourist", "business visit", "connecting flight", "luggage claim"],
+    "tone_shift": "calm, precise",
+    "formality_adjustment": 2,
+    "tone_guidance": "Steady and clear. Immigration officers ask formulaic questions — help the user learn the expected answers, not improvise. Short sentences. Eye contact. No jokes.",
+    "cultural_guardrails": "Never joke with immigration officers. Answer only what is asked. Have all documents ready — passport, return ticket, accommodation address. In some countries, overstaying or wrong visa category is serious.",
+    "debrief_focus": "answering questions calmly, knowing your rights, standard phrases for common questions",
+    "auto_suggestions": ["Purpose of visit", "How long are you staying?", "Nothing to declare", "I'm a tourist"],
+    "pronunciation_priority": ["nationality", "duration of stay", "purpose of visit"]
+  },
+  "pharmacy": {
+    "label": "Pharmacy",
+    "emoji": "💊",
+    "vocabulary_focus": ["symptoms", "prescription", "over-the-counter", "dosage", "side effects", "allergy", "generic brand", "painkiller", "fever", "headache", "stomach"],
+    "tone_shift": "precise, calm",
+    "formality_adjustment": 1,
+    "tone_guidance": "Clear and specific. Help the user describe symptoms precisely so they get the right medication. Teach them to ask about dosage and interactions. Don't underestimate this — getting the wrong medication has consequences.",
+    "cultural_guardrails": "In some countries, pharmacists can prescribe and are the first point of care. In others, prescription drugs require a doctor's note. Know what's OTC vs prescription locally.",
+    "debrief_focus": "symptom description, asking for alternatives, understanding dosage instructions",
+    "auto_suggestions": ["I have a headache", "I need something for...", "Is there a generic?", "What's the dosage?"],
+    "pronunciation_priority": ["body parts", "symptom names", "numbers for dosage"]
+  },
+  "emergency": {
+    "label": "Emergency",
+    "emoji": "🚨",
+    "vocabulary_focus": ["help", "call the police", "call an ambulance", "theft", "accident", "I've been robbed", "I need a doctor", "emergency number", "embassy", "I am hurt"],
+    "tone_shift": "urgent, calm",
+    "formality_adjustment": 2,
+    "tone_guidance": "Fast and clear. In emergencies, a single phrase said clearly is worth more than a paragraph. Give the user the 3-4 most critical phrases and make sure they can say them under stress. Calm tone — panic makes communication worse.",
+    "cultural_guardrails": "Emergency numbers vary by country (not always 911). Know the local police number, ambulance number, and your country's embassy number before you need them. In some countries, reporting theft requires going to a police station in person.",
+    "debrief_focus": "key emergency phrases, staying calm, what information to give first",
+    "auto_suggestions": ["Call the police!", "I need an ambulance", "I've been robbed", "Where is the embassy?"],
+    "pronunciation_priority": ["help / emergency", "police / ambulance", "I am hurt / lost"]
+  },
+  "landlord": {
+    "label": "Renting / Landlord",
+    "emoji": "🏠",
+    "vocabulary_focus": ["deposit", "rent", "lease", "utilities included", "repairs", "notice period", "key handover", "inspection", "complaint", "subletting"],
+    "tone_shift": "firm, polite",
+    "formality_adjustment": 1,
+    "tone_guidance": "Confident but respectful. Rental conversations require the user to advocate for themselves without being aggressive. Help them ask about terms clearly, push back on unfair conditions politely, and document agreements.",
+    "cultural_guardrails": "Tenant rights vary enormously. In some markets, verbal agreements are binding; in others, nothing matters without paper. Know if deposits are capped by law. Photographing everything at move-in is universal good practice.",
+    "debrief_focus": "negotiating terms, understanding what you're signing, asking about deposit return",
+    "auto_suggestions": ["How much is the deposit?", "What's included?", "Something needs fixing", "I'd like to end the lease"],
+    "pronunciation_priority": ["rent terms", "numbers for dates and amounts", "formal requests"]
+  },
+  "bank": {
+    "label": "Bank / Money",
+    "emoji": "🏦",
+    "vocabulary_focus": ["account opening", "transfer", "withdrawal", "exchange rate", "fee", "ATM", "PIN", "identity documents", "wire transfer", "local account"],
+    "tone_shift": "precise, patient",
+    "formality_adjustment": 2,
+    "tone_guidance": "Clear and thorough. Banking involves legal forms and numbers — precision matters. Help the user ask specific questions about fees and requirements before committing to anything. Teach them to ask for clarification without embarrassment.",
+    "cultural_guardrails": "Some banks require proof of address, employment, or residency visa to open accounts. ATM fees for foreign cards can be high — know the bank's policy. In some countries, cash is still king for everyday transactions.",
+    "debrief_focus": "opening an account, understanding fees, transferring money internationally",
+    "auto_suggestions": ["Open an account", "What are the fees?", "I need to transfer money", "What documents do I need?"],
+    "pronunciation_priority": ["numbers", "account terms", "formal requests"]
+  },
+  "taxi": {
+    "label": "Taxi / Ride",
+    "emoji": "🚕",
+    "vocabulary_focus": ["where to?", "how much?", "use the meter", "take me to", "I'll walk the rest", "this is too much", "I don't have change", "turn left/right here", "stop here"],
+    "tone_shift": "direct, confident",
+    "formality_adjustment": -1,
+    "tone_guidance": "Street-smart and direct. Teach the user to confirm the price before getting in, insist on the meter where applicable, and know when to walk away. Confidence prevents overcharging. But don't be rude — most drivers are honest.",
+    "cultural_guardrails": "Not all taxis use meters. Always agree on a price before getting in. Rideshare apps reduce scams significantly. In some cities, licensed taxis only operate from official stands — picking up from the street can mean unregulated drivers.",
+    "debrief_focus": "negotiating fare, giving directions, avoiding common tourist scams",
+    "auto_suggestions": ["How much to...?", "Use the meter please", "Take me to this address", "Stop here"],
+    "pronunciation_priority": ["destination name", "numbers for prices", "directions"]
+  },
+  "temple": {
+    "label": "Temple / Cultural Site",
+    "emoji": "🛕",
+    "vocabulary_focus": ["dress code", "remove shoes", "sacred", "offering", "prayer", "photography allowed?", "entrance fee", "respect", "ceremony"],
+    "tone_shift": "reverent, curious",
+    "formality_adjustment": 1,
+    "tone_guidance": "Respectful and curious. Help the user engage with sacred spaces without accidentally offending. Teach them a phrase of greeting or respect in the local religious tradition. The goal isn't tourism — it's genuine respect.",
+    "cultural_guardrails": "Always remove shoes when asked. Cover shoulders and knees — keep a scarf or sarong handy. Don't photograph people praying without permission. Don't walk into restricted areas. Silence during ceremonies is universal.",
+    "debrief_focus": "entering respectfully, asking appropriate questions, engaging with locals at the site",
+    "auto_suggestions": ["May I enter?", "Should I remove my shoes?", "Is photography allowed?", "What's the dress code?"],
+    "pronunciation_priority": ["greeting phrases", "thank you / respectful phrases", "questions"]
+  },
+  "street_food": {
+    "label": "Street Food",
+    "emoji": "🍢",
+    "vocabulary_focus": ["point and order", "how many", "spicy level", "no meat / vegetarian", "take away", "what is this?", "it smells amazing", "one more please", "how much?"],
+    "tone_shift": "casual, enthusiastic",
+    "formality_adjustment": -2,
+    "tone_guidance": "Fun and fast. Street food vendors are used to tourists and often love enthusiastic customers. Pointing is totally fine. A little enthusiasm goes a long way. Help the user try things they can't pronounce — that's the whole point.",
+    "cultural_guardrails": "Watch how locals order — sometimes it's point-and-gesture, sometimes a full sentence. Dietary restrictions can be hard to communicate precisely — learn the words for your restrictions before you're hungry. Cash only at most stalls.",
+    "debrief_focus": "ordering confidently, asking about ingredients, expressing enthusiasm in the local language",
+    "auto_suggestions": ["What is this?", "One of those please", "Is it spicy?", "No meat please"],
+    "pronunciation_priority": ["ordering phrases", "numbers", "dietary terms"]
+  },
+  "date": {
+    "label": "Meeting Someone",
+    "emoji": "💬",
+    "vocabulary_focus": ["compliments", "where are you from?", "I like your...", "what do you do?", "want to get a drink?", "you're funny", "I'd like to see you again", "you have my number"],
+    "tone_shift": "warm, playful",
+    "formality_adjustment": -1,
+    "tone_guidance": "Light and genuine. Help the user flirt in the local style — every culture has different norms around directness, compliments, and humor. Teach them how locals express interest without being creepy. A well-timed phrase in the local language is genuinely charming.",
+    "cultural_guardrails": "Directness in romance varies enormously. In some cultures, bold compliments are normal and expected; in others, subtlety is key. Always read the situation. 'No' always means no, everywhere.",
+    "debrief_focus": "natural conversation starters, local-style compliments, expressing interest without awkwardness",
+    "auto_suggestions": ["How do I say a compliment?", "Ask where they're from", "Suggest getting a drink", "Exchange numbers"],
+    "pronunciation_priority": ["names", "compliments", "casual conversation phrases"]
   }
 }

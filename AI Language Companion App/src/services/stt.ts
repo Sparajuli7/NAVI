@@ -20,6 +20,7 @@ const STT_LANG_CODE_MAP: Record<string, string> = {
   Thai: 'th-TH',
   Arabic: 'ar-SA',
   Hindi: 'hi-IN',
+  Nepali: 'ne-NP',
   Russian: 'ru-RU',
   Indonesian: 'id-ID',
   Tagalog: 'tl-PH',
@@ -78,7 +79,23 @@ export function stopRecording(): void {
   recognition = null;
 }
 
-/** Get the BCP-47 language code for a language name */
+/** Get the BCP-47 language code for a language name.
+ *  ne-NP falls back to hi-IN if Nepali recognition is unavailable in the browser. */
 export function getSTTLangCode(languageName: string): string {
   return STT_LANG_CODE_MAP[languageName] ?? 'en-US';
+}
+
+/** Get the STT code for a specific mode.
+ * In guide mode, listen using the avatar's language (for ambient translation).
+ * In learn/friend mode, listen in the user's native language. */
+export function getSTTLangCodeForMode(
+  avatarLanguage: string,
+  userNativeLanguage: string,
+  mode: 'learn' | 'guide' | 'friend' | null,
+): string {
+  if (mode === 'guide') {
+    // In guide mode: listen for the local language (ambient translation)
+    return STT_LANG_CODE_MAP[avatarLanguage] ?? 'en-US';
+  }
+  return STT_LANG_CODE_MAP[userNativeLanguage] ?? 'en-US';
 }

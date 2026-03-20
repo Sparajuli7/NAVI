@@ -209,7 +209,7 @@ The agent framework sits underneath the UI as an orchestration layer:
 - Service layer functions (LLM, OCR, TTS, STT, location)
 - System prompt builder (11-layer engine with config-driven prompts)
 - Character generation prompts (config-driven via `characterGen.json`)
-- Configuration data (8 avatar templates, 8 dialects, 8 scenarios, city database)
+- Configuration data (8 avatar templates, 9 dialects incl. Nepali/Kathmandu, 20 scenarios, city database)
 - Dark/light theme with custom typography (Playfair Display, DM Sans, Source Serif 4)
 - Model download + loading logic (WebLLM + Ollama dual backend)
 - **Agent framework** — full infrastructure (router, tools, memory, models, avatar, pipelines)
@@ -225,6 +225,13 @@ The agent framework sits underneath the UI as an orchestration layer:
 - **Conversation director** — pre/post-processing for learning goals (no extra LLM calls)
 - **Cross-location bridging** — episodic memory queries across locations for continuity
 - **Phrase detector** — regex-based phrase card detection in LLM responses
+- **Mode classifier** — rolling keyword accumulator in `agent/index.ts`; silently locks `userMode` (learn/guide/friend) at threshold=2 signals across rolling window; persists to ProfileMemory
+- **Language enforcement** — `languageEnforcement` layer injected in `contextController` after identity layer; hard-locks avatar language regardless of user input
+- **Mode instruction layers** — per-mode system prompt overlays (learn=immersion, guide=translate-primary, friend=empathy-first); injected by `contextController` based on `userMode`
+- **Guide mode ambient listening** — mic in guide mode captures local speech in avatar's dialect language, sends with `translationMode: 'listen'`, uses `listenAndTranslate` prompt template
+- **AvatarRenderer** — `app/components/AvatarRenderer.tsx`; wraps `avataaars` with Framer Motion animated states (idle, generating, speaking, success, thinking); random eye blink
+- **Onboarding language picker** — native language selection step added first in `NewOnboardingScreen.tsx` (13 languages + Other); auto-advances on selection
+- **Web presence** — `web/index.html` (landing page), `web/feedback.html` (feedback form), `web/worker.js` (Cloudflare Worker + D1 storage)
 
 ### Remaining: Wire Agent → UI
 The agent framework is fully built. All UI screens still call legacy services directly (Prompts 3–8 wired the UI to `llm.ts`/`tts.ts`/etc., not to `agent.handleMessage()`).
@@ -235,9 +242,20 @@ The agent framework is fully built. All UI screens still call legacy services di
 - Wire SettingsPanel to agent memory/location/energy APIs
 
 ### Known Feature Gaps
-- **Native language not collected** — Onboarding does not ask for the user's native language; `{{userNativeLanguage}}` in prompt templates has no source
-- **Immersion mode not enforced** — Language calibration tiers are defined in `systemLayers.json` but there is no UI setting or toggle to control immersion level
-- **Avatar appearance variants** — `BlockyAvatar.tsx` renders a single programmatic 8-bit style driven by color props; `avataaars` is installed but not used for gender/appearance variants
+- **Avatar not wired in ConversationScreen** — `AvatarRenderer.tsx` (avataaars-based) was created but `ConversationScreen.tsx` still renders via `AvatarDisplay`/`BlockyAvatar`. Replace the avatar component reference to activate the new cartoon SVG avatar with animated states.
+- **CameraOverlay OCR/LLM pipeline not wired** — Prompt 7 incomplete. `CameraOverlay.tsx` still uses a mocked scan flow; `agent.handleImage()` pipeline exists but is not connected.
+- **Cloudflare Worker D1 database ID not set** — `web/wrangler.toml` contains `database_id = "YOUR_D1_DATABASE_ID"` placeholder. Run `wrangler d1 create navi-feedback`, copy the returned ID, and update `wrangler.toml`. Then run the CREATE TABLE command from `web/worker.js` header comments before deploying.
+- **Feedback worker URL** — `web/feedback.html` references `https://navi-feedback.shreyashparajuli.workers.dev`. Update this constant if the worker is deployed under a different subdomain.
+- **Pending feedback sync** — `feedback.html` stores offline submissions in `localStorage` as `navi_pending_feedback`, but there is no retry mechanism to flush them when the user comes back online.
+
+### Resolved Feature Gaps (2026-03-20)
+- ~~**Native language not collected**~~ — Onboarding now shows a language picker step first (13 languages + Nepali). Selected language saved to `agent.memory.profile` and `appStore.userPreferences.native_language`.
+- ~~**Immersion mode not enforced**~~ — Mode system implemented: `ModeClassifier` in `agent/index.ts` runs keyword scoring on every message, silently locks `userMode` (learn/guide/friend) at threshold=2. Mode persists to IndexedDB via `profileMemory`. `ConversationDirector` gates all learning goals by mode. `contextController` injects mode instruction layer.
+- ~~**Avatar appearance variants**~~ — `AvatarRenderer.tsx` created: wraps `avataaars` with Framer Motion animated states (idle float, generating rotate, speaking pulse, success bounce, random blink). Uses `AvatarPrefs` fields directly.
+- ~~**Language mismatch bug**~~ — `contextController.resolveDialect()` now uses explicit `dialectKey` from `AvatarProfile.dialect` when available, bypassing city string matching entirely.
+- ~~**Nepali/Kathmandu not supported**~~ — Added `NP/Kathmandu` to `dialectMap.json`, Kathmandu to `cities.json`, ne-NP to TTS/STT with hi-IN fallback, Devanagari script note injection in `contextController`.
+- ~~**Scenario launcher was a rigid form**~~ — Redesigned to single free-text + need chips. 9 new scenario templates added (customs, pharmacy, emergency, landlord, bank, taxi, temple, street_food, date).
+- ~~**No web presence**~~ — `web/index.html` (landing page) and `web/feedback.html` + `web/worker.js` (Cloudflare Worker + D1) created.
 
 ---
 

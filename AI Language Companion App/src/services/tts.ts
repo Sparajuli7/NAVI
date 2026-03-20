@@ -20,6 +20,7 @@ const LANG_CODE_MAP: Record<string, string> = {
   Thai:       'th-TH',
   Arabic:     'ar-SA',
   Hindi:      'hi-IN',
+  Nepali:     'ne-NP',
   Russian:    'ru-RU',
   Indonesian: 'id-ID',
   Tagalog:    'tl-PH',
@@ -52,12 +53,19 @@ export function speakPhrase(text: string, languageName: string = 'English', rate
   window.speechSynthesis.cancel();
 
   const utterance = new SpeechSynthesisUtterance(text);
-  utterance.lang = LANG_CODE_MAP[languageName] ?? 'en-US';
+  // ne-NP fallback: if voice unavailable, try hi-IN (Devanagari family, closest available)
+  const requestedCode = LANG_CODE_MAP[languageName] ?? 'en-US';
+  utterance.lang = requestedCode;
   utterance.rate = rate;
   utterance.pitch = 1.0;
 
   const voices = window.speechSynthesis.getVoices();
-  const match = pickBestVoice(voices, utterance.lang);
+  let match = pickBestVoice(voices, utterance.lang);
+  // ne-NP fallback to hi-IN if no Nepali voice available
+  if (!match && requestedCode === 'ne-NP') {
+    match = pickBestVoice(voices, 'hi-IN');
+    if (match) utterance.lang = 'hi-IN';
+  }
   if (match) utterance.voice = match;
 
   window.speechSynthesis.speak(utterance);

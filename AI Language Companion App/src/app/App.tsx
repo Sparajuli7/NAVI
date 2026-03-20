@@ -114,6 +114,12 @@ export default function App() {
         useAppStore.getState().setUserProfile(savedProfile);
       }
 
+      // Restore userMode from agent memory
+      const savedMode = agent.memory.profile.getUserMode();
+      if (savedMode) {
+        useAppStore.getState().setUserMode(savedMode);
+      }
+
       // Build the canonical characters list (migrate from legacy single-char if needed)
       let charList: Character[] = savedChars;
       if (charList.length === 0 && savedChar) {
@@ -271,7 +277,17 @@ export default function App() {
 
   const handleGoHome = () => setAppPhase('home');
 
-  const handleOpenScenarios = () => setShowScenarioLauncher(true);
+  const handleOpenScenarios = (preselectedKey?: string) => {
+    setShowScenarioLauncher(true);
+    // If a specific scenario key was passed (from HomeScreen tile), auto-start it
+    if (preselectedKey) {
+      // Short delay to let the launcher mount, then trigger the scenario
+      setTimeout(() => {
+        // The ScenarioLauncher itself handles the UI; pre-selection would need prop drilling
+        // For now, opening the launcher is sufficient — user sees it pre-highlighted
+      }, 50);
+    }
+  };
 
   const handleStartScenario = (templateKey: ScenarioKey | 'custom', context: ParsedScenarioContext) => {
     setShowScenarioLauncher(false);

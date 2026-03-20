@@ -22,6 +22,7 @@ const DEFAULT_PROFILE: ProfileMemory = {
   preferences: {},
   learningProgress: {},
   notes: [],
+  userMode: null,
 };
 
 export class ProfileMemoryStore {
@@ -65,6 +66,18 @@ export class ProfileMemoryStore {
     if (!this.loaded) await this.load();
     this.profile.nativeLanguage = lang;
     await this.save();
+  }
+
+  /** Set the inferred user mode */
+  async setUserMode(mode: 'learn' | 'guide' | 'friend' | null): Promise<void> {
+    if (!this.loaded) await this.load();
+    this.profile.userMode = mode;
+    await this.save();
+  }
+
+  /** Get the current user mode */
+  getUserMode(): 'learn' | 'guide' | 'friend' | null {
+    return this.profile.userMode ?? null;
   }
 
   /** Add a note */

@@ -29,6 +29,9 @@ export function createChatTool(
       learningContext: { type: 'string', required: false, description: 'Learner profile context' },
       conversationGoals: { type: 'string', required: false, description: 'Director goals injection' },
       situationContext: { type: 'string', required: false, description: 'Situation model context' },
+      userMode: { type: 'string', required: false, description: 'Inferred user mode: learn|guide|friend|null' },
+      translationMode: { type: 'string', required: false, description: 'Translation mode: listen (ambient) or speak (user message)' },
+      dialectKey: { type: 'string', required: false, description: 'Explicit dialect key to override city string matching' },
     },
     requiredModels: ['llm'],
     costTier: 'heavy',
@@ -41,6 +44,9 @@ export function createChatTool(
       const learningContext = params.learningContext as string | undefined;
       const conversationGoals = params.conversationGoals as string | undefined;
       const situationContext = params.situationContext as string | undefined;
+      const userMode = params.userMode as 'learn' | 'guide' | 'friend' | null | undefined;
+      const translationMode = params.translationMode as 'listen' | 'speak' | undefined;
+      const dialectKey = params.dialectKey as string | undefined;
 
       // Build system prompt from avatar context + memory + relationship + learning + situation
       const memoryContext = memoryManager.buildContextForPrompt({
@@ -62,7 +68,36 @@ export function createChatTool(
         conversationGoals,
         situationContext,
         userNativeLanguage,
+        userMode: userMode ?? null,
+        dialectKey,
       });
+
+      // In 'listen' translation mode, use the listenAndTranslate template instead of chat
+      if (translationMode === 'listen') {
+        const profile = avatarController.getActiveProfile();
+        const language = profile?.dialect || 'the local language';
+        const listenTemplate = promptLoader.get('toolPrompts.listenAndTranslate.template', {
+          language,
+          captured: message,
+          userNativeLanguage,
+        });
+        const listenConfig = promptLoader.getRaw('toolPrompts.listenAndTranslate') as {
+          temperature: number; max_tokens: number;
+        };
+        const listenMessages = [
+          { role: 'system', content: listenTemplate },
+          { role: 'user', content: message },
+        ];
+        const listenResponse = await llmProvider.chat(listenMessages, {
+          temperature: listenConfig.temperature,
+          max_tokens: listenConfig.max_tokens,
+          stream: !!onToken,
+          onToken,
+        });
+        memoryManager.working.set('last_user_message', message);
+        memoryManager.working.set('last_response', listenResponse);
+        return { response: listenResponse };
+      }
 
       // Inject the chat-specific behavioral prompt (friend mode, not teaching mode)
       const chatBehavior = promptLoader.get('toolPrompts.chat.template', { userNativeLanguage });

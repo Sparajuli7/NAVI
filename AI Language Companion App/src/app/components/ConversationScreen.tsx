@@ -15,7 +15,7 @@ import { useAppStore } from '../../stores/appStore';
 import { useNaviAgent } from '../../agent/react/useNaviAgent';
 import { parseResponse } from '../../utils/responseParser';
 import { saveCharacterConversation } from '../../utils/storage';
-import { startRecording, stopRecording, isSTTSupported } from '../../services/stt';
+import { startRecording, stopRecording, isSTTSupported, getSTTLangCode } from '../../services/stt';
 import type { Message, PhraseCardData } from '../../types/chat';
 import type { ScenarioKey } from '../../types/config';
 import type { Character } from '../../types/character';
@@ -96,6 +96,7 @@ export function ConversationScreen({
   const [expandedPhrase, setExpandedPhrase]     = useState<any>(null);
   const [showSettings, setShowSettings]         = useState(false);
   const [isRecording, setIsRecording]           = useState(false);
+  const [isAmbientListening, setIsAmbientListening] = useState(false);
   const [llmError, setLlmError]                 = useState(false);
   const [retryText, setRetryText]               = useState('');
   // Two-mode layout: 'avatar' = full-screen avatar + voice, 'chat' = scrollable history + text input
@@ -111,6 +112,7 @@ export function ConversationScreen({
   const { currentLocation } = useAppStore();
 
   const { agent, isLLMReady } = useNaviAgent();
+  const { userMode } = useAppStore();
 
   const languageName = currentLocation?.dialectInfo?.language ?? 'English';
 
@@ -135,7 +137,7 @@ export function ConversationScreen({
     }
   }, [userMsgCount, isGenerating]);
 
-  const handleSend = async (textOverride?: string) => {
+  const handleSend = async (textOverride?: string, sendOptions?: { translationMode?: 'listen' | 'speak' }) => {
     const msgText = (textOverride ?? inputValue).trim();
     if (!msgText || isGenerating) return;
 
@@ -205,6 +207,7 @@ export function ConversationScreen({
         history,
         context: {
           scenario: detected ?? activeScenario,
+          translationMode: sendOptions?.translationMode,
         },
         onToken: (_token: string, fullText: string) => {
           updateLastMessage(fullText, false);
@@ -287,6 +290,27 @@ export function ConversationScreen({
 
   const handleMicDown = () => {
     if (!isSTTSupported()) return;
+
+    // In guide mode: hold mic = ambient listening (listens in avatar's language for translation)
+    if (userMode === 'guide') {
+      const avatarLang = languageName || 'English';
+      const avatarLangCode = getSTTLangCode(avatarLang);
+      setIsAmbientListening(true);
+      setIsRecording(true);
+      startRecording(avatarLangCode, (transcript) => {
+        setIsAmbientListening(false);
+        setIsRecording(false);
+        if (transcript.trim()) {
+          // Send as a translation request with translationMode: 'listen'
+          handleSend(transcript.trim(), { translationMode: 'listen' });
+        }
+      }, () => {
+        setIsAmbientListening(false);
+        setIsRecording(false);
+      });
+      return;
+    }
+
     const lang = languageName || 'English';
     setIsRecording(true);
     startRecording(lang, (transcript) => {
@@ -545,13 +569,16 @@ export function ConversationScreen({
                   <Camera className="w-6 h-6 text-muted-foreground" />
                 </button>
 
-                {/* Large centered mic button */}
+                {/* Large centered mic button — gold in guide mode when listening */}
                 {isSTTSupported() ? (
                   <motion.button
                     className={`w-20 h-20 rounded-full flex items-center justify-center shadow-lg transition-colors
-                      ${isRecording
+                      ${isAmbientListening
+                        ? 'scale-110'
+                        : isRecording
                         ? 'bg-primary scale-110'
                         : 'bg-primary/90 hover:bg-primary'}`}
+                    style={isAmbientListening ? { backgroundColor: '#D4A853' } : undefined}
                     onPointerDown={handleMicDown}
                     onPointerUp={handleMicUp}
                     onPointerLeave={handleMicUp}
@@ -581,7 +608,21 @@ export function ConversationScreen({
                 </button>
               </div>
 
-              {isRecording && (
+              {isAmbientListening && (
+                <motion.div
+                  className="flex flex-col items-center gap-1 mt-2"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                >
+                  <p className="text-center text-xs font-medium" style={{ color: '#D4A853' }}>
+                    Listening...
+                  </p>
+                  <p className="text-center text-xs text-muted-foreground">
+                    Live translation needs internet for voice recognition
+                  </p>
+                </motion.div>
+              )}
+              {isRecording && !isAmbientListening && (
                 <motion.p
                   className="text-center text-xs text-primary mt-2"
                   initial={{ opacity: 0 }}

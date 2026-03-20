@@ -61,6 +61,7 @@ interface DialectConfig {
   formality_default: string;
   cultural_notes: string;
   slang_era: Record<string, string>;
+  scripts?: string[];
 }
 
 // ─── Controller ────────────────────────────────────────────────
@@ -190,6 +191,8 @@ export class AvatarContextController {
     conversationGoals?: string;
     situationContext?: string;
     userNativeLanguage?: string;
+    userMode?: 'learn' | 'guide' | 'friend' | null;
+    dialectKey?: string;
   }): string {
     if (!this.activeProfile) {
       return 'You are a helpful language assistant.';
@@ -210,7 +213,24 @@ export class AvatarContextController {
     // Layer 3: Location + dialect
     const effectiveLocation = override.location ?? profile.location;
     const userLang = options?.userNativeLanguage || 'English';
-    layers.push(this.buildLocationLayer(effectiveLocation, profile.ageGroup, userLang));
+    // If an explicit dialectKey is provided, use it to look up dialect directly (fixes language mismatch bug)
+    const dialectKey = options?.dialectKey ?? profile.dialect;
+    layers.push(this.buildLocationLayer(effectiveLocation, profile.ageGroup, userLang, dialectKey));
+
+    // Layer 2.5: Language enforcement (injected after location, before everything else)
+    const locationForEnforcement = effectiveLocation;
+    const dialectForEnforcement = this.resolveDialect(locationForEnforcement, dialectKey);
+    if (dialectForEnforcement) {
+      try {
+        const enforcementLayer = promptLoader.get('systemLayers.languageEnforcement.template', {
+          language: dialectForEnforcement.language,
+          dialect: dialectForEnforcement.dialect,
+        });
+        layers.push(enforcementLayer);
+      } catch {
+        // languageEnforcement not in config — skip
+      }
+    }
 
     // Layer 4: Scenario
     const effectiveScenario = override.scenario ?? profile.scenario;
@@ -251,6 +271,26 @@ export class AvatarContextController {
     // Layer 11: Conversation goals
     if (options?.conversationGoals) {
       layers.push(options.conversationGoals);
+    }
+
+    // Layer 11.5: Mode instruction (learn / guide / friend)
+    if (options?.userMode) {
+      try {
+        const modeInstruction = promptLoader.get(`systemLayers.modeInstructions.${options.userMode}`, {
+          userNativeLanguage: userLang,
+        });
+        layers.push(modeInstruction);
+      } catch {
+        // mode key not found — skip
+      }
+    }
+
+    // Layer 11.6: Conversation naturalness
+    try {
+      const naturalnessLayer = promptLoader.get('systemLayers.conversationNaturalness');
+      if (naturalnessLayer) layers.push(naturalnessLayer);
+    } catch {
+      // not in config — skip
     }
 
     // Layer 12: Few-shot examples (show ideal tone)
@@ -308,17 +348,24 @@ export class AvatarContextController {
     return lines.length > 0 ? lines.join(' ') : '';
   }
 
-  private buildLocationLayer(location: string, ageGroup: string, userNativeLanguage: string): string {
-    // Find dialect info by matching location against dialect keys
-    let dialectConfig: DialectConfig | null = null;
-
+  /** Resolve dialect config from explicit key or location string */
+  private resolveDialect(location: string, dialectKey?: string): DialectConfig | null {
+    // If explicit dialectKey given, use it directly (authoritative)
+    if (dialectKey && this.dialects[dialectKey]) {
+      return this.dialects[dialectKey];
+    }
+    // Fall back to city string matching
     for (const [key, config] of Object.entries(this.dialects)) {
       const city = key.split('/')[1];
       if (city && location.toLowerCase().includes(city.toLowerCase())) {
-        dialectConfig = config;
-        break;
+        return config;
       }
     }
+    return null;
+  }
+
+  private buildLocationLayer(location: string, ageGroup: string, userNativeLanguage: string, dialectKey?: string): string {
+    const dialectConfig = this.resolveDialect(location, dialectKey);
 
     let layer = `Location: ${location}.`;
     if (dialectConfig) {
@@ -338,6 +385,10 @@ export class AvatarContextController {
       const slang = dialectConfig.slang_era[generation];
       if (slang) {
         layer += ` Use age-appropriate slang: ${slang}`;
+      }
+      // Script note — for languages with non-Latin scripts, always provide both script + romanization
+      if (dialectConfig.scripts && dialectConfig.scripts.length > 0) {
+        layer += ` Always write phrases in both ${dialectConfig.scripts[0]} script AND romanized transliteration side by side.`;
       }
     } else {
       // No dialect config — infer language from location name
