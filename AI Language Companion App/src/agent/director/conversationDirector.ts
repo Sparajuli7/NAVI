@@ -89,7 +89,7 @@ export class ConversationDirector {
   private exchangesSinceTierChange = 0;
   private readonly TIER_ADVANCE_THRESHOLD = 3;
   private readonly TIER_DROP_THRESHOLD = 2;
-  private readonly MIN_EXCHANGES_FOR_TIER_CHANGE = 5;
+  private readonly MIN_EXCHANGES_FOR_TIER_CHANGE = 3;
 
   // Dynamic language calibration
   private messageWindow: string[] = [];

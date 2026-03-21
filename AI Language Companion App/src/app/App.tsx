@@ -276,21 +276,19 @@ export default function App() {
     );
     agent.setAvatar(avatarProfile);
 
-    // Sync agent's internal location context
-    if (dialectKey) {
-      const countryCode = dialectKey.split('/')[0];
-      const locCtx: LocationContext = {
-        city: char.location_city,
-        country: char.location_country,
-        countryCode,
-        lat: 0,
-        lng: 0,
-        dialectKey,
-        dialectInfo: dialectInfo ?? null,
-      };
-      agent.location.setLocation(locCtx, 'manual');
-      useAppStore.getState().setCurrentLocation(locCtx);
-    }
+    // Always sync agent's internal location context — even if no dialect mapping exists
+    const countryCode = dialectKey ? dialectKey.split('/')[0] : '';
+    const locCtx: LocationContext = {
+      city: char.location_city,
+      country: char.location_country,
+      countryCode,
+      lat: 0,
+      lng: 0,
+      dialectKey,
+      dialectInfo: dialectInfo ?? null,
+    };
+    agent.location.setLocation(locCtx, 'manual');
+    useAppStore.getState().setCurrentLocation(locCtx);
 
     setCharacter(mapCharacterToUI(char));
     setLocation(`${char.location_city}, ${char.location_country}`);
@@ -326,6 +324,27 @@ export default function App() {
     setCharacter(mapCharacterToUI(updated));
     setLocation(`${updated.location_city}, ${updated.location_country}`);
     agent.avatar.applyOverride({ location: updated.location_city });
+
+    // Resolve dialect for updated city and sync agent location
+    const updatedDialectKey = updated.dialect_key
+      ?? Object.keys(dialectMapRaw as Record<string, unknown>).find(
+        (k) => k.split('/')[1]?.toLowerCase() === updated.location_city.toLowerCase()
+      ) ?? '';
+    const updatedDialectInfo = updatedDialectKey
+      ? (dialectMapRaw as Record<string, DialectInfo>)[updatedDialectKey] ?? null
+      : null;
+    const updatedCountryCode = updatedDialectKey ? updatedDialectKey.split('/')[0] : '';
+    const updatedLocCtx: LocationContext = {
+      city: updated.location_city,
+      country: updated.location_country,
+      countryCode: updatedCountryCode,
+      lat: 0,
+      lng: 0,
+      dialectKey: updatedDialectKey,
+      dialectInfo: updatedDialectInfo,
+    };
+    agent.location.setLocation(updatedLocCtx, 'manual');
+    useAppStore.getState().setCurrentLocation(updatedLocCtx);
   };
 
   const handleGoHome = () => setAppPhase('home');

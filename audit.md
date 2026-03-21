@@ -1,6 +1,6 @@
 # NAVI Codebase Audit
 
-**Last updated: 2026-03-20** (updated 2026-03-21: context window fix, dialect key wiring, target language flow, AnimatedCharacter, Gemini embeddings; 2026-03-21b: multi-city response bug + same-response loop bug fixed; 2026-03-21c: avatar prefs from LLM character generation; 2026-03-21d: companion switch restoration, inline markdown stripping, dynamic language calibration)
+**Last updated: 2026-03-20** (updated 2026-03-21: context window fix, dialect key wiring, target language flow, AnimatedCharacter, Gemini embeddings; 2026-03-21b: multi-city response bug + same-response loop bug fixed; 2026-03-21c: avatar prefs from LLM character generation; 2026-03-21d: companion switch restoration, inline markdown stripping, dynamic language calibration; 2026-03-21e: 6 core bugs fixed — token estimator dense scripts, language enforcement, location-on-update sync, location-on-switch always-sync, AvatarRenderer wired, calibration speed)
 
 ---
 

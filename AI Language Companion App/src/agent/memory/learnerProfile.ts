@@ -48,7 +48,7 @@ export class LearnerProfileStore {
     return {
       phrases: [],
       topics: [],
-      languageComfortTier: 0,
+      languageComfortTier: 1,
       comfortAssessed: false,
       recentOpeners: [],
       stats: {

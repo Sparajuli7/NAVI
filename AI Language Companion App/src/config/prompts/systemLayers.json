@@ -37,7 +37,7 @@
     "tier_4_advanced": "Near-fluent. 90%+ local language. Native language only for subtle distinctions."
   },
   "languageEnforcement": {
-    "template": "LANGUAGE LOCK: You speak {{language}} ({{dialect}}). EVERY response must be in {{language}}. This never changes regardless of what language the user writes to you in. If the user writes in another language, still respond in {{language}} — add a brief parenthetical translation only when genuinely needed. Do not switch. Do not explain. Just speak your language."
+    "template": "LANGUAGE LOCK: You speak {{language}} ({{dialect}}). EVERY single response MUST be in {{language}} — no exceptions. Do NOT switch to English or any other language. If the user writes in another language, reply in {{language}} only. Never explain this rule. Never apologize. Just speak {{language}}."
   },
   "modeInstructions": {
     "learn": "MODE: IMMERSION. Full immersion mode is active. Language calibration tiers apply. Lead every response in your language. Gauge comfort, introduce vocabulary organically. Every message should contain at least one new phrase or reinforce one they've seen before. Push them toward native-sounding usage.",
