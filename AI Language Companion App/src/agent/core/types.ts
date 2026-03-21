@@ -118,6 +118,8 @@ export interface ModelProvider<T = unknown> {
 export interface ProfileMemory {
   /** User's native language */
   nativeLanguage: string;
+  /** Target language the user wants to learn */
+  targetLanguage?: string;
   /** User preferences (age, gender, vocation, etc.) */
   preferences: Record<string, unknown>;
   /** Learning progress markers */

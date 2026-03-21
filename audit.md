@@ -1,6 +1,6 @@
 # NAVI Codebase Audit
 
-**Last updated: 2026-03-20**
+**Last updated: 2026-03-20** (updated 2026-03-21: context window fix, dialect key wiring, target language flow, AnimatedCharacter, Gemini embeddings)
 
 ---
 
@@ -214,7 +214,22 @@ The shared agent/store/prompt layer currently assumes web APIs in several places
 
 ---
 
-## Known Gaps (as of 2026-03-20)
+## Known Gaps (as of 2026-03-21)
+
+### ~~Context Window Overflow~~ — RESOLVED
+System prompt exceeded Qwen 1.5B's 4096-token limit. Fixed by: (1) shortening `coreRules.rules` ~495 tokens, `identity.template` ~69 tokens, `languageCalibration` tiers ~143 tokens; (2) adding token budget enforcement in `contextController.buildSystemPrompt()` — greedily adds layers priority 0→3 while tokens ≤ 3072. Build confirmed clean.
+
+### ~~Dialect Key Not Wired (avatar speaks English bug)~~ — RESOLVED
+`AvatarProfile.dialect` was always `''`, causing language enforcement to never fire. Fixed: `dialect_key` field added to `Character` type; saved during onboarding; passed to `createFromTemplate()` via new `dialectKey` param in both `contextController` and `agent.createAvatarFromTemplate()`; propagated at all 3 avatar creation sites in `App.tsx`.
+
+### ~~Language Immersion Flow Missing~~ — RESOLVED
+Added target language onboarding step (step 0 before native language picker); saves to `profileMemory.targetLanguage`, `Character.target_language`, `UserPreferences.target_language`; city presets filter to matching countries. `ConversationDirector.postProcess()` now tracks `consecutiveTargetLangMessages` / `consecutiveHelpRequests` and calls `learner.setComfortTier()` after 3 consecutive target-lang exchanges (advance) or 2 help requests (drop), min 5 exchanges between changes.
+
+### ~~Emoji Avatar Looks Dead~~ — RESOLVED (Lottie-ready)
+`AnimatedCharacter.tsx` created — drop-in replacement for `CharacterAvatar` with Lottie animation support. Dynamically imports `lottie-react` and fetches JSON from `/public/lottie/`. Falls back to CharacterAvatar silently if either is missing. **User must**: (1) `pnpm add lottie-react`, (2) download 4 Lottie JSONs from lottiefiles.com into `public/lottie/` (char_idle.json, char_speaking.json, char_thinking.json, char_success.json).
+
+### Gemini Embedding Provider Added (online-optional)
+`src/agent/models/geminiEmbedding.ts` created — uses `text-embedding-004` REST API, falls back when offline or no key. User sets key in Settings → AI Model panel (stored in localStorage). Key never sent anywhere except `generativelanguage.googleapis.com`.
 
 ### Agent ↔ UI Wiring (partially resolved)
 `ConversationScreen.handleSend()` now calls `agent.handleMessage()` via `useNaviAgent()`. `CameraOverlay` OCR/LLM pipeline is still not wired (Prompt 7 incomplete). `ExpandedPhraseCard` TTS/STT are wired to service layer, not agent tools.

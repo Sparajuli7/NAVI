@@ -68,6 +68,18 @@ export class ProfileMemoryStore {
     await this.save();
   }
 
+  /** Set target language (the language the user wants to learn) */
+  async setTargetLanguage(lang: string): Promise<void> {
+    if (!this.loaded) await this.load();
+    this.profile.targetLanguage = lang;
+    await this.save();
+  }
+
+  /** Get target language */
+  getTargetLanguage(): string | null {
+    return this.profile.targetLanguage ?? null;
+  }
+
   /** Set the inferred user mode */
   async setUserMode(mode: 'learn' | 'guide' | 'friend' | null): Promise<void> {
     if (!this.loaded) await this.load();

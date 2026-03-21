@@ -500,9 +500,9 @@ export class NaviAgent {
     this.avatar.setActiveProfile(profile);
   }
 
-  createAvatarFromTemplate(templateId: string, location?: string): AvatarProfile {
+  createAvatarFromTemplate(templateId: string, location?: string, dialectKey?: string): AvatarProfile {
     const loc = location ?? this.location.getLocation()?.city ?? 'Unknown';
-    return this.avatar.createFromTemplate(templateId, loc);
+    return this.avatar.createFromTemplate(templateId, loc, dialectKey);
   }
 
   /**

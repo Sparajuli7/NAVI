@@ -22,6 +22,7 @@
 import type { AvatarProfile, AvatarContextOverride } from '../core/types';
 import { agentBus } from '../core/eventBus';
 import { promptLoader } from '../prompts/promptLoader';
+import { estimateTokens } from '../../utils/tokenEstimator';
 
 // Import existing configs from the app
 import avatarTemplatesRaw from '../../config/avatarTemplates.json';
@@ -82,6 +83,7 @@ export class AvatarContextController {
   createFromTemplate(
     templateId: string,
     location: string,
+    dialectKey?: string,
     overrides?: Partial<AvatarProfile>,
   ): AvatarProfile {
     const template = this.templates.find((t) => t.id === templateId) ?? this.templates[0];
@@ -93,7 +95,7 @@ export class AvatarContextController {
       id: `avatar_${Date.now()}`,
       name: template.label,
       ageGroup: '30s',
-      dialect: '',
+      dialect: dialectKey ?? '',
       profession: template.id,
       culturalContext: '',
       slangLevel: template.default_formality === 'casual' ? 0.7 : 0.3,
@@ -201,92 +203,80 @@ export class AvatarContextController {
 
     const profile = this.activeProfile;
     const override = this.activeOverride;
-    const layers: string[] = [];
-
-    // Layer 1: Identity
-    layers.push(this.buildIdentityLayer(profile));
-
-    // Layer 2: User preferences
-    if (options?.userPreferences) {
-      layers.push(this.buildPreferenceLayer(options.userPreferences));
-    }
-
-    // Layer 3: Location + dialect
-    const effectiveLocation = override.location ?? profile.location;
     const userLang = options?.userNativeLanguage || 'English';
-    // If an explicit dialectKey is provided, use it to look up dialect directly (fixes language mismatch bug)
     const dialectKey = options?.dialectKey ?? profile.dialect;
-    layers.push(this.buildLocationLayer(effectiveLocation, profile.ageGroup, userLang, dialectKey));
-
-    // Layer 2.5: Language enforcement (injected after location, before everything else)
-    const locationForEnforcement = effectiveLocation;
-    const dialectForEnforcement = this.resolveDialect(locationForEnforcement, dialectKey);
-    if (dialectForEnforcement) {
-      try {
-        const enforcementLayer = promptLoader.get('systemLayers.languageEnforcement.template', {
-          language: dialectForEnforcement.language,
-          dialect: dialectForEnforcement.dialect,
-        });
-        layers.push(enforcementLayer);
-      } catch {
-        // languageEnforcement not in config — skip
-      }
-    }
-
-    // Layer 4: Scenario
+    const effectiveLocation = override.location ?? profile.location;
     const effectiveScenario = override.scenario ?? profile.scenario;
+    const dialectConfig = this.resolveDialect(effectiveLocation, dialectKey);
+
+    // ── Pre-compute all layer strings ───────────────────────────────
+    // Each entry: [content, priority] — 0=MUST, 1=HIGH, 2=MEDIUM, 3=LOW
+    // Layers in output order (position matters for coherence)
+    const layerDefs: Array<[string, number]> = [];
+
+    // L1: Identity (MUST)
+    layerDefs.push([this.buildIdentityLayer(profile), 0]);
+
+    // L2: User preferences (HIGH)
+    if (options?.userPreferences) {
+      const prefLayer = this.buildPreferenceLayer(options.userPreferences);
+      if (prefLayer) layerDefs.push([prefLayer, 1]);
+    }
+
+    // L3: Location + dialect (MUST)
+    layerDefs.push([this.buildLocationLayer(effectiveLocation, profile.ageGroup, userLang, dialectKey), 0]);
+
+    // L3.5: Language enforcement (MUST — hard locks avatar language)
+    if (dialectConfig) {
+      try {
+        const enforcement = promptLoader.get('systemLayers.languageEnforcement.template', {
+          language: dialectConfig.language,
+          dialect: dialectConfig.dialect,
+        });
+        layerDefs.push([enforcement, 0]);
+      } catch { /* skip */ }
+    }
+
+    // L4: Scenario (HIGH)
     if (effectiveScenario) {
-      layers.push(this.buildScenarioLayer(effectiveScenario, override.formalityShift));
+      const scenarioLayer = this.buildScenarioLayer(effectiveScenario, override.formalityShift);
+      if (scenarioLayer) layerDefs.push([scenarioLayer, 1]);
     }
 
-    // Layer 5: Memory context
-    if (options?.memoryContext) {
-      layers.push(options.memoryContext);
-    }
+    // L5: Memory context (MEDIUM)
+    if (options?.memoryContext) layerDefs.push([options.memoryContext, 2]);
 
-    // Layer 6: Override personality modifier
+    // L6: Override personality modifier (LOW)
     if (override.personalityModifier) {
-      layers.push(`Personality adjustment: ${override.personalityModifier}`);
+      layerDefs.push([`Personality adjustment: ${override.personalityModifier}`, 3]);
     }
 
-    // Layer 7: Additional injected context
-    if (override.additionalContext) {
-      layers.push(override.additionalContext);
-    }
+    // L7: Additional injected context (LOW)
+    if (override.additionalContext) layerDefs.push([override.additionalContext, 3]);
 
-    // Layer 8: Relationship/warmth instruction
-    if (options?.warmthInstruction) {
-      layers.push(options.warmthInstruction);
-    }
+    // L8: Warmth instruction (HIGH)
+    if (options?.warmthInstruction) layerDefs.push([options.warmthInstruction, 1]);
 
-    // Layer 9: Situation model (proactive assessment of user needs)
-    if (options?.situationContext) {
-      layers.push(options.situationContext);
-    }
+    // L9: Situation context (MEDIUM)
+    if (options?.situationContext) layerDefs.push([options.situationContext, 2]);
 
-    // Layer 10: Learning context
-    if (options?.learningContext) {
-      layers.push(options.learningContext);
-    }
+    // L10: Learning context (MEDIUM)
+    if (options?.learningContext) layerDefs.push([options.learningContext, 2]);
 
-    // Layer 11: Conversation goals
-    if (options?.conversationGoals) {
-      layers.push(options.conversationGoals);
-    }
+    // L11: Conversation goals (MEDIUM)
+    if (options?.conversationGoals) layerDefs.push([options.conversationGoals, 2]);
 
-    // Layer 11.5: Mode instruction (learn / guide / friend)
+    // L11.5: Mode instruction (MEDIUM)
     if (options?.userMode) {
       try {
-        const modeInstruction = promptLoader.get(`systemLayers.modeInstructions.${options.userMode}`, {
+        const modeLayer = promptLoader.get(`systemLayers.modeInstructions.${options.userMode}`, {
           userNativeLanguage: userLang,
         });
-        layers.push(modeInstruction);
-      } catch {
-        // mode key not found — skip
-      }
+        layerDefs.push([modeLayer, 2]);
+      } catch { /* mode key not in config */ }
     }
 
-    // Layer 11.6: Scenario opener (first message in a scenario — replaces generic gauging)
+    // L11.6: Scenario opener (MEDIUM — only on first message with active scenario)
     if (options?.isFirstEverMessage && effectiveScenario) {
       const scenarioConfig = this.scenarios[effectiveScenario];
       if (scenarioConfig) {
@@ -294,40 +284,69 @@ export class AvatarContextController {
           const openerLayer = promptLoader.get('systemLayers.modeInstructions.scenarioOpener', {
             scenarioLabel: scenarioConfig.label,
           });
-          layers.push(openerLayer);
-        } catch {
-          // scenarioOpener not in config — skip
-        }
+          layerDefs.push([openerLayer, 2]);
+        } catch { /* skip */ }
       }
     }
 
-    // Layer 11.7: Conversation naturalness
+    // L11.7: Conversation naturalness (MEDIUM)
     try {
-      const naturalnessLayer = promptLoader.get('systemLayers.conversationNaturalness');
-      if (naturalnessLayer) layers.push(naturalnessLayer);
-    } catch {
-      // not in config — skip
-    }
+      const naturalnessLayer = promptLoader.get('systemLayers.conversationNaturalness') as string;
+      if (naturalnessLayer) layerDefs.push([naturalnessLayer, 2]);
+    } catch { /* skip */ }
 
-    // Layer 12: Few-shot examples (show ideal tone)
-    const fewShot = promptLoader.get('coreRules.fewShotExamples');
-    if (fewShot) layers.push(fewShot);
+    // L12: Few-shot examples (LOW)
+    try {
+      const fewShot = promptLoader.get('coreRules.fewShotExamples') as string;
+      if (fewShot) layerDefs.push([fewShot, 3]);
+    } catch { /* skip */ }
 
-    // Layer 13: Core rules
-    layers.push(this.buildCoreRules(userLang));
+    // L13: Core rules (MUST)
+    layerDefs.push([this.buildCoreRules(userLang), 0]);
 
-    // Layer 14: Internal monologue instruction
-    layers.push('BEFORE responding, think through these in your head (do NOT output them):\n- What is my current mood/energy right now?\n- Did the user make any language mistakes I should address?\n- What is happening around us in this place right now?\n- What does this person actually need from me in this moment?\nThen respond naturally in character. Only output your spoken dialogue.');
+    // L14: Internal monologue (LOW)
+    layerDefs.push(['BEFORE responding, think through in your head (do NOT output):\n- What does this person need right now?\n- Any language mistakes to gently address?\n- What is happening around us in this place?\nThen respond naturally in character.', 3]);
 
-    // Layer 15: Reinforcement (always LAST — LLMs pay most attention to the end)
+    // L15: Reinforcement (MUST — always last)
     const reinforcement = promptLoader.get('coreRules.reinforcement', {
       name: profile.name,
       userNativeLanguage: userLang,
-    });
-    if (reinforcement) layers.push(reinforcement);
+    }) as string;
+    if (reinforcement) layerDefs.push([reinforcement, 0]);
 
-    const assembled = layers.join('\n\n');
-    console.log(`[NAVI:avatar] buildSystemPrompt layers=${layers.length} avatar=${profile.name} location=${override.location ?? profile.location} scenario=${(override.scenario ?? profile.scenario) || 'none'}`);
+    // ── Token budget enforcement ─────────────────────────────────────
+    // Budget: 3072 tokens (leaves ~512 for response + ~512 for history in a 4096 context window)
+    const BUDGET = 3072;
+    const selectedIndices = new Set<number>();
+
+    // Pass 1: always include MUST layers (priority 0)
+    layerDefs.forEach(([content, priority], i) => {
+      if (content && priority === 0) selectedIndices.add(i);
+    });
+    let usedTokens = estimateTokens(
+      layerDefs.filter((_, i) => selectedIndices.has(i)).map(([c]) => c).join('\n\n'),
+    );
+
+    // Passes 2-4: greedily add HIGH → MEDIUM → LOW while under budget
+    for (const targetPriority of [1, 2, 3] as const) {
+      for (let i = 0; i < layerDefs.length; i++) {
+        const [content, priority] = layerDefs[i];
+        if (!content || priority !== targetPriority) continue;
+        const layerTokens = estimateTokens(content);
+        if (usedTokens + layerTokens <= BUDGET) {
+          selectedIndices.add(i);
+          usedTokens += layerTokens;
+        }
+        // If layer doesn't fit: skip silently
+      }
+    }
+
+    const assembled = layerDefs
+      .filter((_, i) => selectedIndices.has(i))
+      .map(([c]) => c)
+      .join('\n\n');
+
+    console.log(`[NAVI:avatar] buildSystemPrompt layers=${selectedIndices.size}/${layerDefs.length} tokens≈${usedTokens} avatar=${profile.name} location=${effectiveLocation} scenario=${effectiveScenario || 'none'}`);
     return assembled;
   }
 

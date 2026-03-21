@@ -82,6 +82,14 @@ export class ConversationDirector {
   private situationAssessor: SituationAssessor | null = null;
   private assessmentQuestionIndex = 0;
 
+  // Language tier advancement tracking
+  private consecutiveTargetLangMessages = 0;
+  private consecutiveHelpRequests = 0;
+  private exchangesSinceTierChange = 0;
+  private readonly TIER_ADVANCE_THRESHOLD = 3;
+  private readonly TIER_DROP_THRESHOLD = 2;
+  private readonly MIN_EXCHANGES_FOR_TIER_CHANGE = 5;
+
   constructor(
     private learner: LearnerProfileStore,
     private relationships: RelationshipStore,
@@ -331,6 +339,9 @@ export class ConversationDirector {
 
     // 5. Check for milestones
     await this.checkMilestones(avatarId);
+
+    // 6. Language tier advancement — assess user message for target-language use vs help requests
+    await this.assessLanguageTier(userMessage);
   }
 
   // ── Proactive Suggestions ──────────────────────────────────
@@ -420,6 +431,68 @@ export class ConversationDirector {
     }
 
     return bridgeParts.length > 1 ? bridgeParts.join('. ') : null;
+  }
+
+  // ── Language Tier Advancement ───────────────────────────────
+
+  /**
+   * Analyze user messages to adaptively advance or drop the language comfort tier.
+   * Tier advances when user consistently responds in the target language.
+   * Tier drops when user consistently asks for help/translation.
+   * Minimum 5 exchanges between any tier change to allow calibration.
+   */
+  private async assessLanguageTier(userMessage: string): Promise<void> {
+    this.exchangesSinceTierChange++;
+
+    const usesTargetLang = this.detectsTargetLanguageUse(userMessage);
+    const needsHelp = this.detectsHelpRequest(userMessage);
+
+    if (usesTargetLang) {
+      this.consecutiveTargetLangMessages++;
+      this.consecutiveHelpRequests = 0;
+    } else if (needsHelp) {
+      this.consecutiveHelpRequests++;
+      this.consecutiveTargetLangMessages = 0;
+    } else {
+      this.consecutiveTargetLangMessages = 0;
+    }
+
+    if (this.exchangesSinceTierChange < this.MIN_EXCHANGES_FOR_TIER_CHANGE) return;
+
+    const currentTier = this.learner.languageComfortTier;
+
+    if (this.consecutiveTargetLangMessages >= this.TIER_ADVANCE_THRESHOLD && currentTier < 4) {
+      await this.learner.setComfortTier(currentTier + 1);
+      this.consecutiveTargetLangMessages = 0;
+      this.exchangesSinceTierChange = 0;
+      console.log(`[NAVI:director] Language comfort tier advanced: ${currentTier} → ${currentTier + 1}`);
+    } else if (this.consecutiveHelpRequests >= this.TIER_DROP_THRESHOLD && currentTier > 1) {
+      await this.learner.setComfortTier(currentTier - 1);
+      this.consecutiveHelpRequests = 0;
+      this.exchangesSinceTierChange = 0;
+      console.log(`[NAVI:director] Language comfort tier dropped: ${currentTier} → ${currentTier - 1}`);
+    }
+  }
+
+  private detectsTargetLanguageUse(message: string): boolean {
+    if (!message || message.trim().length < 3) return false;
+    // Non-ASCII characters strongly indicate target-language script use
+    const nonAscii = (message.match(/[^\x00-\x7F]/g) ?? []).length;
+    if (nonAscii > 2) return true;
+    // ASCII message: check it's not a help request
+    const lower = message.toLowerCase();
+    const helpWords = ['what does', 'how do you say', 'translate', 'in english', 'explain', 'what is'];
+    return !helpWords.some((w) => lower.includes(w));
+  }
+
+  private detectsHelpRequest(message: string): boolean {
+    const lower = message.toLowerCase();
+    const patterns = [
+      'what does', 'translate', 'how do you say', 'how do i say',
+      "don't understand", "i don't understand", 'what did you say',
+      'in english', 'what does that mean', 'explain', 'say that again',
+    ];
+    return patterns.some((p) => lower.includes(p));
   }
 
   private async checkMilestones(avatarId: string): Promise<void> {

@@ -57,6 +57,18 @@ const NATIVE_LANGUAGES = [
   'German', 'Italian', 'Other',
 ];
 
+// Target languages with associated country codes for city filtering
+const TARGET_LANGUAGES: Array<{ name: string; countryCodes: string[] }> = [
+  { name: 'Nepali', countryCodes: ['NP'] },
+  { name: 'Japanese', countryCodes: ['JP'] },
+  { name: 'French', countryCodes: ['FR'] },
+  { name: 'Spanish', countryCodes: ['MX'] },
+  { name: 'Vietnamese', countryCodes: ['VN'] },
+  { name: 'Korean', countryCodes: ['KR'] },
+  { name: 'Mandarin', countryCodes: ['TW', 'CN', 'SG'] },
+  { name: 'Other / Unlisted', countryCodes: [] },
+];
+
 type DialectMapType = Record<string, DialectInfo>;
 
 function getPresetCities(): Array<{ key: string; city: string; country: string }> {
@@ -117,7 +129,9 @@ const EXPERTISE_CHIPS = [
 ];
 
 export function NewOnboardingScreen({ onComplete, onRetryLoadModel }: NewOnboardingScreenProps) {
-  const [onboardingStep, setOnboardingStep]     = useState<'language' | 'describe'>('language');
+  const [onboardingStep, setOnboardingStep]     = useState<'target' | 'language' | 'describe'>('target');
+  const [targetLanguage, setTargetLanguage]     = useState('');
+  const [filteredCities, setFilteredCities]     = useState(presetCities);
   const [nativeLanguage, setNativeLanguage]     = useState('English');
   const [otherLanguageInput, setOtherLanguageInput] = useState('');
   const [showOtherInput, setShowOtherInput]     = useState(false);
@@ -307,6 +321,10 @@ export function NewOnboardingScreen({ onComplete, onRetryLoadModel }: NewOnboard
         richCharacter.id = `char_${Date.now()}`;
       }
 
+      // Persist dialect key and target language so avatar language works on reload
+      richCharacter.dialect_key = locationCtx?.dialectKey ?? '';
+      richCharacter.target_language = targetLanguage || undefined;
+
       // Save to stores
       setActiveCharacter(richCharacter);
       if (locationCtx) {
@@ -370,6 +388,12 @@ export function NewOnboardingScreen({ onComplete, onRetryLoadModel }: NewOnboard
       await agent.memory.profile.setNativeLanguage(finalNativeLang);
       useAppStore.getState().setUserPreferences({ native_language: finalNativeLang });
 
+      // Save target language to agent memory + appStore
+      if (targetLanguage) {
+        await agent.memory.profile.setTargetLanguage(targetLanguage);
+        useAppStore.getState().setUserPreferences({ target_language: targetLanguage });
+      }
+
       // Map to the simpler UI shape for display + transition
       const uiChar = mapToUI(richCharacter);
       setGeneratedCharacter(uiChar);
@@ -391,7 +415,73 @@ export function NewOnboardingScreen({ onComplete, onRetryLoadModel }: NewOnboard
       <div className="absolute inset-0 bg-gradient-to-br from-purple-950/20 via-background to-teal-950/20 dark:from-purple-950/10 dark:via-background dark:to-teal-950/10" />
 
       <AnimatePresence mode="wait">
-        {/* Step 0: Language picker */}
+        {/* Step 0: Target language picker */}
+        {onboardingStep === 'target' && !isGenerating && !generatedCharacter && (
+          <motion.div
+            key="target"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="relative z-10 flex-1 flex flex-col px-8 py-12"
+          >
+            <div className="text-center mb-8">
+              <motion.h2
+                className="text-2xl mb-2"
+                style={{ fontFamily: 'var(--font-display)' }}
+                initial={{ y: 20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ delay: 0.1 }}
+              >
+                What language do you want to learn?
+              </motion.h2>
+              <motion.p
+                className="text-foreground/60 text-sm"
+                initial={{ y: 20, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ delay: 0.2 }}
+              >
+                Your companion will speak this language and help you learn it naturally.
+              </motion.p>
+            </div>
+
+            <motion.div
+              initial={{ y: 20, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ delay: 0.3 }}
+              className="flex-1"
+            >
+              <div className="grid grid-cols-2 gap-2">
+                {TARGET_LANGUAGES.map((lang) => (
+                  <button
+                    key={lang.name}
+                    type="button"
+                    onClick={() => {
+                      setTargetLanguage(lang.name);
+                      // Filter city presets to those matching this language's countries
+                      if (lang.countryCodes.length > 0) {
+                        setFilteredCities(
+                          presetCities.filter((c) => lang.countryCodes.includes(c.key.split('/')[0])),
+                        );
+                      } else {
+                        setFilteredCities(presetCities); // "Other" — show all
+                      }
+                      setOnboardingStep('language');
+                    }}
+                    className={`px-3 py-4 rounded-xl border text-sm font-medium transition-all text-left ${
+                      targetLanguage === lang.name
+                        ? 'bg-primary text-primary-foreground border-primary'
+                        : 'bg-card border-border text-foreground hover:border-primary/40'
+                    }`}
+                  >
+                    {lang.name}
+                  </button>
+                ))}
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+
+        {/* Step 2: Native language picker */}
         {onboardingStep === 'language' && !isGenerating && !generatedCharacter && (
           <motion.div
             key="language"
@@ -639,7 +729,7 @@ export function NewOnboardingScreen({ onComplete, onRetryLoadModel }: NewOnboard
                 </div>
                 {showCityPicker && (
                   <div className="flex flex-wrap justify-center gap-2 mt-2 max-w-xs">
-                    {presetCities.map(({ key, city, country }) => (
+                    {filteredCities.map(({ key, city, country }) => (
                       <button
                         key={key}
                         type="button"

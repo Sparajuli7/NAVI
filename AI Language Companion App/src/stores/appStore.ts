@@ -11,6 +11,7 @@ interface AppStore {
   isFirstLaunch: boolean;
   userProfile: string;
   userMode: 'learn' | 'guide' | 'friend' | null;
+  geminiApiKey: string;
 
   setModelStatus: (status: ModelStatus) => void;
   setModelProgress: (progress: number) => void;
@@ -19,6 +20,7 @@ interface AppStore {
   setIsFirstLaunch: (value: boolean) => void;
   setUserProfile: (text: string) => void;
   setUserMode: (mode: 'learn' | 'guide' | 'friend' | null) => void;
+  setGeminiApiKey: (key: string) => void;
 }
 
 const defaultPreferences: UserPreferences = {
@@ -38,6 +40,7 @@ export const useAppStore = create<AppStore>((set) => ({
   isFirstLaunch: true,
   userProfile: '',
   userMode: null,
+  geminiApiKey: typeof localStorage !== 'undefined' ? (localStorage.getItem('navi_gemini_key') ?? '') : '',
 
   setModelStatus: (status) => set({ modelStatus: status }),
   setModelProgress: (progress) => set({ modelProgress: progress }),
@@ -49,4 +52,8 @@ export const useAppStore = create<AppStore>((set) => ({
   setIsFirstLaunch: (value) => set({ isFirstLaunch: value }),
   setUserProfile: (text) => set({ userProfile: text }),
   setUserMode: (mode) => set({ userMode: mode }),
+  setGeminiApiKey: (key) => {
+    if (typeof localStorage !== 'undefined') localStorage.setItem('navi_gemini_key', key);
+    set({ geminiApiKey: key });
+  },
 }));

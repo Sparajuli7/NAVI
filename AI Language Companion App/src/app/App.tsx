@@ -162,6 +162,7 @@ export default function App() {
         const avatarProfile = agent.createAvatarFromTemplate(
           activeChar.template_id ?? 'default',
           savedLocation?.city ?? activeChar.location_city,
+          activeChar.dialect_key ?? savedLocation?.dialectKey,
         );
         avatarProfile.name = activeChar.name;
         avatarProfile.personality = activeChar.summary;
@@ -204,9 +205,11 @@ export default function App() {
     // Set up the avatar in the agent framework from the generated character
     const activeChar = useCharacterStore.getState().activeCharacter;
     if (activeChar) {
+      const loc = useAppStore.getState().currentLocation;
       const avatarProfile = agent.createAvatarFromTemplate(
         activeChar.template_id ?? 'default',
         selectedLocation,
+        activeChar.dialect_key ?? loc?.dialectKey,
       );
       avatarProfile.name = activeChar.name;
       avatarProfile.personality = activeChar.summary;
@@ -235,6 +238,7 @@ export default function App() {
     const avatarProfile = agent.createAvatarFromTemplate(
       char.template_id ?? 'default',
       char.location_city,
+      char.dialect_key,
     );
     avatarProfile.name = char.name;
     avatarProfile.personality = char.summary;

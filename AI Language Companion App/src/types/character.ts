@@ -18,6 +18,10 @@ export interface Character {
   location_city: string;
   location_country: string;
   first_message?: string;
+  /** Dialect key from dialectMap.json, e.g. "NP/Kathmandu" — persisted for reliable dialect lookup */
+  dialect_key?: string;
+  /** Target language the user wants to learn with this companion */
+  target_language?: string;
 }
 
 export interface AvatarTemplate {
@@ -33,6 +37,7 @@ export interface AvatarTemplate {
 
 export interface UserPreferences {
   native_language: string;
+  target_language?: string;
   avatar_age: 'teen' | '20s' | '30s' | '40s' | '50s' | '60s+';
   avatar_gender: 'male' | 'female' | 'non-binary' | 'no_preference';
   avatar_vocation: 'student' | 'professional' | 'service_worker' | 'retired' | 'traveler' | 'other';

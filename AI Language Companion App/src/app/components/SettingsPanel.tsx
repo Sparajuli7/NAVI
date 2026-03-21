@@ -6,6 +6,7 @@ import { useAppStore } from '../../stores/appStore';
 import { saveMemories, savePreferences, saveLocation, saveCharacterMemories } from '../../utils/storage';
 import { detectLocation } from '../../services/location';
 import { useNaviAgent } from '../../agent/react/useNaviAgent';
+import { updateGeminiApiKey } from '../../agent/models/geminiEmbedding';
 import type { UserPreferences, Character } from '../../types/character';
 
 function countryFlag(code: string): string {
@@ -46,7 +47,7 @@ export function SettingsPanel({ onClose, onRegenerate, onUpdateCharacter, onSave
   } | null>(null);
 
   const { activeCharacter, memories, removeMemory, clearMemories } = useCharacterStore();
-  const { userPreferences, currentLocation, modelStatus, modelProgress, setUserPreferences, setCurrentLocation } =
+  const { userPreferences, currentLocation, modelStatus, modelProgress, geminiApiKey, setUserPreferences, setCurrentLocation, setGeminiApiKey } =
     useAppStore();
   const { agent, backend, ollamaModel, switchOllamaModel } = useNaviAgent();
 
@@ -58,6 +59,8 @@ export function SettingsPanel({ onClose, onRegenerate, onUpdateCharacter, onSave
   const [ollamaUrl, setOllamaUrl] = useState(() => agent.getOllamaBaseUrl());
   const [ollamaUrlDraft, setOllamaUrlDraft] = useState(() => agent.getOllamaBaseUrl());
   const [ollamaConnected, setOllamaConnected] = useState(false);
+  const [geminiKeyDraft, setGeminiKeyDraft] = useState(geminiApiKey);
+  const [geminiKeySaved, setGeminiKeySaved] = useState(false);
 
   // Fetch available Ollama models when the model tab is opened (regardless of current backend)
   const fetchOllamaModels = (url?: string) => {
@@ -791,6 +794,45 @@ export function SettingsPanel({ onClose, onRegenerate, onUpdateCharacter, onSave
                     )}
                   </div>
                 )}
+              </div>
+
+              {/* Gemini API key — for semantic memory retrieval (online-optional) */}
+              <div className="bg-card border border-border rounded-xl p-4 space-y-3">
+                <div>
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Gemini API Key</p>
+                  <p className="text-xs text-muted-foreground leading-relaxed mb-2">
+                    Optional. Enables semantic memory search when online. Works with your free Google AI Studio key. NAVI still works fully without it.
+                  </p>
+                  <div className="flex gap-2">
+                    <input
+                      type="password"
+                      value={geminiKeyDraft}
+                      onChange={(e) => { setGeminiKeyDraft(e.target.value); setGeminiKeySaved(false); }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          setGeminiApiKey(geminiKeyDraft.trim());
+                          updateGeminiApiKey(geminiKeyDraft.trim());
+                          setGeminiKeySaved(true);
+                        }
+                      }}
+                      placeholder="AIza..."
+                      className="flex-1 px-3 py-2 bg-background border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                    />
+                    <button
+                      onClick={() => {
+                        setGeminiApiKey(geminiKeyDraft.trim());
+                        updateGeminiApiKey(geminiKeyDraft.trim());
+                        setGeminiKeySaved(true);
+                      }}
+                      className="px-3 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium"
+                    >
+                      {geminiKeySaved ? '✓' : 'Save'}
+                    </button>
+                  </div>
+                  {geminiApiKey && !geminiKeySaved && (
+                    <p className="text-xs text-green-400 mt-1">Key saved — semantic search active when online.</p>
+                  )}
+                </div>
               </div>
 
               {/* Info */}
