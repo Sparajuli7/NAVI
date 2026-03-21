@@ -5,6 +5,15 @@ import type { ParsedSegment, PhraseCardData } from '../types/chat';
 const PHRASE_CARD_PATTERN =
   /\*\*Phrase:\*\*[ \t]*(.+?)[\r\n]+\*\*Say it:\*\*[ \t]*(.+?)[\r\n]+\*\*Sound tip:\*\*[ \t]*(.+?)[\r\n]+\*\*Means:\*\*[ \t]*(.+?)[\r\n]+\*\*Tip:\*\*[ \t]*(.+?)(?:[\r\n]|$)/gs;
 
+export function stripInlineMarkdown(text: string): string {
+  return text
+    .replace(/^#{1,3}\s+/gm, '')          // ## headings → plain text
+    .replace(/\*\*(.+?)\*\*/g, '$1')       // **bold** → bold
+    .replace(/__(.+?)__/g, '$1')            // __bold__ → bold
+    .replace(/(?<!\w)\*([^*\n]+?)\*(?!\w)/g, '$1')  // *italic* → italic
+    .replace(/(?<!\w)_([^_\n]+?)_(?!\w)/g, '$1');   // _italic_ → italic
+}
+
 export function parseResponse(text: string): ParsedSegment[] {
   const segments: ParsedSegment[] = [];
   let lastIndex = 0;
@@ -14,7 +23,7 @@ export function parseResponse(text: string): ParsedSegment[] {
 
     if (matchStart > lastIndex) {
       const chunk = text.slice(lastIndex, matchStart).trim();
-      if (chunk) segments.push({ type: 'text', content: chunk });
+      if (chunk) segments.push({ type: 'text', content: stripInlineMarkdown(chunk) });
     }
 
     const data: PhraseCardData = {
@@ -31,11 +40,11 @@ export function parseResponse(text: string): ParsedSegment[] {
 
   if (lastIndex < text.length) {
     const remainder = text.slice(lastIndex).trim();
-    if (remainder) segments.push({ type: 'text', content: remainder });
+    if (remainder) segments.push({ type: 'text', content: stripInlineMarkdown(remainder) });
   }
 
   if (segments.length === 0) {
-    segments.push({ type: 'text', content: text });
+    segments.push({ type: 'text', content: stripInlineMarkdown(text) });
   }
 
   return segments;

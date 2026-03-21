@@ -232,6 +232,7 @@ The agent framework sits underneath the UI as an orchestration layer:
 - **AvatarRenderer** — `app/components/AvatarRenderer.tsx`; wraps `avataaars` with Framer Motion animated states (idle, generating, speaking, success, thinking); random eye blink
 - **Onboarding language picker** — native language selection step added first in `NewOnboardingScreen.tsx` (13 languages + Other); auto-advances on selection
 - **Web presence** — `web/index.html` (landing page), `web/feedback.html` (feedback form), `web/worker.js` (Cloudflare Worker + D1 storage)
+- **Avatar prefs from LLM character generation** — `characterGen.json` both templates now emit `avatar_prefs` in the same JSON response; `validateAvatarPrefs()` checks all enum values; `deriveAvatarPrefs()` provides deterministic fallback from `style`/gender/age; `Character.avatar_prefs` persisted to IndexedDB; `AvatarBuilder` seeded from LLM output on first render
 
 ### Remaining: Wire Agent → UI
 The agent framework is fully built. All UI screens still call legacy services directly (Prompts 3–8 wired the UI to `llm.ts`/`tts.ts`/etc., not to `agent.handleMessage()`).
@@ -243,10 +244,19 @@ The agent framework is fully built. All UI screens still call legacy services di
 
 ### Known Feature Gaps
 - **CameraOverlay OCR/LLM pipeline not wired** — Prompt 7 incomplete. `CameraOverlay.tsx` still uses a mocked scan flow; `agent.handleImage()` pipeline exists but is not connected.
+- **`generateCharacter()` in `llm.ts` is dead code** — onboarding uses `agent.getLLM().chat()` directly; `generateCharacter()` updated to return `{ character, avatarPrefs }` for consistency but has no active callers.
 - **Cloudflare Worker D1 database ID not set** — `web/wrangler.toml` contains `database_id = "YOUR_D1_DATABASE_ID"` placeholder. Run `wrangler d1 create navi-feedback`, copy the returned ID, and update `wrangler.toml`. Then run the CREATE TABLE command from `web/worker.js` header comments before deploying.
 - **Feedback worker URL** — `web/feedback.html` references `https://navi-feedback.shreyashparajuli.workers.dev`. Update this constant if the worker is deployed under a different subdomain.
 - **Pending feedback sync** — `feedback.html` stores offline submissions in `localStorage` as `navi_pending_feedback`, but there is no retry mechanism to flush them when the user comes back online.
 - **AnimatedCharacter Lottie files missing** — `AnimatedCharacter.tsx` is built and falls back gracefully to emoji avatar. To activate: (1) `pnpm add lottie-react`, (2) place 4 Lottie JSON files in `public/lottie/`: `char_idle.json`, `char_speaking.json`, `char_thinking.json`, `char_success.json` (free downloads from lottiefiles.com). Component auto-activates when files are present.
+
+### Resolved Feature Gaps (2026-03-21d)
+- ~~**Companion switch restoration**~~ — `handleSelectCompanion` in `App.tsx` now resolves dialect key from stored value or dialectMap scan, calls `agent.avatar.createFromDescription()` with full personality/visual context instead of the shallow `createAvatarFromTemplate` path, and syncs `agent.location` + `appStore.currentLocation` when a dialect key is resolved. Imports added: `dialectMap.json`, `DialectInfo`, `LocationContext`.
+- ~~**Inline markdown in chat responses**~~ — `stripInlineMarkdown()` added to `utils/responseParser.ts`; strips `##` headings, `**bold**`, `__bold__`, `*italic*`, `_italic_`. Applied at all three `segments.push({ type: 'text' })` call sites in `parseResponse()`. Also applied to `displayContent` in both `SpeechBubble` and `ChatLogEntry` in `NewChatBubble.tsx`.
+- ~~**Dynamic language calibration**~~ — `ConversationDirector` now tracks a 5-message rolling window of user input. After each exchange, `computeCalibrationTier()` scores target-language density (0–4) and writes the result into `WorkingMemory` (key `calibration_tier`, TTL 30 min). `preProcess()` reads the WM tier first and falls back to `learner.languageComfortTier` only when absent. `WorkingMemory` instance passed as 4th constructor argument from `agent/index.ts`.
+
+### Resolved Feature Gaps (2026-03-21c)
+- ~~**Avatar prefs not seeded from character generation**~~ — LLM prompt now requests `avatar_prefs` in the same JSON call; `validateAvatarPrefs()` + `deriveAvatarPrefs()` added to `avatarPrefs.ts`; `Character.avatar_prefs` field added; `AvatarBuilder` seeded from resolved prefs after char gen in all 3 LLM attempts + final fallback.
 
 ### Resolved Feature Gaps (2026-03-21b)
 - ~~**Multi-city first_message bug**~~ — `characterGen.json` `firstMsgRules`, `freeText.template` rule 2, and `fromTemplate.template` rule 2 all listed 6 labeled city examples side-by-side. Qwen 1.5B reproduced all 6 verbatim. Fixed: replaced with a single Paris example + explicit city-lock instruction ("Generate the first_message for YOUR city only. Do NOT include messages for other cities.").

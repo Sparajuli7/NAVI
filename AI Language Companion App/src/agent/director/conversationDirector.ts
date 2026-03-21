@@ -29,6 +29,7 @@ import type { LearnerProfileStore } from '../memory/learnerProfile';
 import type { RelationshipStore } from '../memory/relationshipStore';
 import type { EpisodicMemoryStore } from '../memory/episodicMemory';
 import type { SituationAssessor } from '../memory/situationAssessor';
+import type { WorkingMemory } from '../memory/workingMemory';
 import type { TrackedPhrase } from '../core/types';
 import { detectPhrases, detectTopics } from '../prompts/phraseDetector';
 import { promptLoader } from '../prompts/promptLoader';
@@ -90,11 +91,20 @@ export class ConversationDirector {
   private readonly TIER_DROP_THRESHOLD = 2;
   private readonly MIN_EXCHANGES_FOR_TIER_CHANGE = 5;
 
+  // Dynamic language calibration
+  private messageWindow: string[] = [];
+  private readonly WM_KEY = 'calibration_tier';
+  private readonly WM_TTL_MS = 30 * 60 * 1000;
+  private working: WorkingMemory | undefined;
+
   constructor(
     private learner: LearnerProfileStore,
     private relationships: RelationshipStore,
     private episodic: EpisodicMemoryStore,
-  ) {}
+    working?: WorkingMemory,
+  ) {
+    this.working = working;
+  }
 
   /** Set the situation assessor (called after MemoryManager wires it up) */
   setSituationAssessor(assessor: SituationAssessor): void {
@@ -128,7 +138,8 @@ export class ConversationDirector {
     const isGuideMode = userMode === 'guide';
 
     // 0a. Language calibration — only in learn mode or unset; skip for guide/friend
-    const comfortTier = this.learner.languageComfortTier;
+    const wmTier = this.working?.get(this.WM_KEY) as number | undefined;
+    const comfortTier = wmTier !== undefined ? wmTier : this.learner.languageComfortTier;
     const tierKey = `tier_${comfortTier}_${['unknown', 'beginner', 'early', 'intermediate', 'advanced'][comfortTier]}`;
     if (!isGuideMode) {
       try {
@@ -301,6 +312,14 @@ export class ConversationDirector {
     toolUsed: string,
     avatarId: string,
   ): Promise<void> {
+    // Rolling window calibration
+    this.messageWindow.push(userMessage);
+    if (this.messageWindow.length > 5) this.messageWindow = this.messageWindow.slice(-5);
+    if (this.working) {
+      const tier = this.computeCalibrationTier(this.messageWindow);
+      this.working.set(this.WM_KEY, tier, this.WM_TTL_MS);
+    }
+
     // 1. Detect phrases in the response
     const detectedPhrases = detectPhrases(llmResponse);
     if (detectedPhrases.length > 0) {
@@ -431,6 +450,29 @@ export class ConversationDirector {
     }
 
     return bridgeParts.length > 1 ? bridgeParts.join('. ') : null;
+  }
+
+  // ── Dynamic Calibration Helpers ────────────────────────────
+
+  private countTargetLanguageWords(text: string): number {
+    return text.split(/\s+/).filter(w => /[^\x00-\x7F]/.test(w) && w.length > 0).length;
+  }
+
+  private computeCalibrationTier(messages: string[]): number {
+    if (messages.length === 0) return 0;
+    const last3 = messages.slice(-3);
+    if (last3.every(m => this.countTargetLanguageWords(m) === 0)) return 0;
+    const window = messages.slice(-5);
+    const avgWords = window.reduce((sum, m) => sum + this.countTargetLanguageWords(m), 0) / window.length;
+    const avgNonAsciiRatio = window.reduce((sum, m) => {
+      const nonAscii = (m.match(/[^\x00-\x7F]/g) ?? []).length;
+      return sum + (m.length > 0 ? nonAscii / m.length : 0);
+    }, 0) / window.length;
+    if (avgNonAsciiRatio > 0.7 && window.reduce((s, m) => s + m.length, 0) / window.length > 30) return 4;
+    if (avgNonAsciiRatio > 0.5) return 3;
+    if (avgWords >= 3) return 2;
+    if (avgWords >= 1) return 1;
+    return 0;
   }
 
   // ── Language Tier Advancement ───────────────────────────────

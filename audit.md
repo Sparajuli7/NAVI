@@ -1,6 +1,6 @@
 # NAVI Codebase Audit
 
-**Last updated: 2026-03-20** (updated 2026-03-21: context window fix, dialect key wiring, target language flow, AnimatedCharacter, Gemini embeddings; 2026-03-21b: multi-city response bug + same-response loop bug fixed)
+**Last updated: 2026-03-20** (updated 2026-03-21: context window fix, dialect key wiring, target language flow, AnimatedCharacter, Gemini embeddings; 2026-03-21b: multi-city response bug + same-response loop bug fixed; 2026-03-21c: avatar prefs from LLM character generation; 2026-03-21d: companion switch restoration, inline markdown stripping, dynamic language calibration)
 
 ---
 
@@ -270,3 +270,11 @@ Added target language onboarding step (step 0 before native language picker); sa
 | No web presence | `web/index.html` (landing page), `web/feedback.html` (feedback form + offline fallback), `web/worker.js` (Cloudflare Worker + D1) created. |
 | Avatar opens with canned greeting | Mode system adds `gauging_question` first-message layer: avatar opens with "What do you need from me?" in its language + pronunciation guide. |
 | Avatar double-questions + filler openers | `coreRules.json` + `systemLayers.conversationNaturalness` rules added. |
+
+## Resolved Gaps (2026-03-21d)
+
+| Gap | Resolution |
+|---|---|
+| Companion switch restores wrong/shallow avatar | `handleSelectCompanion` in `App.tsx` now resolves dialect key (stored → dialectMap scan fallback), calls `agent.avatar.createFromDescription()` with full `AvatarProfile` shape including visual prefs. Also syncs `agent.location` + `appStore.currentLocation` so system prompt uses correct dialect. |
+| LLM responses contain raw Markdown formatting | `stripInlineMarkdown()` added to `utils/responseParser.ts`. Strips `##` headings, `**bold**`, `__bold__`, `*italic*`, `_italic_`. Applied at all `segments.push({ type: 'text' })` sites in `parseResponse()` and to `displayContent` in `SpeechBubble` + `ChatLogEntry` in `NewChatBubble.tsx`. |
+| Language calibration tier is static (only advances on consecutive full exchanges) | `ConversationDirector` now maintains a 5-message rolling window of user input. `computeCalibrationTier()` scores non-ASCII density to produce a tier 0–4, written to `WorkingMemory` (key: `calibration_tier`, TTL: 30 min). `preProcess()` prefers the WM tier over `learner.languageComfortTier`. `WorkingMemory` passed as 4th arg to `ConversationDirector` from `agent/index.ts`. |

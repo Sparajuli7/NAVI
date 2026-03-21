@@ -1,3 +1,5 @@
+import type { AvatarPrefs } from '../utils/avatarPrefs';
+
 export interface CharacterColors {
   primary: string;
   secondary: string;
@@ -22,6 +24,8 @@ export interface Character {
   dialect_key?: string;
   /** Target language the user wants to learn with this companion */
   target_language?: string;
+  /** Avatar appearance prefs derived from LLM character generation */
+  avatar_prefs?: AvatarPrefs;
 }
 
 export interface AvatarTemplate {

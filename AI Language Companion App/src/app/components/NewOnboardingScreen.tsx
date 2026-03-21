@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { MapPin } from 'lucide-react';
 import { CharacterAvatar } from './CharacterAvatar';
 import { AvatarBuilder } from './AvatarBuilder';
-import { loadAvatarPrefs, saveAvatarPrefs } from '../../utils/avatarPrefs';
+import { loadAvatarPrefs, saveAvatarPrefs, deriveAvatarPrefs, validateAvatarPrefs } from '../../utils/avatarPrefs';
 import type { AvatarPrefs } from '../../utils/avatarPrefs';
 import { detectLocation } from '../../services/location';
 import { buildCharacterGenPrompt } from '../../prompts/characterGen';
@@ -280,18 +280,31 @@ export function NewOnboardingScreen({ onComplete, onRetryLoadModel }: NewOnboard
       };
 
       let richCharacter: Character;
+      let resolvedPrefs: AvatarPrefs = { ...loadAvatarPrefs() };
 
       // Attempt 1 — full JSON, creative temperature
       try {
         const raw = await llm.chat([sysMsg, userMsg], { temperature: 0.8, max_tokens: 700 });
         console.log('[NAVI] chargen attempt 1:', raw);
-        richCharacter = fillDefaults(JSON.parse(extractJSON(raw)) as Partial<Character>);
+        const parsed1 = JSON.parse(extractJSON(raw)) as Partial<Character> & { avatar_prefs?: unknown };
+        richCharacter = fillDefaults(parsed1);
+        resolvedPrefs = validateAvatarPrefs(parsed1.avatar_prefs)
+          ?? deriveAvatarPrefs(
+               { style: richCharacter.style, summary: richCharacter.summary },
+               useAppStore.getState().userPreferences,
+             );
       } catch {
         // Attempt 2 — full JSON, lower temperature
         try {
           const raw2 = await llm.chat([sysMsg, userMsg], { temperature: 0.3, max_tokens: 700 });
           console.log('[NAVI] chargen attempt 2:', raw2);
-          richCharacter = fillDefaults(JSON.parse(extractJSON(raw2)) as Partial<Character>);
+          const parsed2 = JSON.parse(extractJSON(raw2)) as Partial<Character> & { avatar_prefs?: unknown };
+          richCharacter = fillDefaults(parsed2);
+          resolvedPrefs = validateAvatarPrefs(parsed2.avatar_prefs)
+            ?? deriveAvatarPrefs(
+                 { style: richCharacter.style, summary: richCharacter.summary },
+                 useAppStore.getState().userPreferences,
+               );
         } catch {
           // Attempt 3 — minimal 3-field prompt, much smaller output
           try {
@@ -302,7 +315,13 @@ export function NewOnboardingScreen({ onComplete, onRetryLoadModel }: NewOnboard
               { temperature: 0.2, max_tokens: 200 },
             );
             console.log('[NAVI] chargen attempt 3 (minimal):', raw3);
-            richCharacter = fillDefaults(JSON.parse(extractJSON(raw3)) as Partial<Character>);
+            const parsed3 = JSON.parse(extractJSON(raw3)) as Partial<Character> & { avatar_prefs?: unknown };
+            richCharacter = fillDefaults(parsed3);
+            resolvedPrefs = validateAvatarPrefs(parsed3.avatar_prefs)
+              ?? deriveAvatarPrefs(
+                   { style: richCharacter.style, summary: richCharacter.summary },
+                   useAppStore.getState().userPreferences,
+                 );
           } catch {
             // Final fallback — synthetic character, no LLM needed
             console.warn('[NAVI] All LLM attempts failed — using synthetic character');
@@ -312,6 +331,10 @@ export function NewOnboardingScreen({ onComplete, onRetryLoadModel }: NewOnboard
               summary:       `${fallbackName} — your local guide in ${city}`,
               first_message: `Hey! I'm ${fallbackName}, your local friend in ${city}. I know this place well — what do you want to do or find?`,
             });
+            resolvedPrefs = deriveAvatarPrefs(
+              { style: richCharacter.style, summary: richCharacter.summary },
+              useAppStore.getState().userPreferences,
+            );
           }
         }
       }
@@ -320,6 +343,11 @@ export function NewOnboardingScreen({ onComplete, onRetryLoadModel }: NewOnboard
       if (!richCharacter.id || richCharacter.id.startsWith('<')) {
         richCharacter.id = `char_${Date.now()}`;
       }
+
+      // Persist avatar prefs: save to localStorage + seed the AvatarBuilder
+      richCharacter.avatar_prefs = resolvedPrefs;
+      saveAvatarPrefs(resolvedPrefs);
+      setAvatarPrefs(resolvedPrefs);
 
       // Persist dialect key and target language so avatar language works on reload
       richCharacter.dialect_key = locationCtx?.dialectKey ?? '';

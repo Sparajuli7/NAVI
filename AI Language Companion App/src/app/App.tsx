@@ -7,7 +7,7 @@ import { HomeScreen } from './components/HomeScreen';
 import { ScenarioLauncher, buildContextSummary } from './components/ScenarioLauncher';
 import { Navbar } from './components/Navbar';
 import { AnimatePresence } from 'motion/react';
-import type { ScenarioKey, ParsedScenarioContext } from '../types/config';
+import type { ScenarioKey, ParsedScenarioContext, LocationContext, DialectInfo } from '../types/config';
 import { isWebGPUSupported } from '../services/modelManager';
 import { useNaviAgent } from '../agent/react/useNaviAgent';
 import { useAppStore } from '../stores/appStore';
@@ -29,6 +29,7 @@ import {
   saveUserProfile,
 } from '../utils/storage';
 import type { Character } from '../types/character';
+import dialectMapRaw from '../config/dialectMap.json';
 
 interface GeneratedCharacter {
   name: string;
@@ -235,14 +236,61 @@ export default function App() {
     useChatStore.setState({ messages: msgs });
 
     // Update agent avatar for the selected companion
-    const avatarProfile = agent.createAvatarFromTemplate(
-      char.template_id ?? 'default',
+    // Resolve dialect key: prefer stored value, fall back to dialectMap scan
+    const dialectMap = dialectMapRaw as Record<string, unknown>;
+    const storedDialectKey = char.dialect_key ?? '';
+    const scannedDialectKey = storedDialectKey
+      ? storedDialectKey
+      : Object.keys(dialectMap).find(
+          (k) => k.split('/')[1]?.toLowerCase() === char.location_city.toLowerCase(),
+        ) ?? '';
+    const dialectKey = scannedDialectKey;
+    const dialectInfo = dialectKey
+      ? (dialectMap as Record<string, DialectInfo>)[dialectKey] ?? null
+      : null;
+
+    const avatarProfile = agent.avatar.createFromDescription(
+      char.detailed || char.summary,
+      {
+        name: char.name,
+        personality: char.detailed || char.summary,
+        speaksLike: char.speaks_like || 'a friendly local',
+        energyLevel: (['energetic', 'playful'].includes(char.style) ? 'high'
+          : ['mysterious', 'dry-humor'].includes(char.style) ? 'low'
+          : 'medium') as 'low' | 'medium' | 'high',
+        humorStyle: (['playful', 'dry-humor'].includes(char.style) ? char.style : 'warm') as string,
+        slangLevel: (['casual', 'streetwise', 'energetic', 'playful'].includes(char.style) ? 0.7 : 0.4),
+        dialect: dialectInfo?.dialect ?? dialectKey,
+        culturalContext: dialectInfo?.cultural_notes ?? '',
+        location: char.location_city,
+        scenario: '',
+        visual: {
+          primaryColor: char.avatar_color?.primary ?? '#6BBAA7',
+          secondaryColor: char.avatar_color?.secondary ?? '#D4A853',
+          accentColor: char.avatar_color?.accent ?? '#F5F0EB',
+          accessory: char.avatar_accessory ?? char.emoji ?? '🌍',
+          emoji: char.emoji ?? '🌍',
+        },
+      },
       char.location_city,
-      char.dialect_key,
     );
-    avatarProfile.name = char.name;
-    avatarProfile.personality = char.summary;
     agent.setAvatar(avatarProfile);
+
+    // Sync agent's internal location context
+    if (dialectKey) {
+      const countryCode = dialectKey.split('/')[0];
+      const locCtx: LocationContext = {
+        city: char.location_city,
+        country: char.location_country,
+        countryCode,
+        lat: 0,
+        lng: 0,
+        dialectKey,
+        dialectInfo: dialectInfo ?? null,
+      };
+      agent.location.setLocation(locCtx, 'manual');
+      useAppStore.getState().setCurrentLocation(locCtx);
+    }
 
     setCharacter(mapCharacterToUI(char));
     setLocation(`${char.location_city}, ${char.location_country}`);

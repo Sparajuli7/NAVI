@@ -1,6 +1,7 @@
 import { getEngine } from './modelManager';
 import { INFERENCE_CONFIGS, type InferenceConfig, type LLMMessage } from '../types/inference';
 import type { Character, MemoryEntry } from '../types/character';
+import { type AvatarPrefs, validateAvatarPrefs } from '../utils/avatarPrefs';
 
 function getGenerationConfig(config: InferenceConfig) {
   return {
@@ -56,21 +57,42 @@ export async function streamMessage(
 export async function generateCharacter(
   prompt: string,
   config: InferenceConfig = INFERENCE_CONFIGS.character_gen,
-): Promise<Character> {
+): Promise<{ character: Character; avatarPrefs: AvatarPrefs | null }> {
+  const engine = getEngine();
+  if (!engine) throw new Error('Model not loaded');
+
   const messages: LLMMessage[] = [
-    { role: 'system', content: 'You are a character generator. Respond ONLY with valid JSON, no markdown fences.' },
+    { role: 'system', content: 'You are a character generator. Respond ONLY with valid JSON. No markdown fences, no extra text, no explanation — raw JSON only.' },
     { role: 'user', content: prompt },
   ];
 
-  let raw = await sendMessage(messages, config);
-  raw = raw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+  const parseResult = (raw: string): { character: Character; avatarPrefs: AvatarPrefs | null } => {
+    const cleaned = raw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+    const parsed = JSON.parse(cleaned) as Record<string, unknown>;
+    const rawAvatarPrefs = parsed.avatar_prefs;
+    delete parsed.avatar_prefs;
+    const character = parsed as unknown as Character;
+    return { character, avatarPrefs: validateAvatarPrefs(rawAvatarPrefs) };
+  };
 
   try {
-    return JSON.parse(raw) as Character;
+    const reply = await engine.chat.completions.create({
+      messages,
+      ...getGenerationConfig(config),
+      stream: false,
+      response_format: { type: 'json_object' },
+    });
+    const raw = reply.choices[0]?.message?.content ?? '';
+    return parseResult(raw);
   } catch {
-    raw = await sendMessage(messages, { ...config, temperature: 0.3 });
-    raw = raw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-    return JSON.parse(raw) as Character;
+    const reply2 = await engine.chat.completions.create({
+      messages,
+      ...getGenerationConfig({ ...config, temperature: 0.3 }),
+      stream: false,
+      response_format: { type: 'json_object' },
+    });
+    const raw2 = reply2.choices[0]?.message?.content ?? '';
+    return parseResult(raw2);
   }
 }
 

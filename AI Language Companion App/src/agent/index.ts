@@ -231,6 +231,7 @@ export class NaviAgent {
       this.memory.learner,
       this.memory.relationships,
       this.memory.episodic,
+      this.memory.working,
     );
     this.director.setSituationAssessor(this.memory.situation);
 
