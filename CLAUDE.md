@@ -242,13 +242,14 @@ The agent framework is fully built. All UI screens still call legacy services di
 - Wire SettingsPanel to agent memory/location/energy APIs
 
 ### Known Feature Gaps
-- **Avatar not wired in ConversationScreen** — `AvatarRenderer.tsx` (avataaars-based) was created but `ConversationScreen.tsx` still renders via `AvatarDisplay`/`BlockyAvatar`. Replace the avatar component reference to activate the new cartoon SVG avatar with animated states.
 - **CameraOverlay OCR/LLM pipeline not wired** — Prompt 7 incomplete. `CameraOverlay.tsx` still uses a mocked scan flow; `agent.handleImage()` pipeline exists but is not connected.
 - **Cloudflare Worker D1 database ID not set** — `web/wrangler.toml` contains `database_id = "YOUR_D1_DATABASE_ID"` placeholder. Run `wrangler d1 create navi-feedback`, copy the returned ID, and update `wrangler.toml`. Then run the CREATE TABLE command from `web/worker.js` header comments before deploying.
 - **Feedback worker URL** — `web/feedback.html` references `https://navi-feedback.shreyashparajuli.workers.dev`. Update this constant if the worker is deployed under a different subdomain.
 - **Pending feedback sync** — `feedback.html` stores offline submissions in `localStorage` as `navi_pending_feedback`, but there is no retry mechanism to flush them when the user comes back online.
 
 ### Resolved Feature Gaps (2026-03-20)
+- ~~**Avatar always renders male / SVG-based**~~ — `CharacterAvatar.tsx` created: emoji avatar (template_id + gender → emoji), gradient ring with avatar colors, country flag badge. Reads `avatar_gender` from `appStore.userPreferences`. Replaces `AvatarDisplay` at all call sites. `AvatarDisplay.tsx` retained for `AvatarBuilder` legacy support.
+- ~~**ScenarioLauncher extra step for templates**~~ — Template tiles now call `onStart` immediately (zero friction). Only the Custom Situation tile shows a single text-input step. `scenarioOpener` prompt injected by `contextController` on first message when a scenario is active.
 - ~~**Native language not collected**~~ — Onboarding now shows a language picker step first (13 languages + Nepali). Selected language saved to `agent.memory.profile` and `appStore.userPreferences.native_language`.
 - ~~**Immersion mode not enforced**~~ — Mode system implemented: `ModeClassifier` in `agent/index.ts` runs keyword scoring on every message, silently locks `userMode` (learn/guide/friend) at threshold=2. Mode persists to IndexedDB via `profileMemory`. `ConversationDirector` gates all learning goals by mode. `contextController` injects mode instruction layer.
 - ~~**Avatar appearance variants**~~ — `AvatarRenderer.tsx` created: wraps `avataaars` with Framer Motion animated states (idle float, generating rotate, speaking pulse, success bounce, random blink). Uses `AvatarPrefs` fields directly.

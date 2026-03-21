@@ -79,37 +79,32 @@ const TEMPLATES = getTemplates();
 
 // ─── Component ─────────────────────────────────────────────────
 
-const NEED_CHIPS = [
-  { label: 'Understand what\'s being said', value: 'understand' },
-  { label: 'Say something specific', value: 'say' },
-  { label: 'Survive a negotiation', value: 'negotiate' },
-  { label: 'Just practice', value: 'practice' },
-  { label: 'Have fun with it', value: 'fun' },
-];
+
+const EMPTY_CTX: ParsedScenarioContext = {
+  where: '', doing: '', talkingTo: '', nervousAbout: '', customText: '',
+};
 
 export function ScenarioLauncher({ onStart, onClose }: ScenarioLauncherProps) {
-  const [step, setStep] = useState<'pick' | 'context'>('pick');
-  const [selected, setSelected] = useState<ScenarioTemplate | null>(null);
+  // 'pick' = template grid, 'custom' = single text input for custom scenario only
+  const [step, setStep] = useState<'pick' | 'custom'>('pick');
   const [situationText, setSituationText] = useState('');
-  const [selectedNeed, setSelectedNeed] = useState<string | null>(null);
 
   const handleSelectTemplate = (t: ScenarioTemplate) => {
-    setSelected(t);
-    setSituationText('');
-    setSelectedNeed(null);
-    setStep('context');
+    if (t.key === 'custom') {
+      setSituationText('');
+      setStep('custom');
+    } else {
+      // Template scenarios launch immediately — no context form
+      onStart(t.key, EMPTY_CTX);
+    }
   };
 
-  const handleStart = () => {
-    if (!selected) return;
+  const handleStartCustom = () => {
     const ctx: ParsedScenarioContext = {
-      where: '',
-      doing: selectedNeed ? NEED_CHIPS.find(c => c.value === selectedNeed)?.label ?? '' : '',
-      talkingTo: '',
-      nervousAbout: '',
+      ...EMPTY_CTX,
       customText: situationText,
     };
-    onStart(selected.key, ctx);
+    onStart('custom', ctx);
   };
 
   return (
@@ -123,7 +118,7 @@ export function ScenarioLauncher({ onStart, onClose }: ScenarioLauncherProps) {
       {/* Header */}
       <div className="flex items-center justify-between px-5 py-4 border-b border-border flex-shrink-0">
         <div className="flex items-center gap-3">
-          {step === 'context' && (
+          {step === 'custom' && (
             <button
               onClick={() => setStep('pick')}
               className="p-1.5 hover:bg-muted/50 rounded-lg transition-colors"
@@ -133,12 +128,12 @@ export function ScenarioLauncher({ onStart, onClose }: ScenarioLauncherProps) {
           )}
           <div>
             <h2 className="font-medium text-foreground text-base">
-              {step === 'pick' ? 'Practice a Scenario' : selected?.label}
+              {step === 'pick' ? 'Practice a Scenario' : 'Custom Situation'}
             </h2>
             <p className="text-xs text-muted-foreground mt-0.5">
               {step === 'pick'
-                ? 'Pick a real-life situation to practice'
-                : 'Add context so the session is tailored to you'}
+                ? 'Tap a situation to start immediately'
+                : 'Describe what\'s happening'}
             </p>
           </div>
         </div>
@@ -152,7 +147,7 @@ export function ScenarioLauncher({ onStart, onClose }: ScenarioLauncherProps) {
 
       <AnimatePresence mode="wait">
         {step === 'pick' ? (
-          /* ── Step 1: Template grid ─────────────────────────── */
+          /* ── Template grid — tap to launch immediately ──────── */
           <motion.div
             key="pick"
             className="flex-1 overflow-y-auto px-4 py-4"
@@ -179,33 +174,17 @@ export function ScenarioLauncher({ onStart, onClose }: ScenarioLauncherProps) {
             </div>
           </motion.div>
         ) : (
-          /* ── Step 2: Context form ──────────────────────────── */
+          /* ── Custom scenario: single text input ─────────────── */
           <motion.div
-            key="context"
+            key="custom"
             className="flex-1 overflow-y-auto px-5 py-5 flex flex-col gap-5"
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: 20 }}
           >
-            {/* Selected template reminder */}
-            {selected && selected.key !== 'custom' && (
-              <div className="flex items-start gap-3 p-4 bg-primary/5 border border-primary/20 rounded-2xl">
-                <span className="text-2xl flex-shrink-0">{selected.emoji}</span>
-                <div>
-                  <p className="font-medium text-foreground text-sm">{selected.label}</p>
-                  {selected.tone_guidance && (
-                    <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-                      {selected.tone_guidance}
-                    </p>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Single free-text input */}
             <div className="space-y-2">
               <label className="text-sm font-medium text-foreground">
-                Tell me what's happening.
+                What's happening?
               </label>
               <textarea
                 rows={4}
@@ -217,35 +196,13 @@ export function ScenarioLauncher({ onStart, onClose }: ScenarioLauncherProps) {
               />
             </div>
 
-            {/* What do you need? chips */}
-            <div className="space-y-2">
-              <p className="text-sm font-medium text-foreground">What do you need? <span className="text-muted-foreground font-normal">(optional)</span></p>
-              <div className="flex flex-wrap gap-2">
-                {NEED_CHIPS.map((chip) => (
-                  <button
-                    key={chip.value}
-                    type="button"
-                    onClick={() => setSelectedNeed(prev => prev === chip.value ? null : chip.value)}
-                    className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
-                      selectedNeed === chip.value
-                        ? 'bg-primary text-primary-foreground border-primary'
-                        : 'bg-background text-foreground border-border hover:border-primary/40'
-                    }`}
-                  >
-                    {chip.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Start button */}
             <motion.button
               className="w-full px-6 py-4 bg-primary text-primary-foreground rounded-2xl font-medium hover:shadow-[0_0_20px_rgba(212,168,83,0.3)] transition-all flex items-center justify-center gap-2 mt-2"
-              onClick={handleStart}
+              onClick={handleStartCustom}
               whileTap={{ scale: 0.97 }}
             >
               <Sparkles className="w-4 h-4" />
-              Start Scenario
+              Start
               <ChevronRight className="w-4 h-4" />
             </motion.button>
           </motion.div>

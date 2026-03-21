@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { X, Zap, ZapOff, Volume2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { AvatarDisplay } from './AvatarDisplay';
+import { CharacterAvatar } from './CharacterAvatar';
 import { useNaviAgent } from '../../agent/react/useNaviAgent';
 import { speakPhrase } from '../../services/tts';
 import { parseResponse } from '../../utils/responseParser';
@@ -278,10 +278,10 @@ export function CameraOverlay({ character, onClose }: CameraOverlayProps) {
             <div className="px-6 pb-6">
               {/* Character interpretation */}
               <div className="flex items-start gap-3 mb-6">
-                <AvatarDisplay
+                <CharacterAvatar
                   character={character}
                   size="sm"
-                  animate={false}
+                  animationState="none"
                 />
                 <div className="flex-1">
                   <p className="font-medium text-foreground mb-1">{character.name}</p>

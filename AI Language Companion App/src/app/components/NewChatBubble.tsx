@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { AvatarDisplay } from './AvatarDisplay';
+import { CharacterAvatar } from './CharacterAvatar';
 import { Volume2 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { speakPhrase } from '../../services/tts';
@@ -272,7 +272,7 @@ export function ChatLogEntry({
     >
       {character && (
         <div className="flex-shrink-0 mt-0.5">
-          <AvatarDisplay character={character} size="xs" animate={false} />
+          <CharacterAvatar character={character} size="xs" animationState="none" />
         </div>
       )}
 
@@ -374,10 +374,10 @@ export function NewChatBubble({
     >
       {showAvatar && character && (
         <div className="flex-shrink-0">
-          <AvatarDisplay character={character} size="xs" animate={false} />
+          <CharacterAvatar character={character} size="xs" animationState="none" />
         </div>
       )}
-      {!showAvatar && <div className="w-7" />}
+      {!showAvatar && <div className="w-8" />}
 
       <div className="flex-1 max-w-[75%]">
         <div className="bg-card border-l-2 border-l-primary/30 border-y border-r border-border rounded-2xl rounded-tl-sm px-4 py-3">

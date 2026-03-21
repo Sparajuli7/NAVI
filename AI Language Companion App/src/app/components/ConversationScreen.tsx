@@ -4,7 +4,7 @@ import {
   X as XIcon, MessageSquare, ChevronDown,
 } from 'lucide-react';
 import { SpeechBubble, ThoughtBubble, ChatLogEntry } from './NewChatBubble';
-import { AvatarDisplay } from './AvatarDisplay';
+import { CharacterAvatar } from './CharacterAvatar';
 import { QuickActionPill } from './QuickActionPill';
 import { ExpandedPhraseCard } from './ExpandedPhraseCard';
 import { SettingsPanel } from './SettingsPanel';
@@ -447,14 +447,11 @@ export function ConversationScreen({
           >
             {/* Avatar + name */}
             <div className="flex flex-col items-center justify-center pt-6 pb-2 flex-shrink-0">
-              <div style={{ width: '200px', height: '200px' }}>
-                <AvatarDisplay
-                  character={character}
-                  size="full"
-                  animate={true}
-                  animation={isGenerating ? 'confused' : isRecording ? 'happy' : 'idle'}
-                />
-              </div>
+              <CharacterAvatar
+                character={activeCharacter ?? { colors: character.colors }}
+                size="xl"
+                animationState={isGenerating ? 'generating' : isRecording ? 'speaking' : 'idle'}
+              />
               <div className="mt-2 text-center">
                 <p className="text-sm font-semibold text-foreground">{character.name}</p>
                 <p

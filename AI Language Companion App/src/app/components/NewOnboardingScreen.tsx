@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { MapPin } from 'lucide-react';
-import { AvatarDisplay } from './AvatarDisplay';
+import { CharacterAvatar } from './CharacterAvatar';
 import { AvatarBuilder } from './AvatarBuilder';
 import { loadAvatarPrefs, saveAvatarPrefs } from '../../utils/avatarPrefs';
 import type { AvatarPrefs } from '../../utils/avatarPrefs';
@@ -763,14 +763,16 @@ export function NewOnboardingScreen({ onComplete, onRetryLoadModel }: NewOnboard
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
               transition={{ type: 'spring', damping: 15 }}
-              className="mb-4"
+              className="mb-4 flex items-center justify-center"
               style={{ width: 160, height: 160 }}
             >
-              <AvatarDisplay
-                size="full"
-                animate={true}
-                animation="happy"
-                prefs={avatarPrefs}
+              <CharacterAvatar
+                character={{
+                  colors: generatedCharacter.colors,
+                  location_country: locationCtx?.countryCode,
+                }}
+                size="xl"
+                animationState="success"
               />
             </motion.div>
 

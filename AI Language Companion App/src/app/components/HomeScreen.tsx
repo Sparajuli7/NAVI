@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion } from 'motion/react';
 import { MessageSquare, Plus, ArrowRight, Brain, Zap } from 'lucide-react';
-import { AvatarDisplay } from './AvatarDisplay';
+import { CharacterAvatar } from './CharacterAvatar';
 import type { Character } from '../../types/character';
 import scenarioContexts from '../../config/scenarioContexts.json';
 
@@ -22,10 +22,11 @@ interface HomeScreenProps {
 function charToAvatarShape(c: Character) {
   return {
     name: c.name,
-    colors: (c.avatar_color && typeof c.avatar_color === 'object')
+    avatar_color: (c.avatar_color && typeof c.avatar_color === 'object')
       ? c.avatar_color
       : { primary: '#4A5568', secondary: '#F6AD55', accent: '#48BB78' },
-    accessory: c.avatar_accessory || undefined,
+    template_id: c.template_id ?? undefined,
+    location_country: c.location_country,
   };
 }
 
@@ -116,7 +117,7 @@ export function HomeScreen({
             animate={{ y: 0, opacity: 1 }}
             transition={{ delay: 0.1 }}
           >
-            <AvatarDisplay character={charToAvatarShape(solo)} size="lg" animate={true} />
+            <CharacterAvatar character={charToAvatarShape(solo)} size="lg" animationState="idle" />
             <h2
               className="text-xl mt-4 text-foreground"
               style={{ fontFamily: 'var(--font-display)' }}
@@ -233,7 +234,7 @@ export function HomeScreen({
             animate={{ y: 0, opacity: 1 }}
             transition={{ delay: 0.1 + i * 0.07 }}
           >
-            <AvatarDisplay character={charToAvatarShape(comp)} size="md" animate={false} />
+            <CharacterAvatar character={charToAvatarShape(comp)} size="md" animationState="none" />
             <div className="flex-1 min-w-0">
               <p
                 className="font-medium text-foreground"

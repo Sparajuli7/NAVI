@@ -432,6 +432,7 @@ export class NaviAgent {
       situationContext: directorCtx.situationContext,
       userMode: currentMode,
       dialectKey: this.avatar.getActiveProfile()?.dialect || undefined,
+      isFirstEverMessage: historyLen === 0,
     };
 
     if (options?.history) {

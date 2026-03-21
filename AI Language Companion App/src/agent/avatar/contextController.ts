@@ -193,6 +193,7 @@ export class AvatarContextController {
     userNativeLanguage?: string;
     userMode?: 'learn' | 'guide' | 'friend' | null;
     dialectKey?: string;
+    isFirstEverMessage?: boolean;
   }): string {
     if (!this.activeProfile) {
       return 'You are a helpful language assistant.';
@@ -285,7 +286,22 @@ export class AvatarContextController {
       }
     }
 
-    // Layer 11.6: Conversation naturalness
+    // Layer 11.6: Scenario opener (first message in a scenario — replaces generic gauging)
+    if (options?.isFirstEverMessage && effectiveScenario) {
+      const scenarioConfig = this.scenarios[effectiveScenario];
+      if (scenarioConfig) {
+        try {
+          const openerLayer = promptLoader.get('systemLayers.modeInstructions.scenarioOpener', {
+            scenarioLabel: scenarioConfig.label,
+          });
+          layers.push(openerLayer);
+        } catch {
+          // scenarioOpener not in config — skip
+        }
+      }
+    }
+
+    // Layer 11.7: Conversation naturalness
     try {
       const naturalnessLayer = promptLoader.get('systemLayers.conversationNaturalness');
       if (naturalnessLayer) layers.push(naturalnessLayer);

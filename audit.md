@@ -219,8 +219,8 @@ The shared agent/store/prompt layer currently assumes web APIs in several places
 ### Agent ↔ UI Wiring (partially resolved)
 `ConversationScreen.handleSend()` now calls `agent.handleMessage()` via `useNaviAgent()`. `CameraOverlay` OCR/LLM pipeline is still not wired (Prompt 7 incomplete). `ExpandedPhraseCard` TTS/STT are wired to service layer, not agent tools.
 
-### AvatarRenderer Not Wired in ConversationScreen
-`AvatarRenderer.tsx` was created and wraps `avataaars` with Framer Motion animated states. However, `ConversationScreen.tsx` still uses `AvatarDisplay`/`BlockyAvatar`. The component reference needs to be swapped to activate the new cartoon SVG avatar.
+### ~~AvatarRenderer Not Wired in ConversationScreen~~ — RESOLVED
+`CharacterAvatar.tsx` created (emoji + gradient ring + country flag). Replaces `AvatarDisplay` at all call sites (`ConversationScreen`, `HomeScreen`, `NewChatBubble`, `NewOnboardingScreen`, `CameraOverlay`). Gender read from `appStore.userPreferences.avatar_gender`. `AvatarDisplay.tsx` retained for `AvatarBuilder` legacy support.
 
 ### CameraOverlay Pipeline Incomplete (Prompt 7)
 `CameraOverlay.tsx` still uses a mocked scan + static results. `agent.handleImage()` exists and the OCR→classification→LLM pipeline is implemented in the agent framework but is not wired to the UI.
@@ -248,6 +248,9 @@ The shared agent/store/prompt layer currently assumes web APIs in several places
 | Nepali not supported | `NP/Kathmandu` added to `dialectMap.json`, Kathmandu to `cities.json`, `ne-NP` to TTS/STT with `hi-IN` fallback, Devanagari script note injection added. |
 | Avatar appearance variants | `AvatarRenderer.tsx` created with avataaars + Framer Motion animated states (idle, generating, speaking, success, thinking, blink). |
 | ScenarioLauncher rigid 4-field form | Redesigned to single free-text + chips. 9 new scenario templates added. |
+| Avatar always renders male / SVG-based | `CharacterAvatar.tsx` created: emoji + gradient ring + flag badge. Reads `avatar_gender` from store. Template+gender → emoji. All call sites updated. |
+| ScenarioLauncher extra step for templates | Template tiles now fire `onStart` immediately (zero friction). Only Custom scenario shows a text input step. |
+| Scenario first message is generic gauging | `scenarioOpener` prompt template added to `systemLayers.json`. `contextController.ts` injects it when `isFirstEverMessage && scenario`. `chatTool` + `agent/index.ts` wired to pass `isFirstEverMessage`. |
 | No scenario access from HomeScreen | Horizontal scroll scenario strip added directly to HomeScreen. |
 | No web presence | `web/index.html` (landing page), `web/feedback.html` (feedback form + offline fallback), `web/worker.js` (Cloudflare Worker + D1) created. |
 | Avatar opens with canned greeting | Mode system adds `gauging_question` first-message layer: avatar opens with "What do you need from me?" in its language + pronunciation guide. |
