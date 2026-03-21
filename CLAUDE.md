@@ -248,6 +248,10 @@ The agent framework is fully built. All UI screens still call legacy services di
 - **Pending feedback sync** — `feedback.html` stores offline submissions in `localStorage` as `navi_pending_feedback`, but there is no retry mechanism to flush them when the user comes back online.
 - **AnimatedCharacter Lottie files missing** — `AnimatedCharacter.tsx` is built and falls back gracefully to emoji avatar. To activate: (1) `pnpm add lottie-react`, (2) place 4 Lottie JSON files in `public/lottie/`: `char_idle.json`, `char_speaking.json`, `char_thinking.json`, `char_success.json` (free downloads from lottiefiles.com). Component auto-activates when files are present.
 
+### Resolved Feature Gaps (2026-03-21b)
+- ~~**Multi-city first_message bug**~~ — `characterGen.json` `firstMsgRules`, `freeText.template` rule 2, and `fromTemplate.template` rule 2 all listed 6 labeled city examples side-by-side. Qwen 1.5B reproduced all 6 verbatim. Fixed: replaced with a single Paris example + explicit city-lock instruction ("Generate the first_message for YOUR city only. Do NOT include messages for other cities.").
+- ~~**Same-response loop bug**~~ — The multi-city `first_message` (400–800 chars) was included verbatim in every subsequent LLM context window as the first assistant turn. Qwen 1.5B pattern-matched and kept reproducing it. Fixed: `ConversationScreen.tsx` history `.map()` now truncates any character message >400 chars to 400 chars + `…` before passing to LLM.
+
 ### Resolved Feature Gaps (2026-03-21)
 - ~~**Context window overflow (BREAKING)**~~ — System prompt exceeded 4096-token limit. Fixed: `coreRules.rules` shortened ~495 tokens, `identity.template` ~69 tokens, `languageCalibration` tiers ~143 tokens. Token budget enforcement added to `contextController.buildSystemPrompt()` (budget=3072, greedy layer inclusion by priority).
 - ~~**Avatar speaks English despite Nepali being set**~~ — `AvatarProfile.dialect` was always `''`. Fixed: `Character.dialect_key` field added; saved during onboarding; new `dialectKey` param in `createFromTemplate()` and `createAvatarFromTemplate()`; wired at all 3 avatar creation sites in `App.tsx`.

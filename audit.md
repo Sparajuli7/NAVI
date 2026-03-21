@@ -1,6 +1,6 @@
 # NAVI Codebase Audit
 
-**Last updated: 2026-03-20** (updated 2026-03-21: context window fix, dialect key wiring, target language flow, AnimatedCharacter, Gemini embeddings)
+**Last updated: 2026-03-20** (updated 2026-03-21: context window fix, dialect key wiring, target language flow, AnimatedCharacter, Gemini embeddings; 2026-03-21b: multi-city response bug + same-response loop bug fixed)
 
 ---
 

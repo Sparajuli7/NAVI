@@ -200,7 +200,11 @@ export function ConversationScreen({
         .slice(-8)
         .map(m => ({
           role: m.role === 'user' ? 'user' : 'assistant',
-          content: m.content,
+          // Truncate long character messages — prevents verbose first_messages from
+          // poisoning the LLM context and causing same-response loop
+          content: m.role === 'character' && m.content.length > 400
+            ? m.content.slice(0, 400) + '…'
+            : m.content,
         }));
 
       const result = await agent.handleMessage(msgText, {
