@@ -621,6 +621,7 @@ export function SettingsPanel({ onClose, onRegenerate, onUpdateCharacter, onSave
                       };
                       setCurrentLocation(updated);
                       await saveLocation(updated);
+                      await onUpdateCharacter({ location_city: manualCity.trim() });
                       setManualCity('');
                     }}
                     className="px-3 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium"

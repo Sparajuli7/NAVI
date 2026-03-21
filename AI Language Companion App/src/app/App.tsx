@@ -325,6 +325,7 @@ export default function App() {
     await saveCharacter(updated);
     setCharacter(mapCharacterToUI(updated));
     setLocation(`${updated.location_city}, ${updated.location_country}`);
+    agent.avatar.applyOverride({ location: updated.location_city });
   };
 
   const handleGoHome = () => setAppPhase('home');
