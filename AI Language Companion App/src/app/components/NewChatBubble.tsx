@@ -35,6 +35,14 @@ interface NewChatBubbleProps {
   languageName?: string;
 }
 
+// ─── Error detection helper ────────────────────────────────────────────────
+
+function isNaviError(content: string): boolean {
+  return content.startsWith('NAVI is experiencing') ||
+         content.startsWith('OpenRouter error') ||
+         content.startsWith('OpenRouter request timed out');
+}
+
 // ─── Shared phrase card renderer ───────────────────────────────────────────
 
 function PhraseCardFull({
@@ -137,7 +145,12 @@ export function SpeechBubble({
 
       {/* Bubble body */}
       <div className="bg-card border border-border rounded-2xl rounded-tl-none px-4 py-3 shadow-md">
-        {hasSegments ? (
+        {isNaviError(displayContent) ? (
+          <p className="text-sm text-amber-400 flex items-start gap-1.5">
+            <span>⚠️</span>
+            <span>NAVI is experiencing high demand right now. Please try again in a moment.</span>
+          </p>
+        ) : hasSegments ? (
           <div className="space-y-3">
             {segments.map((seg, idx) => (
               <React.Fragment key={idx}>
@@ -279,7 +292,12 @@ export function ChatLogEntry({
 
       <div className="flex-1 min-w-0">
         <div className="bg-card/60 border border-border/50 rounded-xl rounded-tl-sm px-3 py-2">
-          {hasSegments ? (
+          {isNaviError(displayContent) ? (
+            <p className="text-sm text-amber-400 flex items-start gap-1.5">
+              <span>⚠️</span>
+              <span>NAVI is experiencing high demand right now. Please try again in a moment.</span>
+            </p>
+          ) : hasSegments ? (
             <div className="space-y-2">
               {segments.map((seg, idx) => (
                 <React.Fragment key={idx}>

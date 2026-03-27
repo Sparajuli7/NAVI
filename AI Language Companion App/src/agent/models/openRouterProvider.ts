@@ -5,7 +5,7 @@
  * Used when VITE_OPENROUTER_API_KEY is set — replaces WebLLM entirely.
  * No model download required; provider is ready immediately on construction.
  *
- * Model: meta-llama/llama-3.3-70b-instruct:free
+ * Uses a `models` array for automatic fallback when one model is rate-limited.
  * Endpoint: https://openrouter.ai/api/v1/chat/completions
  */
 
@@ -13,24 +13,29 @@ import type { ModelInfo, ModelProvider, ModelStatus } from '../core/types';
 import type { ChatLLM, ChatOptions } from './chatLLM';
 
 const OPENROUTER_ENDPOINT = 'https://openrouter.ai/api/v1/chat/completions';
-const DEFAULT_MODEL = 'meta-llama/llama-3.3-70b-instruct:free';
+const FALLBACK_MODELS = [
+  'qwen/qwen3-32b:free',
+  'meta-llama/llama-3.3-70b-instruct:free',
+  'mistralai/mistral-small-3.1-24b-instruct:free',
+  'google/gemma-3-27b-it:free',
+];
 const DEFAULT_TIMEOUT = 120_000;
 
 export class OpenRouterProvider implements ModelProvider<null>, ChatLLM {
   private status: ModelStatus = 'ready'; // no download — always ready
   private readonly apiKey: string;
-  private readonly model: string;
+  private readonly models: string[];
   private abortController: AbortController | null = null;
 
-  constructor(apiKey: string, model: string = DEFAULT_MODEL) {
+  constructor(apiKey: string, models?: string[]) {
     this.apiKey = apiKey;
-    this.model = model;
+    this.models = models ?? FALLBACK_MODELS;
   }
 
   info(): ModelInfo {
     return {
-      id: `openrouter:${this.model}`,
-      name: `OpenRouter: ${this.model}`,
+      id: `openrouter:${this.models[0]}`,
+      name: `OpenRouter: ${this.models[0]}`,
       capability: 'llm',
       sizeBytes: 0,
       runtime: 'custom',
@@ -65,7 +70,7 @@ export class OpenRouterProvider implements ModelProvider<null>, ChatLLM {
     messages: Array<{ role: string; content: string }>,
     options?: ChatOptions,
   ): Promise<string> {
-    console.log(`[NAVI] ── PROMPT (openrouter: ${this.model}) ──`);
+    console.log(`[NAVI] ── PROMPT (openrouter: ${this.models[0]}) ──`);
     for (const m of messages) {
       console.log(`[NAVI] [${m.role}] ${m.content}`);
     }
@@ -85,7 +90,7 @@ export class OpenRouterProvider implements ModelProvider<null>, ChatLLM {
           'X-Title': 'NAVI Language Companion',
         },
         body: JSON.stringify({
-          model: this.model,
+          models: this.models,
           messages,
           temperature: options?.temperature ?? 0.7,
           max_tokens: options?.max_tokens ?? 512,
@@ -99,6 +104,9 @@ export class OpenRouterProvider implements ModelProvider<null>, ChatLLM {
 
       if (!response.ok) {
         const errorText = await response.text().catch(() => '');
+        if (response.status === 429 || response.status === 503) {
+          throw new Error('NAVI is experiencing high demand right now. Please try again in a moment.');
+        }
         throw new Error(`OpenRouter error (${response.status}): ${errorText}`);
       }
 
@@ -111,6 +119,9 @@ export class OpenRouterProvider implements ModelProvider<null>, ChatLLM {
 
       const data = await response.json() as { choices?: Array<{ message?: { content?: string } }> };
       const result = data.choices?.[0]?.message?.content ?? '';
+      if (!result) {
+        throw new Error('NAVI is experiencing high demand right now. Please try again in a moment.');
+      }
       console.log(`[NAVI] ── RESPONSE (openrouter) ──`);
       console.log(`[NAVI] [assistant] ${result}`);
       return result;
