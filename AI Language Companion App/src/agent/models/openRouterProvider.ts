@@ -19,7 +19,7 @@ const FALLBACK_MODELS = [
   'mistralai/mistral-small-3.1-24b-instruct:free',
   'google/gemma-3-27b-it:free',
 ];
-const DEFAULT_TIMEOUT = 120_000;
+const DEFAULT_TIMEOUT = 30_000;
 
 export class OpenRouterProvider implements ModelProvider<null>, ChatLLM {
   private status: ModelStatus = 'ready'; // no download — always ready
@@ -91,6 +91,7 @@ export class OpenRouterProvider implements ModelProvider<null>, ChatLLM {
         },
         body: JSON.stringify({
           models: this.models,
+          route: 'fallback',
           messages,
           temperature: options?.temperature ?? 0.7,
           max_tokens: options?.max_tokens ?? 512,
