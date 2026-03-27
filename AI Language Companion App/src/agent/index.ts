@@ -69,6 +69,7 @@ export {
   OLLAMA_PRESETS,
   isOllamaAvailable,
   listOllamaModels,
+  OpenRouterProvider,
   TTSProvider,
   STTProvider,
   VisionProvider,
@@ -93,7 +94,7 @@ export { registerAllTools } from './tools';
 // ─── NaviAgent: The unified agent instance ─────────────────────
 
 import { MemoryManager } from './memory';
-import { ModelRegistry, LLMProvider, LLM_PRESETS, OllamaProvider, OLLAMA_PRESETS, isOllamaAvailable, listOllamaModels, TTSProvider, STTProvider, VisionProvider, EmbeddingProvider, TranslationProvider } from './models';
+import { ModelRegistry, LLMProvider, LLM_PRESETS, OllamaProvider, OLLAMA_PRESETS, isOllamaAvailable, listOllamaModels, OpenRouterProvider, TTSProvider, STTProvider, VisionProvider, EmbeddingProvider, TranslationProvider } from './models';
 import type { ChatLLM } from './models';
 import { AvatarContextController } from './avatar/contextController';
 import { LocationIntelligence } from './location/locationIntelligence';
@@ -177,7 +178,7 @@ class ModeClassifier {
 }
 
 /** LLM backend selection */
-export type LLMBackend = 'webllm' | 'ollama' | 'auto';
+export type LLMBackend = 'webllm' | 'ollama' | 'openrouter' | 'auto';
 
 export interface NaviAgentConfig {
   /** Which LLM backend to use: 'webllm' (in-browser), 'ollama' (local server), 'auto' (detect) */
@@ -208,6 +209,7 @@ export class NaviAgent {
   // Direct provider references for convenience
   private webllmProvider: LLMProvider | null = null;
   private ollamaProvider: OllamaProvider | null = null;
+  private openRouterProvider: OpenRouterProvider | null = null;
   private ttsProvider: TTSProvider;
   private sttProvider: STTProvider;
   private visionProvider: VisionProvider;
@@ -238,13 +240,20 @@ export class NaviAgent {
     // Determine backend — 'auto' is resolved during initialize()
     this.llmBackend = config.backend ?? 'auto';
 
+    // OpenRouter takes priority when the env key is present
+    const openRouterKey = import.meta.env.VITE_OPENROUTER_API_KEY as string | undefined;
+
     // Create the LLM provider based on backend selection
-    // For 'auto', default to webllm now; will switch in initialize() if Ollama is available
-    if (this.llmBackend === 'ollama') {
+    if (openRouterKey && this.llmBackend !== 'webllm') {
+      // OpenRouter cloud mode — no local model download needed
+      this.openRouterProvider = new OpenRouterProvider(openRouterKey);
+      this.llm = this.openRouterProvider;
+      this.llmBackend = 'openrouter';
+    } else if (this.llmBackend === 'ollama') {
       this.ollamaProvider = this.createOllamaProvider(config);
       this.llm = this.ollamaProvider;
     } else {
-      // 'webllm' or 'auto' (auto defaults to webllm, may switch later)
+      // 'webllm' or 'auto' (auto defaults to webllm, may switch later in initialize())
       const presetKey = config.llmPreset ?? 'qwen2.5-1.5b';
       this.webllmProvider = new LLMProvider(LLM_PRESETS[presetKey]);
       this.llm = this.webllmProvider;
@@ -258,6 +267,7 @@ export class NaviAgent {
     this.translationProvider = new TranslationProvider();
 
     // Register all model providers
+    if (this.openRouterProvider) this.models.register(this.openRouterProvider);
     if (this.webllmProvider) this.models.register(this.webllmProvider);
     if (this.ollamaProvider) this.models.register(this.ollamaProvider);
     this.models.register(this.ttsProvider);
@@ -303,8 +313,12 @@ export class NaviAgent {
   async initialize(): Promise<void> {
     if (this.initialized) return;
 
-    // Auto-detect backend
-    if (this.llmBackend === 'auto') {
+    if (this.llmBackend === 'openrouter') {
+      // Cloud mode — key was set in constructor, nothing to detect
+      console.log('[NAVI] Using OpenRouter (cloud mode)');
+      agentBus.emit('model:status', { backend: 'openrouter', status: 'ready' });
+    } else if (this.llmBackend === 'auto') {
+      // Auto-detect: prefer Ollama, fall back to WebLLM
       const ollamaUp = await isOllamaAvailable(this.config.ollamaBaseUrl);
       if (ollamaUp) {
         // Ollama is running — use it (faster startup, better models)
@@ -328,6 +342,7 @@ export class NaviAgent {
         agentBus.emit('model:status', { backend: 'ollama', status: 'detected' });
       } else {
         // No Ollama — stick with WebLLM
+        console.log('[NAVI] Using WebLLM (offline mode)');
         this.llmBackend = 'webllm';
         agentBus.emit('model:status', { backend: 'webllm', status: 'detected' });
       }
@@ -350,7 +365,10 @@ export class NaviAgent {
   async loadLLM(
     onProgress?: (progress: number, text: string) => void,
   ): Promise<void> {
-    if (this.ollamaProvider && this.llmBackend === 'ollama') {
+    if (this.llmBackend === 'openrouter') {
+      // No download needed — OpenRouter is always ready
+      return;
+    } else if (this.ollamaProvider && this.llmBackend === 'ollama') {
       await this.ollamaProvider.load(onProgress);
     } else if (this.webllmProvider) {
       await this.models.loadModel(this.webllmProvider.info().id, onProgress);

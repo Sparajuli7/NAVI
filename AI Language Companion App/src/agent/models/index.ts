@@ -8,6 +8,7 @@ export { ModelRegistry } from './registry';
 export type { ChatLLM, ChatOptions } from './chatLLM';
 export { LLMProvider, PRESET_CONFIGS as LLM_PRESETS } from './llmProvider';
 export { OllamaProvider, OLLAMA_PRESETS, isOllamaAvailable, listOllamaModels } from './ollamaProvider';
+export { OpenRouterProvider } from './openRouterProvider';
 export { TTSProvider } from './ttsProvider';
 export type { VoiceOption } from './ttsProvider';
 export { STTProvider } from './sttProvider';

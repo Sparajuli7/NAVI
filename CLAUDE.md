@@ -214,7 +214,7 @@ The agent framework sits underneath the UI as an orchestration layer:
 - Model download + loading logic (WebLLM + Ollama dual backend)
 - **Agent framework** — full infrastructure (router, tools, memory, models, avatar, pipelines)
 - **6-system memory** — working (ring buffer), episodic, semantic (vectors), profile, learner, relationships
-- **Model abstraction layer** — provider pattern (WebLLM + Ollama via ChatLLM interface)
+- **Model abstraction layer** — provider pattern (WebLLM + Ollama + OpenRouter via ChatLLM interface); when `VITE_OPENROUTER_API_KEY` is set, `OpenRouterProvider` becomes the active LLM for all tools and model download is skipped entirely
 - **Avatar context controller** — config-driven behavior, 11-layer prompt assembly
 - **13 registered tools** — chat, translate, pronounce, camera_read, culture, slang, phrase, memory, scenario, location, tts, stt
 - **Image understanding pipeline** — OCR → classification → LLM explanation
