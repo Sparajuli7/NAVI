@@ -7,7 +7,8 @@ import { loadAvatarPrefs, saveAvatarPrefs, deriveAvatarPrefs, validateAvatarPref
 import type { AvatarPrefs } from '../../utils/avatarPrefs';
 import { detectLocation } from '../../services/location';
 import { buildCharacterGenPrompt } from '../../prompts/characterGen';
-import { saveCharacter, saveConversation, saveLocation } from '../../utils/storage';
+import { saveCharacter, saveConversation, saveLocation, saveAvatarImage } from '../../utils/storage';
+import { generateAvatarImage } from '../../utils/generateAvatarImage';
 import { useNaviAgent } from '../../agent/react/useNaviAgent';
 import { useCharacterStore } from '../../stores/characterStore';
 import { useChatStore } from '../../stores/chatStore';
@@ -276,6 +277,9 @@ export function NewOnboardingScreen({ onComplete, onRetryLoadModel }: NewOnboard
           first_message:    (partial.first_message && !partial.first_message.startsWith('('))
                               ? partial.first_message
                               : `Hey! I'm ${safeName}, your local friend in ${city}. What do you want to explore?`,
+          portrait_prompt:  (partial.portrait_prompt && !partial.portrait_prompt.startsWith('('))
+                              ? partial.portrait_prompt
+                              : undefined,
         };
       };
 
@@ -410,6 +414,50 @@ export function NewOnboardingScreen({ onComplete, onRetryLoadModel }: NewOnboard
 
       // Persist character to IndexedDB
       await saveCharacter(richCharacter);
+
+      // Fire AI portrait generation non-blocking — UI proceeds immediately.
+      // On success: portrait is saved to IndexedDB and AIAvatarDisplay auto-loads it.
+      // On failure: DiceBear fallback remains the experience (no error shown).
+      if (richCharacter.portrait_prompt) {
+        const charIdForPortrait = richCharacter.id;
+        const portraitPrompt = richCharacter.portrait_prompt;
+        // Attempt 1 immediately
+        generateAvatarImage(portraitPrompt, charIdForPortrait)
+          .then(async (base64) => {
+            if (base64) {
+              await saveAvatarImage(charIdForPortrait, base64);
+              richCharacter.has_portrait = true;
+              await saveCharacter(richCharacter);
+            } else {
+              // Attempt 2 after 5s
+              setTimeout(() => {
+                generateAvatarImage(portraitPrompt, charIdForPortrait)
+                  .then(async (b2) => {
+                    if (b2) {
+                      await saveAvatarImage(charIdForPortrait, b2);
+                      richCharacter.has_portrait = true;
+                      await saveCharacter(richCharacter);
+                    } else {
+                      // Attempt 3 after 15s
+                      setTimeout(() => {
+                        generateAvatarImage(portraitPrompt, charIdForPortrait)
+                          .then(async (b3) => {
+                            if (b3) {
+                              await saveAvatarImage(charIdForPortrait, b3);
+                              richCharacter.has_portrait = true;
+                              await saveCharacter(richCharacter);
+                            }
+                          })
+                          .catch(() => {/* DiceBear remains */});
+                      }, 15_000);
+                    }
+                  })
+                  .catch(() => {/* DiceBear remains */});
+              }, 5_000);
+            }
+          })
+          .catch(() => {/* DiceBear remains */});
+      }
 
       // Save native language to agent memory + appStore
       const finalNativeLang = showOtherInput ? (otherLanguageInput.trim() || 'English') : nativeLanguage;

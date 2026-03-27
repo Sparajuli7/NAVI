@@ -26,6 +26,10 @@ export interface Character {
   target_language?: string;
   /** Avatar appearance prefs derived from LLM character generation */
   avatar_prefs?: AvatarPrefs;
+  /** Physical description for AI portrait generation (fed to Pollinations.ai) */
+  portrait_prompt?: string;
+  /** Whether an AI-generated portrait has been saved to IndexedDB for this character */
+  has_portrait?: boolean;
 }
 
 export interface AvatarTemplate {

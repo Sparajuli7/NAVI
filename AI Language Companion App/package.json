@@ -8,6 +8,8 @@
     "dev": "vite"
   },
   "dependencies": {
+    "@dicebear/collection": "^9.4.2",
+    "@dicebear/core": "^9.4.2",
     "@emotion/react": "11.14.0",
     "@emotion/styled": "11.14.1",
     "@mlc-ai/web-llm": "^0.2.81",

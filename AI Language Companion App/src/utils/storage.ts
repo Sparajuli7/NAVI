@@ -98,6 +98,18 @@ export async function loadLocation(): Promise<LocationContext | null> {
   return (await get<LocationContext>(KEYS.location)) ?? null;
 }
 
+// ── Avatar portrait images ────────────────────────────────────────────────────
+
+const avatarImgKey = (charId: string) => `navi_avatar_img_${charId}`;
+
+export async function saveAvatarImage(characterId: string, base64: string): Promise<void> {
+  await set(avatarImgKey(characterId), base64);
+}
+
+export async function loadAvatarImage(characterId: string): Promise<string | null> {
+  return (await get<string>(avatarImgKey(characterId))) ?? null;
+}
+
 // ── Nuclear reset ─────────────────────────────────────────────────────────────
 
 export async function clearAllData(): Promise<void> {

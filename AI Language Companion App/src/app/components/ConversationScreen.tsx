@@ -4,8 +4,7 @@ import {
   X as XIcon, MessageSquare, ChevronDown,
 } from 'lucide-react';
 import { SpeechBubble, ThoughtBubble, ChatLogEntry } from './NewChatBubble';
-import { AvatarRenderer } from './AvatarRenderer';
-import { DEFAULT_PREFS } from '../../utils/avatarPrefs';
+import { AIAvatarDisplay } from './AIAvatarDisplay';
 import { QuickActionPill } from './QuickActionPill';
 import { ExpandedPhraseCard } from './ExpandedPhraseCard';
 import { SettingsPanel } from './SettingsPanel';
@@ -452,8 +451,9 @@ export function ConversationScreen({
           >
             {/* Avatar + name */}
             <div className="flex flex-col items-center justify-center pt-6 pb-2 flex-shrink-0">
-              <AvatarRenderer
-                prefs={activeCharacter?.avatar_prefs ?? DEFAULT_PREFS}
+              <AIAvatarDisplay
+                characterId={activeCharacter?.id ?? ''}
+                prefs={activeCharacter?.avatar_prefs}
                 accentColor={activeCharacter?.avatar_color?.accent ?? character.colors.accent}
                 state={isGenerating ? 'generating' : isRecording ? 'speaking' : 'idle'}
                 size={112}

@@ -3,10 +3,11 @@ import { motion } from 'motion/react';
 import { X, RefreshCw, Trash2, MapPin, Save, ChevronDown } from 'lucide-react';
 import { useCharacterStore } from '../../stores/characterStore';
 import { useAppStore } from '../../stores/appStore';
-import { saveMemories, savePreferences, saveLocation, saveCharacterMemories } from '../../utils/storage';
+import { saveMemories, savePreferences, saveLocation, saveCharacterMemories, saveAvatarImage, saveCharacter } from '../../utils/storage';
 import { detectLocation } from '../../services/location';
 import { useNaviAgent } from '../../agent/react/useNaviAgent';
 import { updateGeminiApiKey } from '../../agent/models/geminiEmbedding';
+import { generateAvatarImage } from '../../utils/generateAvatarImage';
 import type { UserPreferences, Character } from '../../types/character';
 
 function countryFlag(code: string): string {
@@ -61,6 +62,12 @@ export function SettingsPanel({ onClose, onRegenerate, onUpdateCharacter, onSave
   const [ollamaConnected, setOllamaConnected] = useState(false);
   const [geminiKeyDraft, setGeminiKeyDraft] = useState(geminiApiKey);
   const [geminiKeySaved, setGeminiKeySaved] = useState(false);
+  const [openRouterKeyDraft, setOpenRouterKeyDraft] = useState(
+    () => typeof localStorage !== 'undefined' ? (localStorage.getItem('navi_openrouter_key') ?? '') : '',
+  );
+  const [openRouterKeySaved, setOpenRouterKeySaved] = useState(false);
+  const [isRegeneratingPortrait, setIsRegeneratingPortrait] = useState(false);
+  const [portraitRegenStatus, setPortraitRegenStatus] = useState<'idle' | 'success' | 'fail'>('idle');
 
   // Fetch available Ollama models when the model tab is opened (regardless of current backend)
   const fetchOllamaModels = (url?: string) => {
@@ -835,6 +842,90 @@ export function SettingsPanel({ onClose, onRegenerate, onUpdateCharacter, onSave
                   )}
                 </div>
               </div>
+
+              {/* OpenRouter API key — for richer character generation */}
+              <div className="bg-card border border-border rounded-xl p-4 space-y-3">
+                <div>
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">OpenRouter API Key</p>
+                  <p className="text-xs text-muted-foreground leading-relaxed mb-2">
+                    Optional. Uses LLaMA 3.3 70B for richer character creation + better portrait descriptions. Free at openrouter.ai.
+                  </p>
+                  <div className="flex gap-2">
+                    <input
+                      type="password"
+                      value={openRouterKeyDraft}
+                      onChange={(e) => { setOpenRouterKeyDraft(e.target.value); setOpenRouterKeySaved(false); }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          if (typeof localStorage !== 'undefined') localStorage.setItem('navi_openrouter_key', openRouterKeyDraft.trim());
+                          setOpenRouterKeySaved(true);
+                        }
+                      }}
+                      placeholder="sk-or-..."
+                      className="flex-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary"
+                    />
+                    <button
+                      onClick={() => {
+                        if (typeof localStorage !== 'undefined') localStorage.setItem('navi_openrouter_key', openRouterKeyDraft.trim());
+                        setOpenRouterKeySaved(true);
+                      }}
+                      className="px-3 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium"
+                    >
+                      {openRouterKeySaved ? '✓' : 'Save'}
+                    </button>
+                  </div>
+                  {openRouterKeySaved && (
+                    <p className="text-xs text-green-400 mt-1">Key saved — next character generation will use LLaMA 3.3 70B.</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Regenerate portrait */}
+              {activeCharacter && (
+                <div className="bg-card border border-border rounded-xl p-4 space-y-2">
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide">AI Portrait</p>
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    Re-generate {activeCharacter.name}&apos;s portrait using Pollinations.ai (requires internet).
+                    {activeCharacter.has_portrait ? ' Portrait is active.' : ' Using DiceBear illustration currently.'}
+                  </p>
+                  <button
+                    disabled={isRegeneratingPortrait || !activeCharacter.portrait_prompt}
+                    onClick={async () => {
+                      if (!activeCharacter.portrait_prompt || isRegeneratingPortrait) return;
+                      setIsRegeneratingPortrait(true);
+                      setPortraitRegenStatus('idle');
+                      try {
+                        const base64 = await generateAvatarImage(activeCharacter.portrait_prompt, activeCharacter.id);
+                        if (base64) {
+                          await saveAvatarImage(activeCharacter.id, base64);
+                          const updated: Character = { ...activeCharacter, has_portrait: true };
+                          await saveCharacter(updated);
+                          setPortraitRegenStatus('success');
+                        } else {
+                          setPortraitRegenStatus('fail');
+                        }
+                      } catch {
+                        setPortraitRegenStatus('fail');
+                      } finally {
+                        setIsRegeneratingPortrait(false);
+                      }
+                    }}
+                    className="px-3 py-2 bg-muted hover:bg-muted/80 text-foreground rounded-lg text-sm font-medium disabled:opacity-50 transition-colors flex items-center gap-2"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${isRegeneratingPortrait ? 'animate-spin' : ''}`} />
+                    {isRegeneratingPortrait ? 'Generating…' : 'Regenerate Portrait'}
+                  </button>
+                  {portraitRegenStatus === 'success' && (
+                    <p className="text-xs text-green-400">Portrait updated! Reload the chat to see it.</p>
+                  )}
+                  {portraitRegenStatus === 'fail' && !activeCharacter.portrait_prompt && (
+                    <p className="text-xs text-muted-foreground">No portrait description available for this character.</p>
+                  )}
+                  {portraitRegenStatus === 'fail' && activeCharacter.portrait_prompt && (
+                    <p className="text-xs text-amber-400">Generation failed — check your internet connection and try again.</p>
+                  )}
+                </div>
+              )}
 
               {/* Info */}
               <div className="px-1">
