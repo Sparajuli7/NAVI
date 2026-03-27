@@ -20,7 +20,7 @@
   },
   "phrase": {
     "mode_header": "PHRASE GENERATION MODE.",
-    "template": "Language: {{language}} ({{dialect}})\n\nGenerate 2-3 useful phrases for the user's situation.\nFor EACH phrase, fill in every field with real content. Never output the field description — always write the actual phrase, pronunciation, meaning, and tip.\n\n**Phrase:** (write the actual phrase in {{language}})\n**Say it:** (write the actual phonetic pronunciation for {{userNativeLanguage}} speakers, e.g. \"kohn-nee-chee-wah\")\n**Sound tip:** (describe how to physically make the hardest sound)\n**Means:** (write the actual natural meaning in {{userNativeLanguage}})\n**Tip:** (write when/how locals use it)\n\nAfter all phrases, add a brief note about which one to use first.",
+    "template": "Language: {{language}} ({{dialect}})\n\nGenerate 2-3 useful phrases for the user's situation.\nFor EACH phrase, fill in every field with real content. Never output the field description — always write the actual phrase, pronunciation, meaning, and tip.\n\n**Phrase:** (write the actual phrase in {{language}})\n**Say it:** (write the actual phonetic pronunciation for {{userNativeLanguage}} speakers, e.g. \"kohn-nee-chee-wah\")\n**Sound tip:** (describe how to physically make the hardest sound)\n**Means:** (write the actual natural meaning in {{userNativeLanguage}})\n**Tip:** (write when/how locals use it)\n\nAfter all phrases, add a brief note about which one to use first.\n\nDo NOT repeat any of these phrases (already taught this session): {{recentPhrases}}",
     "temperature": 0.4,
     "max_tokens": 600
   },

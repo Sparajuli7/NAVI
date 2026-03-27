@@ -242,6 +242,12 @@ The agent framework is fully built. All UI screens still call legacy services di
 - Wire ExpandedPhraseCard TTS/STT to agent tools
 - Wire SettingsPanel to agent memory/location/energy APIs
 
+### Resolved Feature Gaps (2026-03-26)
+- ~~**Phrase tool repeats already-taught phrases**~~ — `phraseTool.ts` now reads `memoryManager.learner.phrases`, sorts by `lastPracticed`, takes the 10 most recent, and injects them as `recentPhrases` into `toolPrompts.phrase.template`. The template appends "Do NOT repeat any of these phrases" so the model avoids repetition.
+- ~~**Confusion signals ignored — avatar keeps talking in local language**~~ — Added `CONFUSION OVERRIDE (highest priority)` block at the top of `coreRules.rules` in `coreRules.json`. Triggers on "I don't understand", "what?", "what does that mean", etc. — forces immediate switch to `{{userNativeLanguage}}` with one recovery phrase.
+- ~~**Markdown asterisks rendering as raw text in segment paths**~~ — Applied `stripInlineMarkdown()` to all 4 previously unprocessed render sites in `NewChatBubble.tsx`: `SpeechBubble` segment text, `ChatLogEntry` segment text, `NewChatBubble` segment text, `NewChatBubble` fallback `{content}`.
+- ~~**Avatar opens in wrong language (e.g. French instead of Nepali)**~~ — Fixed dialect key precedence in `NewOnboardingScreen.tsx` line 381: flipped to `dialectKey || dialectInfo?.dialect || ''` so the map key (used for direct lookup in `resolveDialect`) takes priority over the human-readable dialect name. Added `console.warn` in `contextController.ts` `buildLocationLayer` when dialect resolution fails.
+
 ### Known Feature Gaps
 - **CameraOverlay OCR/LLM pipeline not wired** — Prompt 7 incomplete. `CameraOverlay.tsx` still uses a mocked scan flow; `agent.handleImage()` pipeline exists but is not connected.
 - **`generateCharacter()` in `llm.ts` is dead code** — onboarding uses `agent.getLLM().chat()` directly; `generateCharacter()` updated to return `{ character, avatarPrefs }` for consistency but has no active callers.

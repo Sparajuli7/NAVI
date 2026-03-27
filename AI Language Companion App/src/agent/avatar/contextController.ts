@@ -427,6 +427,10 @@ export class AvatarContextController {
       }
     } else {
       // No dialect config — infer language from location name
+      console.warn(
+        `[NAVI:avatar] No dialect config found for location="${location}" dialectKey="${dialectKey ?? ''}". ` +
+        'Avatar may open in wrong language. Check dialectMap.json or pass dialectKey explicitly.',
+      );
       layer += ` Speak in the local language of ${location}. Your default is the local language from the first message. Use ${userNativeLanguage} only when the user clearly needs support or asks for help — not as a default.`;
     }
 

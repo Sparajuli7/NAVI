@@ -35,7 +35,15 @@ export function createPhraseTool(
         mode_header: string; template: string; temperature: number; max_tokens: number;
       };
       const userNativeLanguage = memoryManager.profile.getProfile().nativeLanguage || 'English';
-      const toolPrompt = promptLoader.get('toolPrompts.phrase.template', { language, dialect, userNativeLanguage });
+      const trackedPhrases = memoryManager.learner.phrases;
+      const recentPhrases = trackedPhrases.length > 0
+        ? [...trackedPhrases]
+            .sort((a, b) => b.lastPracticed - a.lastPracticed)
+            .slice(0, 10)
+            .map((p) => `"${p.phrase}"`)
+            .join(', ')
+        : 'none yet';
+      const toolPrompt = promptLoader.get('toolPrompts.phrase.template', { language, dialect, userNativeLanguage, recentPhrases });
 
       const systemPrompt = `${avatarController.buildSystemPrompt({ userNativeLanguage })}\n\n${toolConfig.mode_header}\n${toolPrompt}`;
 

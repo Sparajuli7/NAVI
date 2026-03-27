@@ -378,7 +378,7 @@ export function NewOnboardingScreen({ onComplete, onRetryLoadModel }: NewOnboard
           humorStyle: (['playful', 'dry-humor'].includes(richCharacter.style) ? richCharacter.style
             : 'warm') as string,
           slangLevel: (['casual', 'streetwise', 'energetic', 'playful'].includes(richCharacter.style) ? 0.7 : 0.4),
-          dialect: dialectInfo?.dialect ?? dialectKey,
+          dialect: dialectKey || dialectInfo?.dialect || '',
           culturalContext: dialectInfo?.cultural_notes ?? '',
           location: loc,
           scenario: '',

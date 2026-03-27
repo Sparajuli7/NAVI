@@ -152,7 +152,7 @@ export function SpeechBubble({
                     className="text-foreground italic leading-relaxed text-sm"
                     style={{ fontFamily: 'var(--font-character)' }}
                   >
-                    {seg.content}
+                    {stripInlineMarkdown(seg.content)}
                   </p>
                 )}
               </React.Fragment>
@@ -293,7 +293,7 @@ export function ChatLogEntry({
                       className="text-foreground/70 text-sm italic leading-relaxed"
                       style={{ fontFamily: 'var(--font-character)' }}
                     >
-                      {seg.content}
+                      {stripInlineMarkdown(seg.content)}
                     </p>
                   )}
                 </React.Fragment>
@@ -389,7 +389,7 @@ export function NewChatBubble({
                   renderPhraseCard(seg.data, idx)
                 ) : (
                   <p key={idx} className="text-foreground italic leading-relaxed" style={{ fontFamily: 'var(--font-character)' }}>
-                    {seg.content}
+                    {stripInlineMarkdown(seg.content)}
                   </p>
                 )
               )}
@@ -421,7 +421,7 @@ export function NewChatBubble({
             </div>
           ) : (
             <p className="text-foreground italic leading-relaxed" style={{ fontFamily: 'var(--font-character)' }}>
-              {content}
+              {stripInlineMarkdown(content)}
             </p>
           )}
         </div>
