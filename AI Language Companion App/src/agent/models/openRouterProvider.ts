@@ -5,7 +5,8 @@
  * Used when VITE_OPENROUTER_API_KEY is set — replaces WebLLM entirely.
  * No model download required; provider is ready immediately on construction.
  *
- * Uses a `models` array for automatic fallback when one model is rate-limited.
+ * Rotation strategy: cycles through (key, model) pairs so same-account users
+ * still benefit from per-model rate limit pools.
  * Endpoint: https://openrouter.ai/api/v1/chat/completions
  */
 
@@ -20,16 +21,36 @@ const FALLBACK_MODELS = [
   'google/gemma-3-27b-it:free',
 ];
 const DEFAULT_TIMEOUT = 30_000;
+const MIN_REQUEST_GAP_MS = 100;
+const MAX_ATTEMPTS = 8;
+
+/** Status codes that warrant rotating to the next key+model rather than throwing. */
+const RETRYABLE_STATUSES = new Set([402, 429, 500, 502, 503, 504]);
 
 export class OpenRouterProvider implements ModelProvider<null>, ChatLLM {
   private status: ModelStatus = 'ready'; // no download — always ready
-  private readonly apiKey: string;
+  private readonly apiKeys: string[];
+  private currentKeyIndex: number = 0;
   private readonly models: string[];
   private abortController: AbortController | null = null;
+  private lastRequestTime = 0;
 
-  constructor(apiKey: string, models?: string[]) {
-    this.apiKey = apiKey;
+  constructor(apiKeys: string | string[], models?: string[]) {
+    this.apiKeys = Array.isArray(apiKeys) ? apiKeys : [apiKeys];
     this.models = models ?? FALLBACK_MODELS;
+  }
+
+  private get currentKey(): string {
+    return this.apiKeys[this.currentKeyIndex];
+  }
+
+  /** Ensures at least MIN_REQUEST_GAP_MS between outgoing requests. */
+  private async throttle(): Promise<void> {
+    const elapsed = Date.now() - this.lastRequestTime;
+    if (elapsed < MIN_REQUEST_GAP_MS) {
+      await new Promise<void>(r => setTimeout(r, MIN_REQUEST_GAP_MS - elapsed));
+    }
+    this.lastRequestTime = Date.now();
   }
 
   info(): ModelInfo {
@@ -70,69 +91,98 @@ export class OpenRouterProvider implements ModelProvider<null>, ChatLLM {
     messages: Array<{ role: string; content: string }>,
     options?: ChatOptions,
   ): Promise<string> {
-    console.log(`[NAVI] ── PROMPT (openrouter: ${this.models[0]}) ──`);
+    console.log(`[NAVI] ── PROMPT (openrouter) ──`);
     for (const m of messages) {
       console.log(`[NAVI] [${m.role}] ${m.content}`);
     }
 
     const useStream = !!(options?.stream && options?.onToken);
 
-    this.abortController = new AbortController();
-    const timeoutId = setTimeout(() => this.abortController?.abort(), DEFAULT_TIMEOUT);
+    // Total attempts = min(keys × models, MAX_ATTEMPTS)
+    const totalAttempts = Math.min(this.apiKeys.length * this.models.length, MAX_ATTEMPTS);
+    let lastError: Error | null = null;
 
-    try {
-      const response = await fetch(OPENROUTER_ENDPOINT, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${this.apiKey}`,
-          'HTTP-Referer': 'https://navi.app',
-          'X-Title': 'NAVI Language Companion',
-        },
-        body: JSON.stringify({
-          models: this.models,
-          route: 'fallback',
-          messages,
-          temperature: options?.temperature ?? 0.7,
-          max_tokens: options?.max_tokens ?? 512,
-          top_p: options?.top_p ?? 0.8,
-          stream: useStream,
-        }),
-        signal: this.abortController.signal,
-      });
+    for (let attempt = 0; attempt < totalAttempts; attempt++) {
+      // Rotate key and model independently so each attempt tries a unique combination
+      const keyIdx = (this.currentKeyIndex + attempt) % this.apiKeys.length;
+      const modelIdx = attempt % this.models.length;
+      const apiKey = this.apiKeys[keyIdx];
+      const modelId = this.models[modelIdx];
 
-      clearTimeout(timeoutId);
+      await this.throttle();
 
-      if (!response.ok) {
-        const errorText = await response.text().catch(() => '');
-        if (response.status === 429 || response.status === 503) {
-          throw new Error('NAVI is experiencing high demand right now. Please try again in a moment.');
+      this.abortController = new AbortController();
+      const timeoutId = setTimeout(() => this.abortController?.abort(), DEFAULT_TIMEOUT);
+
+      try {
+        const response = await fetch(OPENROUTER_ENDPOINT, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${apiKey}`,
+            'HTTP-Referer': 'https://navi.app',
+            'X-Title': 'NAVI Language Companion',
+          },
+          body: JSON.stringify({
+            model: modelId,
+            messages,
+            temperature: options?.temperature ?? 0.7,
+            max_tokens: options?.max_tokens ?? 512,
+            top_p: options?.top_p ?? 0.8,
+            stream: useStream,
+          }),
+          signal: this.abortController.signal,
+        });
+
+        clearTimeout(timeoutId);
+
+        if (RETRYABLE_STATUSES.has(response.status)) {
+          const errorBody = await response.text().catch(() => '');
+          console.warn(`[NAVI] OpenRouter ${response.status} on key ${keyIdx} model ${modelId}: ${errorBody}`);
+          // Advance the sticky key index for future calls
+          this.currentKeyIndex = (keyIdx + 1) % this.apiKeys.length;
+          lastError = new Error(`retryable_${response.status}_key_${keyIdx}_model_${modelIdx}`);
+          const nextModelId = this.models[(modelIdx + 1) % this.models.length];
+          console.warn(`[NAVI] Rotating to model ${nextModelId}`);
+          continue;
         }
-        throw new Error(`OpenRouter error (${response.status}): ${errorText}`);
-      }
 
-      if (useStream && options?.onToken && response.body) {
-        const result = await this.handleStream(response.body, options.onToken);
-        console.log(`[NAVI] ── RESPONSE (openrouter) ──`);
+        if (!response.ok) {
+          const errorText = await response.text().catch(() => '');
+          throw new Error(`OpenRouter error (${response.status}): ${errorText}`);
+        }
+
+        if (useStream && options?.onToken && response.body) {
+          const result = await this.handleStream(response.body, options.onToken);
+          console.log(`[NAVI] ── RESPONSE (openrouter key ${keyIdx} model ${modelId}) ──`);
+          console.log(`[NAVI] [assistant] ${result}`);
+          return result;
+        }
+
+        const data = await response.json() as { choices?: Array<{ message?: { content?: string } }> };
+        const result = data.choices?.[0]?.message?.content ?? '';
+        if (!result) {
+          // Advance key index on empty response so next call tries a different key
+          this.currentKeyIndex = (keyIdx + 1) % this.apiKeys.length;
+          lastError = new Error(`empty_response_key_${keyIdx}_model_${modelIdx}`);
+          continue;
+        }
+        console.log(`[NAVI] ── RESPONSE (openrouter key ${keyIdx} model ${modelId}) ──`);
         console.log(`[NAVI] [assistant] ${result}`);
         return result;
+      } catch (err) {
+        clearTimeout(timeoutId);
+        if (err instanceof Error && err.name === 'AbortError') {
+          throw new Error(`OpenRouter request timed out after ${DEFAULT_TIMEOUT}ms`);
+        }
+        lastError = err as Error;
+        // Only continue retrying for known retryable errors; rethrow others immediately
+        if (lastError.message.startsWith('retryable_') || lastError.message.startsWith('empty_response_')) continue;
+        throw lastError;
       }
-
-      const data = await response.json() as { choices?: Array<{ message?: { content?: string } }> };
-      const result = data.choices?.[0]?.message?.content ?? '';
-      if (!result) {
-        throw new Error('NAVI is experiencing high demand right now. Please try again in a moment.');
-      }
-      console.log(`[NAVI] ── RESPONSE (openrouter) ──`);
-      console.log(`[NAVI] [assistant] ${result}`);
-      return result;
-    } catch (err) {
-      clearTimeout(timeoutId);
-      if (err instanceof Error && err.name === 'AbortError') {
-        throw new Error(`OpenRouter request timed out after ${DEFAULT_TIMEOUT}ms`);
-      }
-      throw err;
     }
+
+    throw new Error('NAVI is experiencing high demand right now. Please try again in a moment.');
   }
 
   // ── SSE streaming (OpenAI-compatible format) ─────────────────

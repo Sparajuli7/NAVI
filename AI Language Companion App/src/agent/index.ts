@@ -240,13 +240,14 @@ export class NaviAgent {
     // Determine backend — 'auto' is resolved during initialize()
     this.llmBackend = config.backend ?? 'auto';
 
-    // OpenRouter takes priority when the env key is present
-    const openRouterKey = import.meta.env.VITE_OPENROUTER_API_KEY as string | undefined;
+    // OpenRouter takes priority when the env key is present (supports comma-separated keys)
+    const rawKey = import.meta.env.VITE_OPENROUTER_API_KEY as string | undefined;
+    const openRouterKeys = rawKey ? rawKey.split(',').map((k: string) => k.trim()).filter(Boolean) : [];
 
     // Create the LLM provider based on backend selection
-    if (openRouterKey && this.llmBackend !== 'webllm') {
+    if (openRouterKeys.length > 0 && this.llmBackend !== 'webllm') {
       // OpenRouter cloud mode — no local model download needed
-      this.openRouterProvider = new OpenRouterProvider(openRouterKey);
+      this.openRouterProvider = new OpenRouterProvider(openRouterKeys);
       this.llm = this.openRouterProvider;
       this.llmBackend = 'openrouter';
     } else if (this.llmBackend === 'ollama') {
