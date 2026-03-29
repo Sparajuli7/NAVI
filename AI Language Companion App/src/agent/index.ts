@@ -99,6 +99,8 @@ import type { ChatLLM } from './models';
 import { AvatarContextController } from './avatar/contextController';
 import { LocationIntelligence } from './location/locationIntelligence';
 import { ConversationDirector } from './director/conversationDirector';
+import { SessionPlanner } from './director/SessionPlanner';
+import { ProactiveEngine } from './director/ProactiveEngine';
 import { registerAllTools } from './tools';
 import { handleUserInput } from './core/router';
 import { agentBus } from './core/eventBus';
@@ -201,6 +203,8 @@ export class NaviAgent {
   readonly avatar: AvatarContextController;
   readonly location: LocationIntelligence;
   readonly director: ConversationDirector;
+  readonly sessionPlanner: SessionPlanner;
+  readonly proactiveEngine: ProactiveEngine;
 
   // LLM provider — can be WebLLM or Ollama (both implement ChatLLM)
   private llm: ChatLLM;
@@ -236,6 +240,11 @@ export class NaviAgent {
       this.memory.working,
     );
     this.director.setSituationAssessor(this.memory.situation);
+
+    // Session planner and proactive engine
+    this.sessionPlanner = new SessionPlanner(this.memory.working);
+    this.proactiveEngine = new ProactiveEngine(this.memory.learner, this.memory.episodic);
+    this.director.setSessionPlanner(this.sessionPlanner);
 
     // Determine backend — 'auto' is resolved during initialize()
     this.llmBackend = config.backend ?? 'auto';
@@ -561,6 +570,14 @@ export class NaviAgent {
   getSuggestions(): string[] {
     const avatarId = this.avatar.getActiveProfile()?.id ?? 'default';
     return this.director.getSuggestions(avatarId);
+  }
+
+  /**
+   * Call on app open — returns a warm message if a proactive trigger is active,
+   * or null if no proactive message is needed (user is in a normal session cadence).
+   */
+  getProactiveMessage(): string | null {
+    return this.proactiveEngine.getProactiveMessage();
   }
 
   /** Get the current Ollama model name (if using Ollama backend) */

@@ -22,13 +22,15 @@ type Section = 'companion' | 'profile' | 'preferences' | 'location' | 'memory' |
 interface SettingsPanelProps {
   onClose: () => void;
   onRegenerate: () => void;
+  onDeleteCompanion?: (charId: string) => Promise<void>;
   onUpdateCharacter: (updates: Partial<Character>) => Promise<void>;
   onSaveUserProfile: (text: string) => Promise<void>;
 }
 
-export function SettingsPanel({ onClose, onRegenerate, onUpdateCharacter, onSaveUserProfile: _onSaveUserProfile }: SettingsPanelProps) {
+export function SettingsPanel({ onClose, onRegenerate, onDeleteCompanion, onUpdateCharacter, onSaveUserProfile: _onSaveUserProfile }: SettingsPanelProps) {
   const [activeSection, setActiveSection] = useState<Section>('companion');
   const [confirmClear, setConfirmClear] = useState(false);
+  const [confirmDeleteCompanion, setConfirmDeleteCompanion] = useState(false);
   const [manualCity, setManualCity] = useState('');
   const [isDetectingLocation, setIsDetectingLocation] = useState(false);
   const [locationError, setLocationError] = useState<string | null>(null);
@@ -355,6 +357,37 @@ export function SettingsPanel({ onClose, onRegenerate, onUpdateCharacter, onSave
                     <RefreshCw className="w-4 h-4" />
                     Regenerate companion
                   </button>
+
+                  {onDeleteCompanion && (
+                    confirmDeleteCompanion ? (
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => setConfirmDeleteCompanion(false)}
+                          className="flex-1 px-4 py-3 border border-border rounded-xl text-sm text-muted-foreground hover:bg-muted/50 transition-colors"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={async () => {
+                            setConfirmDeleteCompanion(false);
+                            onClose();
+                            await onDeleteCompanion(activeCharacter.id);
+                          }}
+                          className="flex-1 px-4 py-3 bg-red-500/20 border border-red-500/40 text-red-400 rounded-xl text-sm hover:bg-red-500/30 transition-colors"
+                        >
+                          Confirm Delete
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => setConfirmDeleteCompanion(true)}
+                        className="w-full flex items-center justify-center gap-2 px-4 py-3 border border-red-500/30 rounded-xl text-sm text-red-400 hover:bg-red-500/10 transition-colors"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        Delete companion
+                      </button>
+                    )
+                  )}
                 </>
               ) : (
                 <p className="text-sm text-muted-foreground">No companion created yet.</p>

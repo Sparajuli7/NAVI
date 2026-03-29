@@ -27,6 +27,7 @@ import {
   saveCharacter,
   saveCharacterConversation,
   saveUserProfile,
+  deleteCharacterData,
 } from '../utils/storage';
 import type { Character } from '../types/character';
 import dialectMapRaw from '../config/dialectMap.json';
@@ -312,6 +313,26 @@ export default function App() {
     setAppPhase('onboarding');
   };
 
+  // Delete any companion by ID — cleans up all associated IndexedDB data
+  const handleDeleteCompanion = async (charId: string) => {
+    const updated = companions.filter((c) => c.id !== charId);
+    setCompanions(updated);
+    useCharacterStore.getState().setCharacters(updated);
+    await saveCharacters(updated);
+    await deleteCharacterData(charId);
+
+    // If the deleted companion was the active one, return to home
+    const active = useCharacterStore.getState().activeCharacter;
+    if (active?.id === charId) {
+      useCharacterStore.getState().setActiveCharacter(null);
+      useCharacterStore.getState().clearMemories();
+      useChatStore.getState().clearMessages();
+      setCharacter(null);
+      setLocation('');
+      setAppPhase('home');
+    }
+  };
+
   // Update active companion's data (from Settings edit)
   const handleUpdateCharacter = async (updates: Partial<Character>) => {
     useCharacterStore.getState().updateActiveCharacter(updates);
@@ -469,6 +490,7 @@ export default function App() {
           onSelectCompanion={handleSelectCompanion}
           onContinueChat={() => setAppPhase('chat')}
           onOpenScenarios={handleOpenScenarios}
+          onDeleteCompanion={handleDeleteCompanion}
           onNewCompanion={() => {
             // Don't clear — just add a new companion
             useCharacterStore.getState().setActiveCharacter(null);
@@ -492,6 +514,7 @@ export default function App() {
             onOpenCamera={() => setShowCamera(true)}
             onToggleTheme={handleToggleTheme}
             onRegenerate={handleRegenerate}
+            onDeleteCompanion={handleDeleteCompanion}
             onGoHome={handleGoHome}
             onUpdateCharacter={handleUpdateCharacter}
             onSaveUserProfile={handleSaveUserProfile}

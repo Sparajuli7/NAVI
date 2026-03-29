@@ -1,13 +1,15 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
   Settings, Sun, Moon, Camera, Mic, RotateCcw, RefreshCw, Zap,
-  X as XIcon, MessageSquare, ChevronDown,
+  X as XIcon, MessageSquare, ChevronDown, BookOpen, LayoutList,
 } from 'lucide-react';
 import { SpeechBubble, ThoughtBubble, ChatLogEntry } from './NewChatBubble';
 import { AIAvatarDisplay } from './AIAvatarDisplay';
 import { QuickActionPill } from './QuickActionPill';
 import { ExpandedPhraseCard } from './ExpandedPhraseCard';
 import { SettingsPanel } from './SettingsPanel';
+import { FlashcardDeck } from './FlashcardDeck';
+import { KnowledgeGraphScreen } from './KnowledgeGraphScreen';
 import { AnimatePresence, motion } from 'motion/react';
 import { useChatStore } from '../../stores/chatStore';
 import { useCharacterStore } from '../../stores/characterStore';
@@ -42,6 +44,7 @@ interface ConversationScreenProps {
   onUpdateCharacter: (updates: Partial<Character>) => Promise<void>;
   onSaveUserProfile: (text: string) => Promise<void>;
   onOpenScenarios: () => void;
+  onDeleteCompanion?: (charId: string) => Promise<void>;
   isDark: boolean;
 }
 
@@ -89,12 +92,15 @@ export function ConversationScreen({
   onUpdateCharacter,
   onSaveUserProfile,
   onOpenScenarios,
+  onDeleteCompanion,
   isDark,
 }: ConversationScreenProps) {
   const [inputValue, setInputValue]   = useState('');
   const [showQuickActions, setShowQuickActions] = useState(true);
   const [expandedPhrase, setExpandedPhrase]     = useState<any>(null);
   const [showSettings, setShowSettings]         = useState(false);
+  const [showFlashcards, setShowFlashcards]     = useState(false);
+  const [showKnowledgeGraph, setShowKnowledgeGraph] = useState(false);
   const [isRecording, setIsRecording]           = useState(false);
   const [isAmbientListening, setIsAmbientListening] = useState(false);
   const [llmError, setLlmError]                 = useState(false);
@@ -102,6 +108,7 @@ export function ConversationScreen({
   // Two-mode layout: 'avatar' = full-screen avatar + voice, 'chat' = scrollable history + text input
   const [viewMode, setViewMode]                 = useState<'avatar' | 'chat'>('avatar');
   const scrollRef = useRef<HTMLDivElement>(null);
+  const proactiveShownRef = useRef(false);
 
   const {
     messages, isGenerating, activeScenario, isScenarioActive,
@@ -122,6 +129,28 @@ export function ConversationScreen({
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages, isGenerating, viewMode]);
+
+  // Proactive message on app open (returning users only)
+  useEffect(() => {
+    if (proactiveShownRef.current) return;
+    if (!agent || !isLLMReady) return;
+
+    const msgs = useChatStore.getState().messages;
+    if (msgs.length === 0) return; // First-ever session — skip proactive
+
+    const proactiveMsg = agent.getProactiveMessage();
+    if (!proactiveMsg) return;
+
+    proactiveShownRef.current = true;
+    const { addMessage } = useChatStore.getState();
+    addMessage({
+      id: `proactive_${Date.now()}`,
+      role: 'character',
+      content: proactiveMsg,
+      timestamp: Date.now(),
+      type: 'text',
+    });
+  }, [agent, isLLMReady]);
 
   // Auto-switch to chat mode when user starts typing
   const handleInputFocus = () => {
@@ -334,10 +363,11 @@ export function ConversationScreen({
     setIsRecording(false);
   };
 
-  const pills: Array<{ icon: string; label: string; isCamera?: boolean; text?: string }> =
+  const pills: Array<{ icon: string; label: string; isCamera?: boolean; isDictionary?: boolean; text?: string }> =
     activeScenario && SCENARIOS[activeScenario]
       ? SCENARIOS[activeScenario].auto_suggestions.map(s => ({ icon: '💬', label: s, text: s }))
       : [
+          { icon: '📚', label: 'My phrases', isDictionary: true },
           { icon: '📸', label: 'Scan a menu',         isCamera: true },
           { icon: '🗣',  label: 'Teach me a phrase',  text: 'Teach me a useful local phrase for right now' },
           { icon: '🧭', label: "What's nearby?",      text: "What's interesting nearby that locals love?" },
@@ -417,6 +447,20 @@ export function ConversationScreen({
           ) : (
             <Moon className="w-4 h-4 text-muted-foreground" />
           )}
+        </button>
+        <button
+          onClick={() => setShowKnowledgeGraph(true)}
+          className="p-2 hover:bg-muted/50 rounded-lg transition-colors"
+          title="Phrase map"
+        >
+          <BookOpen className="w-4 h-4 text-[#D4A853]" />
+        </button>
+        <button
+          onClick={() => setShowFlashcards(true)}
+          className="p-2 hover:bg-muted/50 rounded-lg transition-colors"
+          title="Phrase cards"
+        >
+          <LayoutList className="w-4 h-4 text-muted-foreground" />
         </button>
         <button
           onClick={() => setShowSettings(true)}
@@ -554,7 +598,13 @@ export function ConversationScreen({
                     <QuickActionPill
                       icon={pill.icon}
                       label={pill.label}
-                      onClick={pill.isCamera ? onOpenCamera : () => handleSend(pill.text)}
+                      onClick={
+                        pill.isCamera
+                          ? onOpenCamera
+                          : pill.isDictionary
+                            ? () => setShowKnowledgeGraph(true)
+                            : () => handleSend(pill.text!)
+                      }
                     />
                   </React.Fragment>
                 ))}
@@ -704,7 +754,13 @@ export function ConversationScreen({
                       <QuickActionPill
                         icon={pill.icon}
                         label={pill.label}
-                        onClick={pill.isCamera ? onOpenCamera : () => handleSend(pill.text)}
+                        onClick={
+                          pill.isCamera
+                            ? onOpenCamera
+                            : pill.isDictionary
+                              ? () => setShowKnowledgeGraph(true)
+                              : () => handleSend(pill.text!)
+                        }
                       />
                     </React.Fragment>
                   ))}
@@ -784,7 +840,62 @@ export function ConversationScreen({
             onRegenerate={onRegenerate}
             onUpdateCharacter={onUpdateCharacter}
             onSaveUserProfile={onSaveUserProfile}
+            onDeleteCompanion={onDeleteCompanion}
           />
+        )}
+      </AnimatePresence>
+
+      {/* ── Knowledge graph (dictionary map) ─────────────────────────── */}
+      <AnimatePresence>
+        {showKnowledgeGraph && (
+          <motion.div
+            key="knowledge-graph"
+            className="fixed inset-0 z-[42] flex flex-col bg-background"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+          >
+            <KnowledgeGraphScreen
+              onBack={() => setShowKnowledgeGraph(false)}
+              onOpenFlashcards={() => {
+                setShowKnowledgeGraph(false);
+                setShowFlashcards(true);
+              }}
+              character={character}
+              location={location}
+              countryCode={currentLocation?.countryCode}
+              trackedPhrases={agent.memory.learner.phrases}
+              languageLabel={languageName}
+              onPracticePhrase={(phrase) => {
+                setShowKnowledgeGraph(false);
+                handleSend(`Can we practice this phrase? "${phrase}"`);
+              }}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Flashcard deck overlay ───────────────────────────────────── */}
+      <AnimatePresence>
+        {showFlashcards && (
+          <motion.div
+            key="flashcard-overlay"
+            className="fixed inset-0 z-[43] flex flex-col bg-background"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+          >
+            <FlashcardDeck
+              phrases={agent.memory.learner.phrases}
+              onClose={() => setShowFlashcards(false)}
+              onPractice={(phrase) => {
+                setShowFlashcards(false);
+                handleSend(`Can we practice this phrase? "${phrase.phrase}"`);
+              }}
+            />
+          </motion.div>
         )}
       </AnimatePresence>
     </div>

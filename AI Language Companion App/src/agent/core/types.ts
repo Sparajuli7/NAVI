@@ -257,6 +257,8 @@ export interface TrackedPhrase {
   nextReviewAt: number;
   /** Location where this was learned */
   learnedAt?: string;
+  /** Number of times the user has struggled with this phrase (optional for backwards compat) */
+  struggleCount?: number;
 }
 
 export interface TopicProficiency {

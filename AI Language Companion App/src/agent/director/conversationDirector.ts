@@ -33,6 +33,7 @@ import type { WorkingMemory } from '../memory/workingMemory';
 import type { TrackedPhrase } from '../core/types';
 import { detectPhrases, detectTopics } from '../prompts/phraseDetector';
 import { promptLoader } from '../prompts/promptLoader';
+import type { SessionPlanner } from './SessionPlanner';
 
 // ─── Types ───────────────────────────────────────────────────
 
@@ -102,6 +103,7 @@ export class ConversationDirector {
     private relationships: RelationshipStore,
     private episodic: EpisodicMemoryStore,
     working?: WorkingMemory,
+    private sessionPlanner?: SessionPlanner,
   ) {
     this.working = working;
   }
@@ -109,6 +111,11 @@ export class ConversationDirector {
   /** Set the situation assessor (called after MemoryManager wires it up) */
   setSituationAssessor(assessor: SituationAssessor): void {
     this.situationAssessor = assessor;
+  }
+
+  /** Set the session planner (called from NaviAgent after construction) */
+  setSessionPlanner(planner: SessionPlanner): void {
+    this.sessionPlanner = planner;
   }
 
   // ── Pre-Processing ─────────────────────────────────────────
@@ -136,6 +143,24 @@ export class ConversationDirector {
     // If mode is 'guide', skip all learning goals — user just needs navigation/translation
     const userMode = options?.userMode ?? null;
     const isGuideMode = userMode === 'guide';
+
+    // SESSION GOAL — use persistent session-level intent if available
+    let sessionGoalInstruction: string | null = null;
+    if (this.sessionPlanner && !isGuideMode) {
+      const sessionGoal = this.sessionPlanner.getOrPick(
+        avatarId,
+        this.learner,
+        this.relationships,
+        this.episodic,
+      );
+      if (sessionGoal && !sessionGoal.achieved) {
+        goals.push(sessionGoal.type);
+        sessionGoalInstruction = sessionGoal.instruction;
+        console.log(
+          `[NAVI:session] active goal: ${sessionGoal.type}${sessionGoal.target ? ` (${sessionGoal.target})` : ''}`,
+        );
+      }
+    }
 
     // 0a. Language calibration — only in learn mode or unset; skip for guide/friend
     const wmTier = this.working?.get(this.WM_KEY) as number | undefined;
@@ -285,7 +310,13 @@ export class ConversationDirector {
     // Build context strings
     const learningContext = this.learner.formatForPrompt();
     const warmthInstruction = this.relationships.formatForPrompt(avatarId);
-    const promptInjection = goalInstructions.join('\n');
+    const personalCtx = this.surfacePersonalContext();
+    const allInstructions = [
+      sessionGoalInstruction,
+      personalCtx || null,
+      ...goalInstructions,
+    ].filter((x): x is string => Boolean(x));
+    const promptInjection = allInstructions.join('\n');
     const situationContext = this.situationAssessor?.formatForPrompt() ?? '';
 
     console.log(`[NAVI:director] preProcess goals=[${goals.join(', ')}] assessment=${needsAssessment ? 'active' : 'complete'}`);
@@ -361,6 +392,18 @@ export class ConversationDirector {
 
     // 6. Language tier advancement — assess user message for target-language use vs help requests
     await this.assessLanguageTier(userMessage);
+
+    // 7. Check if session goal was achieved
+    if (this.sessionPlanner) {
+      const active = this.sessionPlanner.getActive(avatarId);
+      if (active && !active.achieved) {
+        // Simple heuristic: if the target phrase/topic appears in the exchange, mark achieved
+        const combined = (userMessage + ' ' + llmResponse).toLowerCase();
+        if (active.target && combined.includes(active.target.toLowerCase())) {
+          this.sessionPlanner.markAchieved(avatarId);
+        }
+      }
+    }
   }
 
   // ── Proactive Suggestions ──────────────────────────────────
@@ -409,6 +452,25 @@ export class ConversationDirector {
   }
 
   // ── Private Helpers ────────────────────────────────────────
+
+  /**
+   * Pull 3 recent episodic memories with high importance and format as a
+   * curated personal context block for injection into the system prompt.
+   * Not a generic dump — picks meaningful personal details.
+   */
+  private surfacePersonalContext(): string {
+    const recent = this.episodic.getRecent(5);
+    if (recent.length === 0) return '';
+
+    const personalOnes = recent
+      .filter((ep) => ep.importance >= 0.5)
+      .slice(0, 3);
+
+    if (personalOnes.length === 0) return '';
+
+    const lines = personalOnes.map((ep) => `- ${ep.summary}`);
+    return `PERSONAL CONTEXT (reference naturally, don't announce you "remember"):\n${lines.join('\n')}`;
+  }
 
   private getNextAssessmentQuestion(): string {
     if (!this.situationAssessor) return ASSESSMENT_QUESTIONS[0];

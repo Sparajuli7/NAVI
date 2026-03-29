@@ -20,12 +20,28 @@ import { agentBus } from '../core/eventBus';
 const STORAGE_KEY = 'navi_learner_profile';
 const MAX_PHRASES = 500;
 
-// Spaced repetition intervals (in ms)
+// Spaced repetition intervals (in ms) — legacy single track (kept for reference)
 const REVIEW_INTERVALS: Record<PhraseMastery, number> = {
   new: 1 * 24 * 60 * 60 * 1000,        // 1 day
   learning: 3 * 24 * 60 * 60 * 1000,    // 3 days
   practiced: 7 * 24 * 60 * 60 * 1000,   // 7 days
   mastered: 30 * 24 * 60 * 60 * 1000,   // 30 days
+};
+
+// Dual SR tracks — struggle path (urgent, shorter intervals)
+const STRUGGLE_INTERVALS: Record<PhraseMastery, number> = {
+  new:       6 * 60 * 60 * 1000,        // 6 hours (urgent)
+  learning:  1 * 24 * 60 * 60 * 1000,   // 1 day
+  practiced: 3 * 24 * 60 * 60 * 1000,   // 3 days
+  mastered:  14 * 24 * 60 * 60 * 1000,  // 2 weeks
+};
+
+// Dual SR tracks — success path (relaxed, longer intervals)
+const SUCCESS_INTERVALS: Record<PhraseMastery, number> = {
+  new:       2 * 24 * 60 * 60 * 1000,   // 2 days (relaxed)
+  learning:  5 * 24 * 60 * 60 * 1000,   // 5 days
+  practiced: 14 * 24 * 60 * 60 * 1000,  // 2 weeks
+  mastered:  60 * 24 * 60 * 60 * 1000,  // 2 months
 };
 
 // How many successful attempts to advance mastery
@@ -92,15 +108,20 @@ export class LearnerProfileStore {
       // Advance mastery based on outcome
       if (attempt.outcome !== 'struggled') {
         tracked.mastery = this.advanceMastery(tracked.mastery, tracked.attemptCount);
-      } else if (tracked.mastery !== 'new') {
-        // Regression on struggle — drop one level
-        const levels: PhraseMastery[] = ['new', 'learning', 'practiced', 'mastered'];
-        const idx = levels.indexOf(tracked.mastery);
-        if (idx > 0) tracked.mastery = levels[idx - 1];
+        // Success path — use relaxed intervals
+        tracked.nextReviewAt = attempt.timestamp + SUCCESS_INTERVALS[tracked.mastery];
+      } else {
+        // Struggle — increment struggle count
+        tracked.struggleCount = (tracked.struggleCount ?? 0) + 1;
+        if (tracked.mastery !== 'new') {
+          // Regression on struggle — drop one level
+          const levels: PhraseMastery[] = ['new', 'learning', 'practiced', 'mastered'];
+          const idx = levels.indexOf(tracked.mastery);
+          if (idx > 0) tracked.mastery = levels[idx - 1];
+        }
+        // Struggle path — use urgent short intervals
+        tracked.nextReviewAt = attempt.timestamp + STRUGGLE_INTERVALS[tracked.mastery];
       }
-
-      // Schedule next review
-      tracked.nextReviewAt = attempt.timestamp + REVIEW_INTERVALS[tracked.mastery];
     } else {
       // New phrase
       tracked = {
@@ -151,6 +172,41 @@ export class LearnerProfileStore {
     return this.profile.phrases
       .filter((p) => p.mastery === 'new' && p.attemptCount >= 2)
       .sort((a, b) => a.lastPracticed - b.lastPracticed)
+      .slice(0, limit);
+  }
+
+  /**
+   * Get struggling phrases on the urgent SR track.
+   * These have been marked as 'struggled' at least once and are due for review now.
+   * Sorted by nextReviewAt ASC (most overdue first).
+   */
+  getUrgentReviewPhrases(limit: number = 5): TrackedPhrase[] {
+    const now = Date.now();
+    return this.profile.phrases
+      .filter(
+        (p) =>
+          p.mastery !== 'mastered' &&
+          (p.struggleCount ?? 0) >= 1 &&
+          p.nextReviewAt <= now,
+      )
+      .sort((a, b) => a.nextReviewAt - b.nextReviewAt)
+      .slice(0, limit);
+  }
+
+  /**
+   * Get phrases on the routine SR track (never struggled, due for regular review).
+   * Sorted by nextReviewAt ASC (most overdue first).
+   */
+  getRoutineReviewPhrases(limit: number = 5): TrackedPhrase[] {
+    const now = Date.now();
+    return this.profile.phrases
+      .filter(
+        (p) =>
+          p.mastery !== 'mastered' &&
+          (p.struggleCount ?? 0) === 0 &&
+          p.nextReviewAt <= now,
+      )
+      .sort((a, b) => a.nextReviewAt - b.nextReviewAt)
       .slice(0, limit);
   }
 

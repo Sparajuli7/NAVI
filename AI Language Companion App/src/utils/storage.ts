@@ -110,6 +110,17 @@ export async function loadAvatarImage(characterId: string): Promise<string | nul
   return (await get<string>(avatarImgKey(characterId))) ?? null;
 }
 
+// ── Per-character cleanup ─────────────────────────────────────────────────────
+
+/** Delete all IndexedDB data for a specific character (conversation, memories, portrait). */
+export async function deleteCharacterData(charId: string): Promise<void> {
+  await Promise.all([
+    del(convKey(charId)),
+    del(memKey(charId)),
+    del(avatarImgKey(charId)),
+  ]);
+}
+
 // ── Nuclear reset ─────────────────────────────────────────────────────────────
 
 export async function clearAllData(): Promise<void> {

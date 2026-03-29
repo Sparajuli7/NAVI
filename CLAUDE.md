@@ -11,9 +11,9 @@ After completing ANY task, before committing:
 
 ## What Is NAVI?
 
-NAVI is an **offline-first AI language companion app** — a local friend in your pocket who speaks the language, knows the slang, understands the culture, and explains everything like a native. It runs entirely on-device using WebGPU-accelerated LLM inference. No internet required.
+NAVI is an **AI language companion app** — a local friend in your pocket who speaks the language, knows the slang, understands the culture, and explains everything like a native. It uses a hybrid inference approach: cloud LLMs (OpenRouter) by default for quality and speed, with on-device WebGPU inference (WebLLM) available as a fallback for privacy or offline use.
 
-**The core bet:** Every competitor (Google Translate, ChatGPT, Duolingo, DeepL) requires internet. NAVI works everywhere because it runs entirely on the user's device. Offline is not a fallback — it IS the product.
+**The core bet:** Most language tools give you translations. NAVI gives you a companion — one that knows where you are, remembers your conversations, adapts to your level, and teaches you how locals actually speak.
 
 **Target users:** Travelers, immigrants, expats, multilingual families, service workers in multilingual environments.
 
@@ -252,6 +252,15 @@ The agent framework is fully built. All UI screens still call legacy services di
 - ~~**OpenRouter rate limits exhaust single key**~~ — `VITE_OPENROUTER_API_KEY` now accepts comma-separated keys (e.g. `key1,key2,key3`). `OpenRouterProvider` constructor accepts `string | string[]`. On 429 or 503, the provider increments `currentKeyIndex` and retries the request with the next key within the same `chat()` call. After all keys are exhausted the user-facing "high demand" error is thrown. `agent/index.ts` splits the env value by comma before passing to the constructor.
 - ~~**OpenRouter 402 crash + same-account key rotation useless**~~ — Rewrote `chat()` rotation logic in `openRouterProvider.ts`. `RETRYABLE_STATUSES = {402, 429, 500, 502, 503, 504}` — 402 no longer throws. Each retry attempt cycles to the next model in `FALLBACK_MODELS` (qwen3-32b → llama-3.3-70b → mistral-small → gemma-3-27b), so same-account users get 4× effective throughput via per-model rate limit pools. Added 100ms throttle between requests. `empty_response` now also advances `currentKeyIndex`. Error body logged on all retryable failures.
 - ~~**Avatar opens in English for Kathmandu/Nepali characters**~~ — Added Kathmandu/Devanagari example (`नमस्ते! (na-MAS-tay) आज Thamel maa ekdam bheed chha...`) to all 3 FIRST MESSAGE RULE sections in `characterGen.json` (`firstMsgRules`, `freeText.template` rule 2, `fromTemplate.template` rule 2). Added script instructions: Nepali → Devanagari with romanization; Japanese/Korean/Thai/Arabic → native script with romanization; never default to English.
+
+### Resolved Feature Gaps (2026-03-28c)
+- ~~**No session-level goal persistence**~~ — `SessionPlanner` added to `src/agent/director/SessionPlanner.ts`. Picks one goal per session using 7-priority algorithm, stored in WorkingMemory with 2h TTL. `ConversationDirector.setSessionPlanner()` wires it in; `preProcess()` injects session goal instruction; `postProcess()` marks goal achieved when target phrase/topic appears in exchange.
+- ~~**No proactive messages on app open**~~ — `ProactiveEngine` added to `src/agent/director/ProactiveEngine.ts`. Four triggers: 7-day absence, 2-day absence, streak milestones (7/14/30), struggling phrases. `NaviAgent.getProactiveMessage()` exposed as public method. Wired into `ConversationScreen`: fires once on mount when `isLLMReady` and `messages.length > 0` (returning users only); result injected as a `'character'` message.
+- ~~**Single SR track for all phrases**~~ — `LearnerProfileStore` now has dual tracks: `STRUGGLE_INTERVALS` (urgent: 6h→2w) and `SUCCESS_INTERVALS` (relaxed: 2d→2mo). `struggleCount` field on `TrackedPhrase` (optional, backwards-compat). `getUrgentReviewPhrases()` and `getRoutineReviewPhrases()` methods added.
+- ~~**No personal context surfacing in system prompt**~~ — `ConversationDirector.surfacePersonalContext()` pulls top-3 high-importance episodic memories (importance >= 0.5) and injects as "PERSONAL CONTEXT" block into `promptInjection`.
+- ~~**No flashcard review UI**~~ — `FlashcardDeck.tsx` at `src/app/components/FlashcardDeck.tsx`. Card flip, filters, mastery colors, Practice → chat. Wired via **`LayoutList`** header button; `agent.memory.learner.phrases` is the data source. Full-screen `motion` overlay (`z-[43]`).
+- ~~**No phrase knowledge graph / dictionary map**~~ — `KnowledgeGraphScreen.tsx` + `PhraseDetailSheet.tsx`: graph nodes from learner phrases (category links, same-flag when using `countryCode`); demo packs for Vietnam / France / Japan when phrases are empty; search + filters; **`BookOpen`** opens graph; graph header can jump to card deck; **My phrases** quick pill opens graph; Practice queues the same practice prompt as flashcards.
+- ~~**`reconnect` goal missing from systemLayers.json**~~ — Added to `conversationGoals` in `src/config/prompts/systemLayers.json`.
 
 ### Known Feature Gaps
 - **CameraOverlay OCR/LLM pipeline not wired** — Prompt 7 incomplete. `CameraOverlay.tsx` still uses a mocked scan flow; `agent.handleImage()` pipeline exists but is not connected.

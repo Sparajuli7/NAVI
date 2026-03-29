@@ -10,8 +10,9 @@
  */
 
 const POLLINATIONS_BASE = 'https://image.pollinations.ai/prompt';
-const STYLE_PREFIX = 'Pixar 3D animation portrait, ';
-const STYLE_SUFFIX = ', expressive warm face, clean studio background, friendly, high quality';
+// Realistic editorial portrait style — much better quality than Pixar 3D
+const STYLE_PREFIX = 'editorial portrait photography, shallow depth of field, natural skin texture, soft studio lighting, ';
+const STYLE_SUFFIX = ', looking slightly off-camera, warm authentic expression, photorealistic, sharp focus on face, bokeh background, professional headshot quality, 85mm lens';
 
 /**
  * Fetch an AI portrait for the given portrait prompt.
@@ -29,11 +30,11 @@ export async function generateAvatarImage(
   const encoded = encodeURIComponent(fullPrompt);
   // Derive a numeric seed from characterId (hash the timestamp portion)
   const seed = Math.abs(characterId.split('_').pop()?.split('').reduce((a, c) => a * 31 + c.charCodeAt(0), 0) ?? 0) % 99999;
-  const url = `${POLLINATIONS_BASE}/${encoded}?width=512&height=512&nologo=true&seed=${seed}`;
+  const url = `${POLLINATIONS_BASE}/${encoded}?width=512&height=512&nologo=true&seed=${seed}&model=flux`;
 
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 20_000);
+    const timeoutId = setTimeout(() => controller.abort(), 40_000);
 
     const response = await fetch(url, { signal: controller.signal });
     clearTimeout(timeoutId);

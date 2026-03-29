@@ -1,6 +1,6 @@
-import React from 'react';
-import { motion } from 'motion/react';
-import { MessageSquare, Plus, ArrowRight, Brain, Zap } from 'lucide-react';
+import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
+import { MessageSquare, Plus, ArrowRight, Brain, Zap, Trash2 } from 'lucide-react';
 import { CharacterAvatar } from './CharacterAvatar';
 import type { Character } from '../../types/character';
 import scenarioContexts from '../../config/scenarioContexts.json';
@@ -17,6 +17,7 @@ interface HomeScreenProps {
   onContinueChat: () => void;
   onNewCompanion: () => void;
   onOpenScenarios: (key?: string) => void;
+  onDeleteCompanion?: (charId: string) => Promise<void>;
 }
 
 function charToAvatarShape(c: Character) {
@@ -39,7 +40,9 @@ export function HomeScreen({
   onContinueChat,
   onNewCompanion,
   onOpenScenarios,
+  onDeleteCompanion,
 }: HomeScreenProps) {
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   // Scenario quick-pick strip — horizontal scroll, all scenarios
   const ScenarioStrip = () => (
     <motion.div
@@ -225,32 +228,74 @@ export function HomeScreen({
         </motion.p>
 
         {companions.map((comp, i) => (
-          <motion.button
+          <motion.div
             key={comp.id}
-            className="w-full bg-card border border-border rounded-2xl p-4 flex items-center gap-4 hover:border-primary/40 transition-colors text-left"
-            onClick={() => onSelectCompanion(comp.id)}
-            whileTap={{ scale: 0.98 }}
+            className="w-full bg-card border border-border rounded-2xl overflow-hidden"
             initial={{ y: 20, opacity: 0 }}
             animate={{ y: 0, opacity: 1 }}
             transition={{ delay: 0.1 + i * 0.07 }}
           >
-            <CharacterAvatar character={charToAvatarShape(comp)} size="md" animationState="none" />
-            <div className="flex-1 min-w-0">
-              <p
-                className="font-medium text-foreground"
-                style={{ fontFamily: 'var(--font-display)' }}
-              >
-                {comp.name}
-              </p>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                {comp.location_city}, {comp.location_country}
-              </p>
-              <p className="text-xs text-foreground/60 mt-1 line-clamp-1 italic">
-                {comp.summary}
-              </p>
-            </div>
-            <ArrowRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-          </motion.button>
+            <AnimatePresence mode="wait">
+              {confirmDeleteId === comp.id ? (
+                <motion.div
+                  key="confirm"
+                  className="p-4 flex items-center gap-3"
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                >
+                  <p className="flex-1 text-sm text-foreground">
+                    Delete <span className="font-semibold">{comp.name}</span>? This can't be undone.
+                  </p>
+                  <button
+                    onClick={() => setConfirmDeleteId(null)}
+                    className="px-3 py-1.5 text-xs rounded-full border border-border text-muted-foreground hover:bg-muted/50 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={async () => { setConfirmDeleteId(null); await onDeleteCompanion?.(comp.id); }}
+                    className="px-3 py-1.5 text-xs rounded-full bg-red-500/20 border border-red-500/40 text-red-400 hover:bg-red-500/30 transition-colors"
+                  >
+                    Delete
+                  </button>
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="normal"
+                  className="p-4 flex items-center gap-4"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                >
+                  <button className="flex-1 flex items-center gap-4 text-left min-w-0" onClick={() => onSelectCompanion(comp.id)}>
+                    <CharacterAvatar character={charToAvatarShape(comp)} size="md" animationState="none" />
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-foreground" style={{ fontFamily: 'var(--font-display)' }}>
+                        {comp.name}
+                      </p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {comp.location_city}, {comp.location_country}
+                      </p>
+                      <p className="text-xs text-foreground/60 mt-1 line-clamp-1 italic">
+                        {comp.summary}
+                      </p>
+                    </div>
+                    <ArrowRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                  </button>
+                  {onDeleteCompanion && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(comp.id); }}
+                      className="p-2 rounded-full hover:bg-red-500/10 transition-colors flex-shrink-0"
+                      title="Delete companion"
+                    >
+                      <Trash2 className="w-4 h-4 text-muted-foreground hover:text-red-400 transition-colors" />
+                    </button>
+                  )}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </motion.div>
         ))}
 
         <ScenarioStrip />
