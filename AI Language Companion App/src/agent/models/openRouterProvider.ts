@@ -20,12 +20,11 @@ const FALLBACK_MODELS = [
   'mistralai/mistral-small-3.1-24b-instruct:free',
   'google/gemma-3-27b-it:free',
 ];
-const DEFAULT_TIMEOUT = 30_000;
-const MIN_REQUEST_GAP_MS = 100;
-const MAX_ATTEMPTS = 8;
+const DEFAULT_TIMEOUT = 90_000;
+const MAX_RETRY_AFTER_MS = 30_000;
 
 /** Status codes that warrant rotating to the next key+model rather than throwing. */
-const RETRYABLE_STATUSES = new Set([402, 429, 500, 502, 503, 504]);
+const RETRYABLE_STATUSES = new Set([402, 408, 429, 500, 502, 503, 504]);
 
 export class OpenRouterProvider implements ModelProvider<null>, ChatLLM {
   private status: ModelStatus = 'ready'; // no download — always ready
@@ -33,24 +32,10 @@ export class OpenRouterProvider implements ModelProvider<null>, ChatLLM {
   private currentKeyIndex: number = 0;
   private readonly models: string[];
   private abortController: AbortController | null = null;
-  private lastRequestTime = 0;
 
   constructor(apiKeys: string | string[], models?: string[]) {
     this.apiKeys = Array.isArray(apiKeys) ? apiKeys : [apiKeys];
     this.models = models ?? FALLBACK_MODELS;
-  }
-
-  private get currentKey(): string {
-    return this.apiKeys[this.currentKeyIndex];
-  }
-
-  /** Ensures at least MIN_REQUEST_GAP_MS between outgoing requests. */
-  private async throttle(): Promise<void> {
-    const elapsed = Date.now() - this.lastRequestTime;
-    if (elapsed < MIN_REQUEST_GAP_MS) {
-      await new Promise<void>(r => setTimeout(r, MIN_REQUEST_GAP_MS - elapsed));
-    }
-    this.lastRequestTime = Date.now();
   }
 
   info(): ModelInfo {
@@ -98,8 +83,8 @@ export class OpenRouterProvider implements ModelProvider<null>, ChatLLM {
 
     const useStream = !!(options?.stream && options?.onToken);
 
-    // Total attempts = min(keys × models, MAX_ATTEMPTS)
-    const totalAttempts = Math.min(this.apiKeys.length * this.models.length, MAX_ATTEMPTS);
+    // Try every key × model combination before giving up
+    const totalAttempts = this.apiKeys.length * this.models.length;
     let lastError: Error | null = null;
 
     for (let attempt = 0; attempt < totalAttempts; attempt++) {
@@ -109,7 +94,11 @@ export class OpenRouterProvider implements ModelProvider<null>, ChatLLM {
       const apiKey = this.apiKeys[keyIdx];
       const modelId = this.models[modelIdx];
 
-      await this.throttle();
+      // Exponential backoff between retries (skip on first attempt)
+      if (attempt > 0) {
+        const backoffMs = Math.min(200 * Math.pow(2, attempt - 1), 8_000);
+        await new Promise<void>(r => setTimeout(r, backoffMs));
+      }
 
       this.abortController = new AbortController();
       const timeoutId = setTimeout(() => this.abortController?.abort(), DEFAULT_TIMEOUT);
@@ -137,6 +126,15 @@ export class OpenRouterProvider implements ModelProvider<null>, ChatLLM {
         clearTimeout(timeoutId);
 
         if (RETRYABLE_STATUSES.has(response.status)) {
+          // Respect Retry-After header on 429s before moving on
+          if (response.status === 429) {
+            const retryAfterSec = parseInt(response.headers.get('Retry-After') ?? '0', 10);
+            if (retryAfterSec > 0) {
+              const waitMs = Math.min(retryAfterSec * 1000, MAX_RETRY_AFTER_MS);
+              console.warn(`[NAVI] OpenRouter 429 — waiting ${waitMs}ms (Retry-After: ${retryAfterSec}s)`);
+              await new Promise<void>(r => setTimeout(r, waitMs));
+            }
+          }
           const errorBody = await response.text().catch(() => '');
           console.warn(`[NAVI] OpenRouter ${response.status} on key ${keyIdx} model ${modelId}: ${errorBody}`);
           // Advance the sticky key index for future calls
