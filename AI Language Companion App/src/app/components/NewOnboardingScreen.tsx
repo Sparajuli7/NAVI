@@ -253,7 +253,7 @@ export function NewOnboardingScreen({ onComplete, onRetryLoadModel }: NewOnboard
         if (n.includes('ho chi minh') || n.includes('saigon')) return nameInput.trim() || 'Linh';
         if (n.includes('paris'))           return nameInput.trim() || 'Léa';
         if (n.includes('mexico'))          return nameInput.trim() || 'Diego';
-        if (n.includes('kathmandu'))       return nameInput.trim() || 'Arjun';
+        if (n.includes('kathmandu')) { const kn = ['Arjun','Sita','Arun','Priya','Ramesh','Anisha','Santosh','Deepa','Rohan','Maya']; return nameInput.trim() || kn[Math.floor(Math.random() * kn.length)]; }
         return nameInput.trim() || 'Kai';
       };
 

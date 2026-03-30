@@ -265,6 +265,8 @@ The agent framework is fully built. All UI screens still call legacy services di
 
 ### Resolved Feature Gaps (2026-03-29)
 - ~~**No user-driven avatar appearance in onboarding**~~ — Added 'appearance' step to `NewOnboardingScreen.tsx` between describe and generation. User types appearance description → `generateAvatarImageFromDescription()` (new export in `generateAvatarImage.ts`) calls OpenRouter Llama 3.3 70B to convert description to image prompt, then HF FLUX.1-schnell generates the image (returned as base64 data URI). `Character.avatarImageUrl` added to type. `ConversationScreen` renders `<img>` when `avatarImageUrl` is set, otherwise falls back to `AIAvatarDisplay` unchanged.
+- ~~**Avatar image generation always failing (DiceBear stuck)**~~ — `generateAvatarImageFromDescription` now logs HF FLUX failures to console and falls back to Pollinations.ai (Step C) when HF returns non-ok or empty blob. Pollinations.ai requires no token and is reliable. Error messages: `[NAVI] avatar HF FLUX failed: <status>` or `[NAVI] avatar falling back to Pollinations.ai`.
+- ~~**New companion always named "Arjun" in Kathmandu**~~ — Added Kathmandu/Nepal names (`Arjun, Sita, Arun, Priya, Ramesh, Anisha, Santosh, Deepa, Rohan, Maya`) to the NAME RULE in both `freeText.template` and `fromTemplate.template` in `characterGen.json` so the LLM picks varied names. `fallbackNameFor('kathmandu')` now randomly picks from the same list instead of always returning `'Arjun'`.
 
 ### Known Feature Gaps
 - **CameraOverlay OCR/LLM pipeline not wired** — Prompt 7 incomplete. `CameraOverlay.tsx` still uses a mocked scan flow; `agent.handleImage()` pipeline exists but is not connected.

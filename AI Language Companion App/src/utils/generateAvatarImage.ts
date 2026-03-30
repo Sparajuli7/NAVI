@@ -118,29 +118,49 @@ export async function generateAvatarImageFromDescription(description: string): P
 
     // Step B — generate image with HF FLUX.1-schnell (90s timeout)
     const hfToken = (import.meta.env.VITE_HF_TOKEN as string) ?? '';
-    if (!hfToken) return '';
+    if (hfToken) {
+      try {
+        const hfAbort = new AbortController();
+        const hfTimeout = setTimeout(() => hfAbort.abort(), 90_000);
+        const hfRes = await fetch(
+          'https://router.huggingface.co/hf-inference/models/black-forest-labs/FLUX.1-schnell',
+          {
+            method: 'POST',
+            signal: hfAbort.signal,
+            headers: {
+              'Authorization': `Bearer ${hfToken}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ inputs: imagePrompt }),
+          },
+        );
+        clearTimeout(hfTimeout);
+        if (hfRes.ok) {
+          const blob = await hfRes.blob();
+          if (blob.size) return await blobToBase64(blob);
+          console.error('[NAVI] avatar HF FLUX: empty blob response');
+        } else {
+          console.error('[NAVI] avatar HF FLUX failed:', hfRes.status, hfRes.statusText);
+        }
+      } catch (e) {
+        console.error('[NAVI] avatar HF FLUX error:', e);
+      }
+    }
 
-    const hfAbort = new AbortController();
-    const hfTimeout = setTimeout(() => hfAbort.abort(), 90_000);
-    const hfRes = await fetch(
-      'https://router.huggingface.co/hf-inference/models/black-forest-labs/FLUX.1-schnell',
-      {
-        method: 'POST',
-        signal: hfAbort.signal,
-        headers: {
-          'Authorization': `Bearer ${hfToken}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ inputs: imagePrompt }),
-      },
-    );
-    clearTimeout(hfTimeout);
-    if (!hfRes.ok) return '';
-    const blob = await hfRes.blob();
-    if (!blob.size) return '';
-
-    return await blobToBase64(blob);
-  } catch {
+    // Step C — Pollinations.ai fallback (no token needed, 40s timeout)
+    console.log('[NAVI] avatar falling back to Pollinations.ai');
+    const encoded = encodeURIComponent(`${STYLE_PREFIX}${imagePrompt}${STYLE_SUFFIX}`);
+    const polUrl = `${POLLINATIONS_BASE}/${encoded}?width=512&height=512&nologo=true&model=flux`;
+    const polAbort = new AbortController();
+    const polTimeout = setTimeout(() => polAbort.abort(), 40_000);
+    const polRes = await fetch(polUrl, { signal: polAbort.signal });
+    clearTimeout(polTimeout);
+    if (!polRes.ok) { console.error('[NAVI] avatar Pollinations failed:', polRes.status); return ''; }
+    const polBlob = await polRes.blob();
+    if (!polBlob.size) return '';
+    return await blobToBase64(polBlob);
+  } catch (e) {
+    console.error('[NAVI] avatar generation error:', e);
     return '';
   }
 }
