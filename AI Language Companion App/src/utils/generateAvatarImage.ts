@@ -72,42 +72,61 @@ function blobToBase64(blob: Blob): Promise<string> {
 export async function generateAvatarImageFromDescription(description: string): Promise<string> {
   if (!description.trim()) return '';
   try {
-    // Step A — convert description to image prompt via OpenRouter 70B
+    // Step A — convert description to image prompt via OpenRouter 70B (15s timeout)
+    // Falls back to using the raw description directly if OpenRouter is unavailable.
+    let imagePrompt = '';
     const rawKeys = (import.meta.env.VITE_OPENROUTER_API_KEY as string) ?? '';
     const apiKey = rawKeys.split(',')[0].trim();
-    if (!apiKey) return '';
 
-    const orRes = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'meta-llama/llama-3.3-70b-instruct',
-        max_tokens: 150,
-        messages: [
-          {
-            role: 'system',
-            content: "You are an expert at writing prompts for AI image generation. Convert the user's character description into a detailed, vivid image generation prompt. Output ONLY the prompt text, no explanation, no preamble. Style: Pixar 3D animated character, friendly, expressive face, warm studio lighting, full portrait.",
+    if (apiKey) {
+      try {
+        const orAbort = new AbortController();
+        const orTimeout = setTimeout(() => orAbort.abort(), 15_000);
+        const orRes = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+          method: 'POST',
+          signal: orAbort.signal,
+          headers: {
+            'Authorization': `Bearer ${apiKey}`,
+            'Content-Type': 'application/json',
           },
-          { role: 'user', content: description },
-        ],
-      }),
-    });
-    if (!orRes.ok) return '';
-    const orJson = await orRes.json() as { choices?: { message?: { content?: string } }[] };
-    const imagePrompt = orJson.choices?.[0]?.message?.content?.trim() ?? '';
-    if (!imagePrompt) return '';
+          body: JSON.stringify({
+            model: 'meta-llama/llama-3.3-70b-instruct',
+            max_tokens: 150,
+            messages: [
+              {
+                role: 'system',
+                content: "You are an expert at writing prompts for AI image generation. Convert the user's character description into a detailed, vivid image generation prompt. Output ONLY the prompt text, no explanation, no preamble. Style: Pixar 3D animated character, friendly, expressive face, warm studio lighting, full portrait.",
+              },
+              { role: 'user', content: description },
+            ],
+          }),
+        });
+        clearTimeout(orTimeout);
+        if (orRes.ok) {
+          const orJson = await orRes.json() as { choices?: { message?: { content?: string } }[] };
+          imagePrompt = orJson.choices?.[0]?.message?.content?.trim() ?? '';
+        }
+      } catch {
+        // OpenRouter timed out or failed — fall through to use raw description
+      }
+    }
 
-    // Step B — generate image with HF FLUX.1-schnell
+    // If Step A failed, use the description directly as the image prompt
+    if (!imagePrompt) {
+      imagePrompt = `Pixar 3D animated character, friendly, expressive face, warm studio lighting, full portrait: ${description}`;
+    }
+
+    // Step B — generate image with HF FLUX.1-schnell (90s timeout)
     const hfToken = (import.meta.env.VITE_HF_TOKEN as string) ?? '';
     if (!hfToken) return '';
 
+    const hfAbort = new AbortController();
+    const hfTimeout = setTimeout(() => hfAbort.abort(), 90_000);
     const hfRes = await fetch(
       'https://router.huggingface.co/hf-inference/models/black-forest-labs/FLUX.1-schnell',
       {
         method: 'POST',
+        signal: hfAbort.signal,
         headers: {
           'Authorization': `Bearer ${hfToken}`,
           'Content-Type': 'application/json',
@@ -115,6 +134,7 @@ export async function generateAvatarImageFromDescription(description: string): P
         body: JSON.stringify({ inputs: imagePrompt }),
       },
     );
+    clearTimeout(hfTimeout);
     if (!hfRes.ok) return '';
     const blob = await hfRes.blob();
     if (!blob.size) return '';
