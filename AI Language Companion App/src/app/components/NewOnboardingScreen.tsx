@@ -8,7 +8,7 @@ import type { AvatarPrefs } from '../../utils/avatarPrefs';
 import { detectLocation } from '../../services/location';
 import { buildCharacterGenPrompt } from '../../prompts/characterGen';
 import { saveCharacter, saveConversation, saveLocation, saveAvatarImage } from '../../utils/storage';
-import { generateAvatarImage } from '../../utils/generateAvatarImage';
+import { generateAvatarImage, generateAvatarImageFromDescription } from '../../utils/generateAvatarImage';
 import { useNaviAgent } from '../../agent/react/useNaviAgent';
 import { useCharacterStore } from '../../stores/characterStore';
 import { useChatStore } from '../../stores/chatStore';
@@ -130,7 +130,7 @@ const EXPERTISE_CHIPS = [
 ];
 
 export function NewOnboardingScreen({ onComplete, onRetryLoadModel }: NewOnboardingScreenProps) {
-  const [onboardingStep, setOnboardingStep]     = useState<'target' | 'language' | 'describe'>('target');
+  const [onboardingStep, setOnboardingStep]     = useState<'target' | 'language' | 'describe' | 'appearance'>('target');
   const [targetLanguage, setTargetLanguage]     = useState('');
   const [filteredCities, setFilteredCities]     = useState(presetCities);
   const [nativeLanguage, setNativeLanguage]     = useState('English');
@@ -150,6 +150,9 @@ export function NewOnboardingScreen({ onComplete, onRetryLoadModel }: NewOnboard
   const [selectedExpertise, setSelectedExpertise] = useState<string[]>([]);
   const [avatarPrefs, setAvatarPrefs]           = useState<AvatarPrefs>(() => loadAvatarPrefs());
   const [showAvatarBuilder, setShowAvatarBuilder] = useState(true);
+  const [appearanceText, setAppearanceText]           = useState('');
+  const [pendingAvatarUrl, setPendingAvatarUrl]       = useState('');
+  const [isGeneratingAvatar, setIsGeneratingAvatar]   = useState(false);
 
   const { setActiveCharacter }  = useCharacterStore();
   const { addMessage }          = useChatStore();
@@ -200,7 +203,7 @@ export function NewOnboardingScreen({ onComplete, onRetryLoadModel }: NewOnboard
       setShowClarify(true);
       return;
     }
-    generateCharacter();
+    setOnboardingStep('appearance');
   };
 
   const toggleVibe = (text: string) => {
@@ -356,6 +359,7 @@ export function NewOnboardingScreen({ onComplete, onRetryLoadModel }: NewOnboard
       // Persist dialect key and target language so avatar language works on reload
       richCharacter.dialect_key = locationCtx?.dialectKey ?? '';
       richCharacter.target_language = targetLanguage || undefined;
+      richCharacter.avatarImageUrl = pendingAvatarUrl || undefined;
 
       // Save to stores
       setActiveCharacter(richCharacter);
@@ -851,6 +855,53 @@ export function NewOnboardingScreen({ onComplete, onRetryLoadModel }: NewOnboard
             >
               {showClarify ? 'Create companion →' : 'Meet your companion'}
             </motion.button>
+          </motion.div>
+        )}
+
+        {/* Step: Appearance — collect visual description, generate HF avatar */}
+        {onboardingStep === 'appearance' && !isGenerating && !generatedCharacter && (
+          <motion.div
+            key="appearance"
+            initial={{ opacity: 0, x: 40 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -40 }}
+            transition={{ duration: 0.3 }}
+            className="relative z-10 flex-1 flex flex-col px-6 pt-8 pb-6"
+          >
+            <h2 className="text-2xl font-display font-semibold text-foreground mb-1">
+              What does {nameInput || 'your companion'} look like?
+            </h2>
+            <p className="text-sm text-muted-foreground mb-6">
+              Describe their appearance — style, vibe, whatever you imagine.
+            </p>
+            <textarea
+              className="w-full rounded-2xl border border-border bg-muted/40 px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground resize-none focus:outline-none focus:ring-1 focus:ring-primary"
+              rows={4}
+              placeholder="e.g. warm smile, round glasses, cozy sweater..."
+              value={appearanceText}
+              onChange={(e) => setAppearanceText(e.target.value)}
+            />
+            <div className="flex gap-3 mt-6">
+              <button
+                className="flex-1 px-6 py-3 rounded-full border border-border text-sm text-muted-foreground hover:bg-muted/50 transition-colors"
+                onClick={() => { setPendingAvatarUrl(''); generateCharacter(); }}
+              >
+                Skip
+              </button>
+              <button
+                className="flex-1 px-6 py-3 rounded-full bg-primary text-primary-foreground text-sm font-medium hover:shadow-[0_0_20px_rgba(212,168,83,0.3)] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled={!appearanceText.trim() || isGeneratingAvatar}
+                onClick={async () => {
+                  setIsGeneratingAvatar(true);
+                  const url = await generateAvatarImageFromDescription(appearanceText);
+                  setPendingAvatarUrl(url);
+                  setIsGeneratingAvatar(false);
+                  generateCharacter();
+                }}
+              >
+                {isGeneratingAvatar ? 'Creating avatar…' : 'Generate Avatar'}
+              </button>
+            </div>
           </motion.div>
         )}
 

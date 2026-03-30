@@ -495,14 +495,24 @@ export function ConversationScreen({
           >
             {/* Avatar + name */}
             <div className="flex flex-col items-center justify-center pt-6 pb-2 flex-shrink-0">
-              <AIAvatarDisplay
-                characterId={activeCharacter?.id ?? ''}
-                prefs={activeCharacter?.avatar_prefs}
-                accentColor={activeCharacter?.avatar_color?.accent ?? character.colors.accent}
-                state={isGenerating ? 'generating' : isRecording ? 'speaking' : 'idle'}
-                size={112}
-                name={character.name}
-              />
+              {activeCharacter?.avatarImageUrl ? (
+                <div style={{ width: 112, height: 112 }} className="rounded-full overflow-hidden">
+                  <img
+                    src={activeCharacter.avatarImageUrl}
+                    alt="avatar"
+                    className="rounded-full object-cover w-full h-full"
+                  />
+                </div>
+              ) : (
+                <AIAvatarDisplay
+                  characterId={activeCharacter?.id ?? ''}
+                  prefs={activeCharacter?.avatar_prefs}
+                  accentColor={activeCharacter?.avatar_color?.accent ?? character.colors.accent}
+                  state={isGenerating ? 'generating' : isRecording ? 'speaking' : 'idle'}
+                  size={112}
+                  name={character.name}
+                />
+              )}
               <div className="mt-2 text-center">
                 <p className="text-sm font-semibold text-foreground">{character.name}</p>
                 <p

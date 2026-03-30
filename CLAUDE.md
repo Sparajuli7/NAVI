@@ -263,6 +263,9 @@ The agent framework is fully built. All UI screens still call legacy services di
 - ~~**No phrase knowledge graph / dictionary map**~~ — `KnowledgeGraphScreen.tsx` + `PhraseDetailSheet.tsx`: graph nodes from learner phrases (category links, same-flag when using `countryCode`); demo packs for Vietnam / France / Japan when phrases are empty; search + filters; **`BookOpen`** opens graph; graph header can jump to card deck; **My phrases** quick pill opens graph; Practice queues the same practice prompt as flashcards.
 - ~~**`reconnect` goal missing from systemLayers.json**~~ — Added to `conversationGoals` in `src/config/prompts/systemLayers.json`.
 
+### Resolved Feature Gaps (2026-03-29)
+- ~~**No user-driven avatar appearance in onboarding**~~ — Added 'appearance' step to `NewOnboardingScreen.tsx` between describe and generation. User types appearance description → `generateAvatarImageFromDescription()` (new export in `generateAvatarImage.ts`) calls OpenRouter Llama 3.3 70B to convert description to image prompt, then HF FLUX.1-schnell generates the image (returned as base64 data URI). `Character.avatarImageUrl` added to type. `ConversationScreen` renders `<img>` when `avatarImageUrl` is set, otherwise falls back to `AIAvatarDisplay` unchanged.
+
 ### Known Feature Gaps
 - **CameraOverlay OCR/LLM pipeline not wired** — Prompt 7 incomplete. `CameraOverlay.tsx` still uses a mocked scan flow; `agent.handleImage()` pipeline exists but is not connected.
 - **`generateCharacter()` in `llm.ts` is dead code** — onboarding uses `agent.getLLM().chat()` directly; `generateCharacter()` updated to return `{ character, avatarPrefs }` for consistency but has no active callers.

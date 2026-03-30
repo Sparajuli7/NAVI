@@ -58,3 +58,69 @@ function blobToBase64(blob: Blob): Promise<string> {
     reader.readAsDataURL(blob);
   });
 }
+
+/**
+ * Two-step HF FLUX avatar generation from a user's appearance description.
+ *
+ * Step A: OpenRouter Llama 70B converts the raw description into a vivid
+ *         image generation prompt.
+ * Step B: HF FLUX.1-schnell generates the image → returned as a base64
+ *         data URI so it persists across page refreshes.
+ *
+ * Returns '' on any failure — caller should fall back to AIAvatarDisplay.
+ */
+export async function generateAvatarImageFromDescription(description: string): Promise<string> {
+  if (!description.trim()) return '';
+  try {
+    // Step A — convert description to image prompt via OpenRouter 70B
+    const rawKeys = (import.meta.env.VITE_OPENROUTER_API_KEY as string) ?? '';
+    const apiKey = rawKeys.split(',')[0].trim();
+    if (!apiKey) return '';
+
+    const orRes = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'meta-llama/llama-3.3-70b-instruct',
+        max_tokens: 150,
+        messages: [
+          {
+            role: 'system',
+            content: "You are an expert at writing prompts for AI image generation. Convert the user's character description into a detailed, vivid image generation prompt. Output ONLY the prompt text, no explanation, no preamble. Style: Pixar 3D animated character, friendly, expressive face, warm studio lighting, full portrait.",
+          },
+          { role: 'user', content: description },
+        ],
+      }),
+    });
+    if (!orRes.ok) return '';
+    const orJson = await orRes.json() as { choices?: { message?: { content?: string } }[] };
+    const imagePrompt = orJson.choices?.[0]?.message?.content?.trim() ?? '';
+    if (!imagePrompt) return '';
+
+    // Step B — generate image with HF FLUX.1-schnell
+    const hfToken = (import.meta.env.VITE_HF_TOKEN as string) ?? '';
+    if (!hfToken) return '';
+
+    const hfRes = await fetch(
+      'https://router.huggingface.co/hf-inference/models/black-forest-labs/FLUX.1-schnell',
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${hfToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ inputs: imagePrompt }),
+      },
+    );
+    if (!hfRes.ok) return '';
+    const blob = await hfRes.blob();
+    if (!blob.size) return '';
+
+    return await blobToBase64(blob);
+  } catch {
+    return '';
+  }
+}
