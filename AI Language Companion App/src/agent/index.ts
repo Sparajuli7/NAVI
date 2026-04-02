@@ -47,10 +47,39 @@ export type {
   Urgency,
   ComfortLevel,
   PrimaryGoal,
+  // Knowledge Graph types
+  GraphNode,
+  GraphEdge,
+  NodeType,
+  EdgeType,
+  ConversationNode,
+  TermNode,
+  TopicNode,
+  ScenarioNode,
+  AvatarGraphNode,
+  LocationNode,
+  NodeMetadata,
+  EncounterType,
+  ConversationMood,
+  // Context injection protocol types
+  ContextPacket,
+  MemoryQuery,
+  ResearchRecommendation,
+  TurnContext,
+  TermContext,
+  EngagementPattern,
+  TermHistory,
+  StruggleContext,
+  SessionRecap,
+  ReadinessAssessment,
 } from './core/types';
 
 // Memory
-export { MemoryManager, LearnerProfileStore, RelationshipStore, SituationAssessor } from './memory';
+export { MemoryManager, LearnerProfileStore, RelationshipStore, SituationAssessor, KnowledgeGraphStore, MemoryMaker } from './memory';
+
+// Sub-agents
+export { MemoryRetrievalAgent } from './agents/memoryRetrievalAgent';
+export { ResearchAgent } from './agents/researchAgent';
 
 // Director
 export { ConversationDirector } from './director/conversationDirector';
@@ -101,10 +130,14 @@ import { LocationIntelligence } from './location/locationIntelligence';
 import { ConversationDirector } from './director/conversationDirector';
 import { SessionPlanner } from './director/SessionPlanner';
 import { ProactiveEngine } from './director/ProactiveEngine';
+import { MemoryRetrievalAgent } from './agents/memoryRetrievalAgent';
+import { ResearchAgent } from './agents/researchAgent';
+import type { ResearchQuery } from './agents/researchAgent';
 import { registerAllTools } from './tools';
 import { handleUserInput } from './core/router';
 import { agentBus } from './core/eventBus';
-import type { ToolResult, EnergyMode, AvatarProfile, ProfileMemory } from './core/types';
+import { detectPhrases, detectTopics } from './prompts/phraseDetector';
+import type { ToolResult, EnergyMode, AvatarProfile, ProfileMemory, ContextPacket, ResearchRecommendation, TurnContext, TermNode, ConversationNode } from './core/types';
 
 // ─── Mode Keyword Classifier ────────────────────────────────────
 
@@ -205,6 +238,8 @@ export class NaviAgent {
   readonly director: ConversationDirector;
   readonly sessionPlanner: SessionPlanner;
   readonly proactiveEngine: ProactiveEngine;
+  readonly memoryRetrieval: MemoryRetrievalAgent;
+  readonly research: ResearchAgent;
 
   // LLM provider — can be WebLLM or Ollama (both implement ChatLLM)
   private llm: ChatLLM;
@@ -224,6 +259,10 @@ export class NaviAgent {
   private config: NaviAgentConfig;
   private modeClassifier = new ModeClassifier();
   private onModeChange?: (mode: 'learn' | 'guide' | 'friend' | null) => void;
+  /** Tracks how many new terms have been introduced in the current session */
+  private termsInSession = 0;
+  /** Tracks how many turns the user hasn't produced target language */
+  private turnsWithoutOutput = 0;
 
   constructor(config: NaviAgentConfig = {}) {
     this.config = config;
@@ -245,6 +284,10 @@ export class NaviAgent {
     this.sessionPlanner = new SessionPlanner(this.memory.working);
     this.proactiveEngine = new ProactiveEngine(this.memory.learner, this.memory.episodic);
     this.director.setSessionPlanner(this.sessionPlanner);
+
+    // Sub-agents — Memory Retrieval + Research
+    this.memoryRetrieval = new MemoryRetrievalAgent(this.memory.graph);
+    this.research = new ResearchAgent();
 
     // Determine backend — 'auto' is resolved during initialize()
     this.llmBackend = config.backend ?? 'auto';
@@ -452,12 +495,87 @@ export class NaviAgent {
       };
     }
 
+    // 1b. Sub-agent context gathering (runs in parallel with director)
+    const profile = this.avatar.getActiveProfile();
+    const locationCtx = this.location.getLocation();
+    const currentLanguage = this.location.getPrimaryLanguage();
+    const currentDialect = profile?.dialect || '';
+    const currentScenario = profile?.scenario || '';
+
+    // Memory Retrieval Agent — get graph-based context
+    let memoryContext: ContextPacket = {
+      promptInjection: '', relatedTerms: [], engagementHints: [],
+      bridgeMemories: [], struggleTerms: [], relevanceScore: 0,
+    };
+    try {
+      memoryContext = this.memoryRetrieval.retrieve({
+        userMessage: message,
+        currentTopics: [],
+        currentScenario,
+        currentLocation: locationCtx?.city || '',
+        currentAvatarId: avatarId,
+        language: currentLanguage,
+        queryType: isSessionStart ? 'session_start' : 'turn_context',
+      });
+    } catch (err) {
+      console.error('[NaviAgent] MemoryRetrieval error:', err);
+    }
+
+    // Research Agent — get protocol recommendations
+    let researchContext: ResearchRecommendation = { protocols: [], promptInjection: '', adjustments: {} };
+    try {
+      // Detect frustration signals
+      const lower = message.toLowerCase();
+      const frustrationSignals = /frustrated|confused|don't understand|i can't|this is hard|ugh|stuck|lost/i;
+      const userShowingFrustration = frustrationSignals.test(lower);
+
+      // Detect target language output
+      const hasTargetLangOutput = /[^\x00-\x7F]/.test(message) && message.length > 3;
+      if (hasTargetLangOutput) {
+        this.turnsWithoutOutput = 0;
+      } else {
+        this.turnsWithoutOutput++;
+      }
+
+      const researchQuery: ResearchQuery = {
+        userMessage: message,
+        currentTier: this.memory.learner.languageComfortTier,
+        userMode: currentMode,
+        recentEngagement: 0.5,
+        termsInSession: this.termsInSession,
+        turnsWithoutOutput: this.turnsWithoutOutput,
+        userShowingFrustration,
+        struggleTerms: memoryContext.struggleTerms,
+        activeScenario: currentScenario,
+        language: currentLanguage,
+        script: '',
+        location: locationCtx?.city || '',
+        encounterContext: currentScenario || 'general conversation',
+        inferredReason: '',
+      };
+      researchContext = this.research.getRecommendation(researchQuery);
+    } catch (err) {
+      console.error('[NaviAgent] Research error:', err);
+    }
+
+    // Build combined context injection (merge all sub-agent outputs)
+    const subAgentInjections: string[] = [];
+    if (memoryContext.promptInjection) subAgentInjections.push(memoryContext.promptInjection);
+    if (researchContext.promptInjection) subAgentInjections.push(researchContext.promptInjection);
+    const combinedSubAgentContext = subAgentInjections.join('\n\n');
+
+    // Merge director goals + sub-agent context
+    const fullConversationGoals = [
+      directorCtx.promptInjection,
+      combinedSubAgentContext,
+    ].filter(Boolean).join('\n\n');
+
     const contextParams: Record<string, unknown> = {
       ...options?.context,
-      // Inject director context into tool params
+      // Inject director context + sub-agent context into tool params
       warmthInstruction: directorCtx.warmthInstruction,
       learningContext: directorCtx.learningContext,
-      conversationGoals: directorCtx.promptInjection,
+      conversationGoals: fullConversationGoals,
       situationContext: directorCtx.situationContext,
       userMode: currentMode,
       dialectKey: this.avatar.getActiveProfile()?.dialect || undefined,
@@ -488,6 +606,29 @@ export class NaviAgent {
     this.director
       .postProcess(message, response, decision.tool, avatarId)
       .catch((err) => console.error('[NaviAgent] Director postProcess error:', err));
+
+    // 4. Knowledge Graph update via MemoryMaker (fire-and-forget)
+    const detectedPhrases = detectPhrases(response);
+    const detectedTopicsArr = detectTopics(message + ' ' + response);
+    this.termsInSession += detectedPhrases.length;
+
+    const situationModel = this.memory.situation.getModel();
+    this.memory.memoryMaker.processExchange({
+      userMessage: message,
+      assistantResponse: response,
+      detectedPhrases,
+      detectedTopics: detectedTopicsArr,
+      toolUsed: decision.tool,
+      avatarId,
+      avatarName: profile?.name || 'unknown',
+      location: locationCtx?.city || '',
+      scenario: currentScenario,
+      language: currentLanguage,
+      script: '',
+      dialectKey: currentDialect,
+      userMode: currentMode,
+      situationModel,
+    }).catch((err) => console.error('[NaviAgent] MemoryMaker error:', err));
 
     console.log(`[NAVI] ── AGENT OUTPUT (tool=${decision.tool}) ──`);
     console.log(`[NAVI] ${response}`);

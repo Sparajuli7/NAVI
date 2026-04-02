@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
   Settings, Sun, Moon, Camera, Mic, RotateCcw, RefreshCw, Zap,
-  X as XIcon, MessageSquare, ChevronDown, BookOpen, LayoutList,
+  X as XIcon, MessageSquare, ChevronDown, BookOpen, LayoutList, Brain,
 } from 'lucide-react';
 import { SpeechBubble, ThoughtBubble, ChatLogEntry } from './NewChatBubble';
 import { AIAvatarDisplay } from './AIAvatarDisplay';
@@ -10,6 +10,7 @@ import { ExpandedPhraseCard } from './ExpandedPhraseCard';
 import { SettingsPanel } from './SettingsPanel';
 import { FlashcardDeck } from './FlashcardDeck';
 import { KnowledgeGraphScreen } from './KnowledgeGraphScreen';
+import { KnowledgeGraphExplorer } from './KnowledgeGraphExplorer';
 import { AnimatePresence, motion } from 'motion/react';
 import { useChatStore } from '../../stores/chatStore';
 import { useCharacterStore } from '../../stores/characterStore';
@@ -101,6 +102,7 @@ export function ConversationScreen({
   const [showSettings, setShowSettings]         = useState(false);
   const [showFlashcards, setShowFlashcards]     = useState(false);
   const [showKnowledgeGraph, setShowKnowledgeGraph] = useState(false);
+  const [showGraphExplorer, setShowGraphExplorer]   = useState(false);
   const [isRecording, setIsRecording]           = useState(false);
   const [isAmbientListening, setIsAmbientListening] = useState(false);
   const [llmError, setLlmError]                 = useState(false);
@@ -447,6 +449,13 @@ export function ConversationScreen({
           ) : (
             <Moon className="w-4 h-4 text-muted-foreground" />
           )}
+        </button>
+        <button
+          onClick={() => setShowGraphExplorer(true)}
+          className="p-2 hover:bg-muted/50 rounded-lg transition-colors"
+          title="Memory graph"
+        >
+          <Brain className="w-4 h-4 text-[#6BBAA7]" />
         </button>
         <button
           onClick={() => setShowKnowledgeGraph(true)}
@@ -896,6 +905,22 @@ export function ConversationScreen({
               }}
             />
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Knowledge Graph Explorer (rich graph view) ────────────────── */}
+      <AnimatePresence>
+        {showGraphExplorer && (
+          <KnowledgeGraphExplorer
+            key="graph-explorer"
+            graph={agent.memory.graph}
+            onBack={() => setShowGraphExplorer(false)}
+            onPracticePhrase={(phrase) => {
+              setShowGraphExplorer(false);
+              handleSend(`Can we practice this phrase? "${phrase}"`);
+            }}
+            characterName={character.name}
+          />
         )}
       </AnimatePresence>
     </div>

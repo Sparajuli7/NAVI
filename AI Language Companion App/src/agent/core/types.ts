@@ -400,6 +400,269 @@ export interface SituationModel {
   lastUpdated: number;
 }
 
+// ─── Knowledge Graph Types ────────────────────────────────────
+
+export type NodeType = 'conversation' | 'term' | 'topic' | 'scenario' | 'avatar' | 'location';
+
+export type EdgeType =
+  | 'LEARNED_IN'        // Term → Conversation
+  | 'ENCOUNTERED_VIA'   // Term → Scenario
+  | 'TAUGHT_BY'         // Term → Avatar
+  | 'PRACTICED_IN'      // Term → Conversation
+  | 'OCCURRED_AT'       // Conversation → Location
+  | 'PART_OF'           // Conversation → Scenario
+  | 'RELATES_TO'        // Term → Term
+  | 'LEADS_TO'          // Topic → Topic
+  | 'CONTAINS_TERM'     // Topic → Term
+  ;
+
+export type EncounterType = 'scenario' | 'organic' | 'requested' | 'corrected' | 'overheard';
+
+export type ConversationMood = 'curious' | 'frustrated' | 'confident' | 'neutral' | 'struggling';
+
+/** Metadata attached to every graph node */
+export interface NodeMetadata {
+  /** How engaged the user was (0-1) */
+  engagementScore: number;
+  /** Target language active at the time */
+  language: string;
+  /** Writing script (Devanagari, Hangul, Latin, etc.) */
+  script: string;
+  /** Which avatar was active */
+  avatarId: string;
+  /** Avatar name (human-readable) */
+  avatarName: string;
+  /** How the user encountered this content */
+  encounterContext: string;
+  /** Why the user needs this content */
+  inferredReason: string;
+}
+
+/** Base interface for all graph nodes */
+export interface GraphNode {
+  id: string;
+  type: NodeType;
+  createdAt: number;
+  updatedAt: number;
+  metadata: NodeMetadata;
+}
+
+/** A summarized conversation segment */
+export interface ConversationNode extends GraphNode {
+  type: 'conversation';
+  summary: string;
+  turnCount: number;
+  /** Key user messages (not full transcript) */
+  userMessages: string[];
+  /** IDs of terms introduced in this conversation */
+  termsIntroduced: string[];
+  /** IDs of topics covered */
+  topicsCovered: string[];
+  location: string;
+  scenario: string;
+  mood: ConversationMood;
+}
+
+/** A learned phrase/word with full learning context */
+export interface TermNode extends GraphNode {
+  type: 'term';
+  phrase: string;
+  pronunciation?: string;
+  meaning?: string;
+  language: string;
+  script: string;
+  mastery: PhraseMastery;
+  attemptCount: number;
+  struggleCount: number;
+  firstSeen: number;
+  lastPracticed: number;
+  nextReviewAt: number;
+  /** ID of the conversation where this was first learned */
+  learnedInConversation: string;
+  /** ID of the scenario node */
+  learnedInScenario: string;
+  /** ID of the avatar node */
+  learnedFromAvatar: string;
+  /** ID of the location node */
+  learnedAtLocation: string;
+  /** How the user encountered this term */
+  encounterType: EncounterType;
+  /** Why the user needs to learn this */
+  inferredReason: string;
+  /** IDs of semantically related term nodes */
+  relatedTerms: string[];
+}
+
+/** A language topic cluster */
+export interface TopicNode extends GraphNode {
+  type: 'topic';
+  name: string;
+  proficiencyScore: number;
+  /** All term IDs in this topic */
+  termIds: string[];
+  lastPracticed: number;
+}
+
+/** A scenario context snapshot */
+export interface ScenarioNode extends GraphNode {
+  type: 'scenario';
+  scenarioKey: string;
+  description: string;
+  /** Conversations that happened in this scenario */
+  conversationIds: string[];
+  /** Terms learned during this scenario */
+  termIds: string[];
+}
+
+/** An avatar identity snapshot */
+export interface AvatarGraphNode extends GraphNode {
+  type: 'avatar';
+  avatarId: string;
+  name: string;
+  personality: string;
+  dialect: string;
+  location: string;
+  /** Term IDs this avatar introduced */
+  termsTaught: string[];
+  conversationIds: string[];
+}
+
+/** A location context snapshot */
+export interface LocationNode extends GraphNode {
+  type: 'location';
+  city: string;
+  country: string;
+  dialectKey: string;
+  language: string;
+  script: string;
+  conversationIds: string[];
+  termIds: string[];
+}
+
+/** An edge connecting two graph nodes */
+export interface GraphEdge {
+  id: string;
+  type: EdgeType;
+  sourceId: string;
+  targetId: string;
+  /** Strength of connection (0-1) */
+  weight: number;
+  metadata: Record<string, unknown>;
+  createdAt: number;
+}
+
+// ─── Context Injection Protocol ──────────────────────────────
+
+/** Context about a term for prompt injection */
+export interface TermContext {
+  phrase: string;
+  mastery: PhraseMastery;
+  lastPracticed: number;
+  encounterType: EncounterType;
+  reason: string;
+  relatedTerms: string[];
+}
+
+/** Engagement patterns for teaching strategy */
+export interface EngagementPattern {
+  highEngagementTopics: string[];
+  preferredEncounterType: EncounterType;
+  averageSessionLength: number;
+  peakEngagementScenarios: string[];
+}
+
+/** Full history of a term across the graph */
+export interface TermHistory {
+  term: TermNode;
+  conversations: ConversationNode[];
+  relatedTerms: TermNode[];
+  scenarioContext: ScenarioNode | null;
+  locationContext: LocationNode | null;
+}
+
+/** Context for terms the user struggles with */
+export interface StruggleContext {
+  term: TermNode;
+  attemptCount: number;
+  lastEncounterContext: string;
+  suggestedApproach: string;
+}
+
+/** Session recap from the Memory Retrieval Agent */
+export interface SessionRecap {
+  lastSessionSummary: string;
+  termsIntroduced: TermNode[];
+  termsReviewed: TermNode[];
+  unfinishedTopics: string[];
+  daysAgo: number;
+}
+
+/** Output from the Memory Retrieval Agent — ready for prompt injection */
+export interface ContextPacket {
+  /** Formatted string ready for injection into system prompt */
+  promptInjection: string;
+  /** Structured data for programmatic use */
+  relatedTerms: TermContext[];
+  engagementHints: string[];
+  bridgeMemories: string[];
+  struggleTerms: string[];
+  /** How confident we are in this context (0-1) */
+  relevanceScore: number;
+}
+
+/** Query for the Memory Retrieval Agent */
+export interface MemoryQuery {
+  userMessage: string;
+  currentTopics: string[];
+  currentScenario: string;
+  currentLocation: string;
+  currentAvatarId: string;
+  language: string;
+  queryType: 'turn_context' | 'session_start' | 'explicit_recall' | 'teaching' | 'scenario_entry';
+}
+
+/** Output from the Research Agent */
+export interface ResearchRecommendation {
+  /** Which protocols to apply (may be multiple) */
+  protocols: Array<{
+    name: string;
+    instruction: string;
+    priority: number;
+  }>;
+  /** Single formatted string for prompt injection */
+  promptInjection: string;
+  /** Suggested adjustments to conversation parameters */
+  adjustments: {
+    temperature?: number;
+    maxNewTerms?: number;
+    targetLanguageRatio?: number;
+  };
+}
+
+/** Readiness assessment from the Research Agent */
+export interface ReadinessAssessment {
+  ready: boolean;
+  currentTier: number;
+  suggestedTier: number;
+  confidence: number;
+  reasoning: string;
+}
+
+/** Combined output from all sub-agents — fed into the Orchestrator */
+export interface TurnContext {
+  memoryContext: ContextPacket;
+  researchContext: ResearchRecommendation;
+  directorContext: {
+    goals: string[];
+    promptInjection: string;
+    learningContext: string;
+    warmthInstruction: string;
+    situationContext: string;
+  };
+  /** Combined injection from all three sources (merged, deduplicated) */
+  combinedInjection: string;
+}
+
 // ─── Cloud Escalation (Stub) ───────────────────────────────────
 
 export interface EscalationRequest {

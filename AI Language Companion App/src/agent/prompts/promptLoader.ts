@@ -18,6 +18,7 @@ import systemLayersConfig from '../../config/prompts/systemLayers.json';
 import warmthLevelsConfig from '../../config/prompts/warmthLevels.json';
 import memoryExtractionConfig from '../../config/prompts/memoryExtraction.json';
 import characterGenConfig from '../../config/prompts/characterGen.json';
+import learningProtocolsConfig from '../../config/prompts/learningProtocols.json';
 
 // ─── Types ───────────────────────────────────────────────────
 
@@ -31,6 +32,7 @@ interface PromptConfigs {
   warmthLevels: PromptConfig;
   memoryExtraction: PromptConfig;
   characterGen: PromptConfig;
+  learningProtocols: PromptConfig;
 }
 
 // ─── PromptLoader ────────────────────────────────────────────
@@ -47,6 +49,7 @@ class PromptLoader {
       warmthLevels: warmthLevelsConfig as PromptConfig,
       memoryExtraction: memoryExtractionConfig as PromptConfig,
       characterGen: characterGenConfig as PromptConfig,
+      learningProtocols: learningProtocolsConfig as PromptConfig,
     };
   }
 

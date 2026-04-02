@@ -1,0 +1,65 @@
+{
+  "protocols": {
+    "comprehensible_input": {
+      "name": "Comprehensible Input (i+1)",
+      "description": "Present language slightly above the learner's current level",
+      "when": "User is in learn mode and has assessed comfort tier",
+      "instruction": "Introduce ONE new element per exchange. If user is tier {{tier}}, use mostly tier-{{tier}} language with ONE tier-{{nextTier}} element. Never jump 2+ tiers.",
+      "source": "Krashen (1982)"
+    },
+    "spaced_repetition": {
+      "name": "Spaced Repetition",
+      "description": "Review items at expanding intervals based on recall success",
+      "when": "Terms are due for review",
+      "instruction": "Weave the phrase '{{phrase}}' naturally into conversation. If user recognizes it, good. If they struggle, provide context from when they first learned it: {{encounterContext}}.",
+      "source": "Leitner (1972)"
+    },
+    "contextual_learning": {
+      "name": "Contextual Learning",
+      "description": "Anchor new vocabulary to real situations the learner faces",
+      "when": "Teaching new terms, especially in scenarios",
+      "instruction": "Connect '{{phrase}}' to the user's actual situation: {{inferredReason}}. Use their specific context ({{location}}, {{scenario}}), not generic examples.",
+      "source": "Nation (2001)"
+    },
+    "output_hypothesis": {
+      "name": "Pushed Output",
+      "description": "Learners need to produce language, not just understand it",
+      "when": "User has been passively receiving for 3+ exchanges",
+      "instruction": "Create a natural opening for the user to USE a phrase they've learned. Don't ask 'can you say X?' — create a situation where they'd naturally want to say it.",
+      "source": "Swain (1985)"
+    },
+    "error_correction": {
+      "name": "Recasting",
+      "description": "Correct errors by naturally rephrasing, not by pointing out mistakes",
+      "when": "User makes a language error",
+      "instruction": "If user says something incorrectly, respond naturally using the CORRECT form. Do not say 'actually, it's...' — just model the right usage. Only give explicit correction if the same error appears 3+ times.",
+      "source": "Lyster & Ranta (1997)"
+    },
+    "noticing_hypothesis": {
+      "name": "Noticing",
+      "description": "Learners must consciously notice language features to acquire them",
+      "when": "Introducing grammar patterns or pronunciation rules",
+      "instruction": "After naturally using a pattern, briefly highlight it: 'Notice how {{pattern}} works here — {{explanation}}.' Keep it to 1 sentence.",
+      "source": "Schmidt (1990)"
+    },
+    "affective_filter": {
+      "name": "Low Affective Filter",
+      "description": "Learning is blocked by anxiety — keep emotional safety high",
+      "when": "User shows frustration, confusion, or self-doubt",
+      "instruction": "Immediately lower language complexity. Switch to more {{userNativeLanguage}}. Validate the feeling. Offer the simplest version of what they need. Do NOT push new content.",
+      "source": "Krashen (1982)"
+    },
+    "multimodal_encoding": {
+      "name": "Multimodal Encoding",
+      "description": "Terms encoded through multiple channels are retained better",
+      "when": "Teaching important or difficult terms",
+      "instruction": "For '{{phrase}}': provide the written form ({{script}}), pronunciation guide, a sound tip, AND a vivid situational image ('imagine you're at {{scenario}} and...'). Hit at least 3 modalities.",
+      "source": "Mayer (2009)"
+    }
+  },
+  "reasonInference": {
+    "template": "Given:\n- User said: \"{{userMessage}}\"\n- Avatar taught: \"{{phrase}}\" ({{meaning}})\n- Scenario: {{scenario}}\n- User's situation: {{urgency}}, {{primaryGoal}}\n\nIn 1 sentence, why does this user need to learn this phrase?",
+    "temperature": 0.2,
+    "max_tokens": 50
+  }
+}
