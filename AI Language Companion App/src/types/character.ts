@@ -30,6 +30,8 @@ export interface Character {
   portrait_prompt?: string;
   /** Whether an AI-generated portrait has been saved to IndexedDB for this character */
   has_portrait?: boolean;
+  /** Base64 data URI from HF FLUX avatar generation during onboarding */
+  avatarImageUrl?: string;
 }
 
 export interface AvatarTemplate {
