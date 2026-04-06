@@ -268,6 +268,11 @@ The agent framework is fully built. All UI screens still call legacy services di
 - ~~**Avatar image generation always failing (DiceBear stuck)**~~ — `generateAvatarImageFromDescription` now logs HF FLUX failures to console and falls back to Pollinations.ai (Step C) when HF returns non-ok or empty blob. Pollinations.ai requires no token and is reliable. Error messages: `[NAVI] avatar HF FLUX failed: <status>` or `[NAVI] avatar falling back to Pollinations.ai`.
 - ~~**New companion always named "Arjun" in Kathmandu**~~ — Added Kathmandu/Nepal names (`Arjun, Sita, Arun, Priya, Ramesh, Anisha, Santosh, Deepa, Rohan, Maya`) to the NAME RULE in both `freeText.template` and `fromTemplate.template` in `characterGen.json` so the LLM picks varied names. `fallbackNameFor('kathmandu')` now randomly picks from the same list instead of always returning `'Arjun'`.
 
+### Resolved Feature Gaps (2026-04-06)
+- ~~**No runtime backend switching**~~ — Added 3-way backend selector to Settings → Model: On-Device (WebGPU), Cloud Free (OpenRouter free models), Cloud Paid (OpenRouter with credits). `NaviAgent.switchBackend()` swaps the active LLM provider at runtime, re-registers all tools, and persists the choice to localStorage (`navi_backend_pref`, `navi_openrouter_key`, `navi_openrouter_tier`, `navi_webllm_preset`). On next startup, the saved backend is restored automatically. `useNaviAgent` exposes `switchBackend`, `webllmPreset`, `openRouterTier`.
+- ~~**OpenRouter key in Settings was cosmetic**~~ — The key saved to `localStorage('navi_openrouter_key')` is now wired to the agent. Selecting Cloud Free or Cloud Paid and tapping Apply actually switches inference to OpenRouter using the provided key.
+- ~~**Only 2 WebLLM models**~~ — Added 4 new WebLLM presets: Phi-3.5 Mini (3.8B, 2.2GB), Gemma 2 2B (1.5GB), Llama 3.2 1B (0.74GB), Llama 3.2 3B (1.9GB). All verified against the installed `@mlc-ai/web-llm` model list.
+
 ### Known Feature Gaps
 - **CameraOverlay OCR/LLM pipeline not wired** — Prompt 7 incomplete. `CameraOverlay.tsx` still uses a mocked scan flow; `agent.handleImage()` pipeline exists but is not connected.
 - **`generateCharacter()` in `llm.ts` is dead code** — onboarding uses `agent.getLLM().chat()` directly; `generateCharacter()` updated to return `{ character, avatarPrefs }` for consistency but has no active callers.

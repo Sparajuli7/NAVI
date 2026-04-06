@@ -14,11 +14,24 @@ import type { ModelInfo, ModelProvider, ModelStatus } from '../core/types';
 import type { ChatLLM, ChatOptions } from './chatLLM';
 
 const OPENROUTER_ENDPOINT = 'https://openrouter.ai/api/v1/chat/completions';
-const FALLBACK_MODELS = [
-  'qwen/qwen3-32b:free',
-  'meta-llama/llama-3.3-70b-instruct:free',
-  'mistralai/mistral-small-3.1-24b-instruct:free',
-  'google/gemma-3-27b-it:free',
+export const FALLBACK_MODELS = [
+  'google/gemma-4-27b-it:free',                    // top — Gemma 4
+  'google/gemma-3-27b-it:free',                    // Gemma 3 fallback
+  'deepseek/deepseek-r1:free',                     // strong reasoning, own rate pool
+  'deepseek/deepseek-v3:free',                     // fast + capable
+  'qwen/qwen3-32b:free',                           // best multilingual
+  'meta-llama/llama-3.3-70b-instruct:free',        // reliable
+  'mistralai/mistral-small-3.1-24b-instruct:free', // solid fallback
+  'microsoft/phi-4:free',                          // fast, smart
+];
+export const PAID_MODELS = [
+  'openai/gpt-4o-mini',
+  'openai/gpt-4o',
+  'openai/o1-mini',
+  'anthropic/claude-3-haiku',
+  'google/gemini-flash-1.5',
+  'mistralai/mistral-medium',
+  'meta-llama/llama-3.1-70b-instruct',
 ];
 const DEFAULT_TIMEOUT = 90_000;
 const MAX_RETRY_AFTER_MS = 30_000;
@@ -28,9 +41,9 @@ const RETRYABLE_STATUSES = new Set([402, 408, 429, 500, 502, 503, 504]);
 
 export class OpenRouterProvider implements ModelProvider<null>, ChatLLM {
   private status: ModelStatus = 'ready'; // no download — always ready
-  private readonly apiKeys: string[];
+  private apiKeys: string[];
   private currentKeyIndex: number = 0;
-  private readonly models: string[];
+  private models: string[];
   private abortController: AbortController | null = null;
 
   constructor(apiKeys: string | string[], models?: string[]) {
@@ -49,6 +62,18 @@ export class OpenRouterProvider implements ModelProvider<null>, ChatLLM {
       status: this.status,
       languages: ['multilingual'],
     };
+  }
+
+  /** Replace API keys at runtime (e.g. when user updates their key in Settings). */
+  setApiKeys(keys: string | string[]): void {
+    const arr = Array.isArray(keys) ? keys : [keys];
+    this.apiKeys.splice(0, this.apiKeys.length, ...arr);
+    this.currentKeyIndex = 0;
+  }
+
+  /** Replace the active model list at runtime. */
+  setModels(models: string[]): void {
+    this.models.splice(0, this.models.length, ...models);
   }
 
   /** No-op — OpenRouter needs no local download. */

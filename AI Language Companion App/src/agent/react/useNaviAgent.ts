@@ -14,7 +14,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { NaviAgent, createNaviAgent } from '../index';
-import type { NaviAgentConfig, AgentEvent, LLMBackend } from '../index';
+import type { NaviAgentConfig, AgentEvent, LLMBackend, OpenRouterTier } from '../index';
 import { useAppStore } from '../../stores/appStore';
 
 // Singleton agent instance (shared across all components)
@@ -50,6 +50,16 @@ export interface UseNaviAgentReturn {
   ollamaModel: string | null;
   /** Switch the active Ollama model */
   switchOllamaModel: (model: string) => Promise<void>;
+  /** Switch the active LLM backend (webllm or openrouter) */
+  switchBackend: (
+    type: 'webllm' | 'openrouter',
+    opts?: { apiKey?: string; webllmPreset?: string; openRouterTier?: OpenRouterTier; openRouterModels?: string[] },
+    onProgress?: (progress: number, text: string) => void,
+  ) => Promise<void>;
+  /** Current WebLLM preset key */
+  webllmPreset: string;
+  /** Current OpenRouter model tier */
+  openRouterTier: OpenRouterTier;
 }
 
 export function useNaviAgent(config?: NaviAgentConfig): UseNaviAgentReturn {
@@ -61,6 +71,8 @@ export function useNaviAgent(config?: NaviAgentConfig): UseNaviAgentReturn {
   const [loadProgress, setLoadProgress] = useState(0);
   const [loadStatusText, setLoadStatusText] = useState('');
   const [lastEvent, setLastEvent] = useState<AgentEvent | null>(null);
+  const [webllmPreset, setWebllmPreset] = useState<string>(() => agentRef.current.getWebllmPreset());
+  const [openRouterTier, setOpenRouterTier] = useState<OpenRouterTier>(() => agentRef.current.getOpenRouterTier());
 
   // Subscribe to agent events and sync with Zustand appStore
   useEffect(() => {
@@ -93,6 +105,8 @@ export function useNaviAgent(config?: NaviAgentConfig): UseNaviAgentReturn {
     setBackend(agent.getBackend());
     setIsLLMReady(agent.isLLMReady());
     setOllamaModel(agent.getOllamaModelName());
+    setWebllmPreset(agent.getWebllmPreset());
+    setOpenRouterTier(agent.getOpenRouterTier());
   }, []);
 
   const loadLLM = useCallback(async () => {
@@ -153,6 +167,41 @@ export function useNaviAgent(config?: NaviAgentConfig): UseNaviAgentReturn {
     }
   }, []);
 
+  const switchBackend = useCallback(async (
+    type: 'webllm' | 'openrouter',
+    opts?: { apiKey?: string; webllmPreset?: string; openRouterTier?: OpenRouterTier; openRouterModels?: string[] },
+    onProgress?: (progress: number, text: string) => void,
+  ) => {
+    const agent = agentRef.current;
+    const { setModelStatus, setModelProgress } = useAppStore.getState();
+
+    setModelStatus('loading');
+    setModelProgress(0);
+
+    try {
+      await agent.switchBackend(type, opts as Parameters<NaviAgent['switchBackend']>[1], (progress, text) => {
+        setLoadProgress(progress);
+        setLoadStatusText(text);
+        setModelProgress(progress);
+        const lower = text.toLowerCase();
+        if (progress >= 100) setModelStatus('ready');
+        else if (lower.includes('loading') || lower.includes('shader') || lower.includes('compil')) setModelStatus('loading');
+        else setModelStatus('downloading');
+        onProgress?.(progress, text);
+      });
+      setBackend(agent.getBackend());
+      setWebllmPreset(agent.getWebllmPreset());
+      setOpenRouterTier(agent.getOpenRouterTier());
+      setIsLLMReady(true);
+      setModelStatus('ready');
+      setModelProgress(100);
+    } catch (err) {
+      setModelStatus('error');
+      setModelProgress(0);
+      throw err;
+    }
+  }, []);
+
   return {
     agent: agentRef.current,
     isInitialized,
@@ -162,9 +211,12 @@ export function useNaviAgent(config?: NaviAgentConfig): UseNaviAgentReturn {
     loadProgress,
     loadStatusText,
     lastEvent,
+    webllmPreset,
+    openRouterTier,
     initialize,
     loadLLM,
     switchOllamaModel,
+    switchBackend,
   };
 }
 

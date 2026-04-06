@@ -30,18 +30,78 @@ export interface LLMProviderConfig {
 }
 
 export const PRESET_CONFIGS = {
-  'qwen2.5-1.5b': {
-    modelId: 'Qwen2.5-1.5B-Instruct-q4f16_1-MLC',
-    name: 'Qwen 2.5 1.5B (Primary)',
+  // ── Qwen3 (best multilingual, recommended) ──────────────────────
+  'qwen3-1.7b': {
+    modelId: 'Qwen3-1.7B-q4f16_1-MLC',
+    name: 'Qwen3 1.7B (Default)',
     sizeBytes: 1_100_000_000,
     quantization: 'q4f16_1',
     languages: ['multilingual'],
     required: true,
   },
-  'qwen2.5-0.5b': {
-    modelId: 'Qwen2.5-0.5B-Instruct-q4f16_1-MLC',
-    name: 'Qwen 2.5 0.5B (Lite)',
-    sizeBytes: 394_000_000,
+  'qwen3-4b': {
+    modelId: 'Qwen3-4B-q4f16_1-MLC',
+    name: 'Qwen3 4B (Best Quality)',
+    sizeBytes: 2_500_000_000,
+    quantization: 'q4f16_1',
+    languages: ['multilingual'],
+    required: false,
+  },
+  'qwen3-0.6b': {
+    modelId: 'Qwen3-0.6B-q4f16_1-MLC',
+    name: 'Qwen3 0.6B (Ultra-Light)',
+    sizeBytes: 400_000_000,
+    quantization: 'q4f16_1',
+    languages: ['multilingual'],
+    required: false,
+  },
+  // ── Qwen2.5 (kept for compatibility) ────────────────────────────
+  'qwen2.5-1.5b': {
+    modelId: 'Qwen2.5-1.5B-Instruct-q4f16_1-MLC',
+    name: 'Qwen 2.5 1.5B',
+    sizeBytes: 1_100_000_000,
+    quantization: 'q4f16_1',
+    languages: ['multilingual'],
+    required: false,
+  },
+  // ── Llama 3.2 ────────────────────────────────────────────────────
+  'llama-3.2-3b': {
+    modelId: 'Llama-3.2-3B-Instruct-q4f16_1-MLC',
+    name: 'Llama 3.2 3B',
+    sizeBytes: 1_900_000_000,
+    quantization: 'q4f16_1',
+    languages: ['multilingual'],
+    required: false,
+  },
+  'llama-3.2-1b': {
+    modelId: 'Llama-3.2-1B-Instruct-q4f16_1-MLC',
+    name: 'Llama 3.2 1B (Fastest)',
+    sizeBytes: 740_000_000,
+    quantization: 'q4f16_1',
+    languages: ['multilingual'],
+    required: false,
+  },
+  // ── Other ────────────────────────────────────────────────────────
+  'phi-3.5-mini': {
+    modelId: 'Phi-3.5-mini-instruct-q4f16_1-MLC',
+    name: 'Phi-3.5 Mini (3.8B)',
+    sizeBytes: 2_200_000_000,
+    quantization: 'q4f16_1',
+    languages: ['multilingual'],
+    required: false,
+  },
+  'gemma-2-2b': {
+    modelId: 'gemma-2-2b-it-q4f16_1-MLC',
+    name: 'Gemma 2 2B',
+    sizeBytes: 1_500_000_000,
+    quantization: 'q4f16_1',
+    languages: ['multilingual'],
+    required: false,
+  },
+  'ministral-3b': {
+    modelId: 'Ministral-3-3B-Instruct-2512-BF16-q4f16_1-MLC',
+    name: 'Ministral 3B',
+    sizeBytes: 2_000_000_000,
     quantization: 'q4f16_1',
     languages: ['multilingual'],
     required: false,

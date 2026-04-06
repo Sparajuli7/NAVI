@@ -7,6 +7,7 @@ import { saveMemories, savePreferences, saveLocation, saveCharacterMemories, sav
 import { detectLocation } from '../../services/location';
 import { useNaviAgent } from '../../agent/react/useNaviAgent';
 import { updateGeminiApiKey } from '../../agent/models/geminiEmbedding';
+import { LLM_PRESETS, OPENROUTER_FREE_MODELS, OPENROUTER_PAID_MODELS } from '../../agent/models';
 import { generateAvatarImage } from '../../utils/generateAvatarImage';
 import type { UserPreferences, Character } from '../../types/character';
 
@@ -52,7 +53,7 @@ export function SettingsPanel({ onClose, onRegenerate, onDeleteCompanion, onUpda
   const { activeCharacter, memories, removeMemory, clearMemories } = useCharacterStore();
   const { userPreferences, currentLocation, modelStatus, modelProgress, geminiApiKey, setUserPreferences, setCurrentLocation, setGeminiApiKey } =
     useAppStore();
-  const { agent, backend, ollamaModel, switchOllamaModel } = useNaviAgent();
+  const { agent, backend, ollamaModel, switchOllamaModel, switchBackend, webllmPreset, openRouterTier } = useNaviAgent();
 
   // Ollama model list state
   const [ollamaModels, setOllamaModels] = useState<Array<{ name: string; size: number }>>([]);
@@ -64,10 +65,19 @@ export function SettingsPanel({ onClose, onRegenerate, onDeleteCompanion, onUpda
   const [ollamaConnected, setOllamaConnected] = useState(false);
   const [geminiKeyDraft, setGeminiKeyDraft] = useState(geminiApiKey);
   const [geminiKeySaved, setGeminiKeySaved] = useState(false);
-  const [openRouterKeyDraft, setOpenRouterKeyDraft] = useState(
+  // Backend selector state
+  type BackendCard = 'webllm' | 'cloud-free' | 'cloud-paid';
+  const [selectedCard, setSelectedCard] = useState<BackendCard>(() => {
+    if (backend === 'openrouter') return openRouterTier === 'paid' ? 'cloud-paid' : 'cloud-free';
+    return 'webllm';
+  });
+  const [pendingWebllmPreset, setPendingWebllmPreset] = useState<string>(webllmPreset);
+  const [pendingApiKey, setPendingApiKey] = useState<string>(
     () => typeof localStorage !== 'undefined' ? (localStorage.getItem('navi_openrouter_key') ?? '') : '',
   );
-  const [openRouterKeySaved, setOpenRouterKeySaved] = useState(false);
+  const [pendingPaidModel, setPendingPaidModel] = useState<string>(OPENROUTER_PAID_MODELS[0]);
+  const [isSwitchingBackend, setIsSwitchingBackend] = useState(false);
+  const [backendSwitchError, setBackendSwitchError] = useState<string | null>(null);
   const [isRegeneratingPortrait, setIsRegeneratingPortrait] = useState(false);
   const [portraitRegenStatus, setPortraitRegenStatus] = useState<'idle' | 'success' | 'fail'>('idle');
 
@@ -115,6 +125,27 @@ export function SettingsPanel({ onClose, onRegenerate, onDeleteCompanion, onUpda
       setModelSwitchError(err instanceof Error ? err.message : 'Failed to switch model');
     } finally {
       setIsSwitchingModel(false);
+    }
+  };
+
+  const handleApplyBackend = async () => {
+    if (isSwitchingBackend) return;
+    setIsSwitchingBackend(true);
+    setBackendSwitchError(null);
+    try {
+      if (selectedCard === 'webllm') {
+        await switchBackend('webllm', { webllmPreset: pendingWebllmPreset });
+      } else if (selectedCard === 'cloud-free') {
+        // Free tier uses keys already in .env — no key input needed
+        await switchBackend('openrouter', { openRouterTier: 'free', openRouterModels: OPENROUTER_FREE_MODELS });
+      } else {
+        // Paid tier requires a key with credits
+        await switchBackend('openrouter', { apiKey: pendingApiKey, openRouterTier: 'paid', openRouterModels: [pendingPaidModel] });
+      }
+    } catch (err) {
+      setBackendSwitchError(err instanceof Error ? err.message : 'Failed to switch backend');
+    } finally {
+      setIsSwitchingBackend(false);
     }
   };
 
@@ -717,51 +748,134 @@ export function SettingsPanel({ onClose, onRegenerate, onDeleteCompanion, onUpda
           {/* F) AI Model */}
           {activeSection === 'model' && (
             <div className="space-y-4">
-              {/* Active model */}
-              <div className="bg-card border border-border rounded-xl p-4 space-y-4">
-                <div>
-                  <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Active Model</p>
-                  <p className="text-sm text-foreground font-medium break-all">
-                    {backend === 'ollama'
-                      ? `Ollama: ${ollamaModel ?? 'unknown'}`
-                      : 'Qwen2.5-1.5B (WebGPU)'}
-                  </p>
-                </div>
-                <div className="border-t border-border pt-4">
-                  <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Status</p>
-                  <div className="flex items-center gap-2">
-                    <div
-                      className={`w-2 h-2 rounded-full ${
-                        modelStatus === 'ready'
-                          ? 'bg-green-400'
-                          : modelStatus === 'error'
-                          ? 'bg-red-400'
-                          : 'bg-yellow-400 animate-pulse'
-                      }`}
-                    />
-                    <p className="text-sm text-foreground capitalize">{modelStatus.replace('_', ' ')}</p>
-                  </div>
-                </div>
-                {(modelStatus === 'downloading' || modelStatus === 'loading') && (
-                  <div className="border-t border-border pt-4 space-y-1">
-                    <div className="flex justify-between text-xs text-muted-foreground">
-                      <span>Progress</span>
-                      <span>{modelProgress}%</span>
-                    </div>
-                    <div className="w-full bg-border rounded-full h-1.5 overflow-hidden">
-                      <div
-                        className="h-full bg-primary rounded-full transition-all"
-                        style={{ width: `${modelProgress}%` }}
-                      />
-                    </div>
-                  </div>
-                )}
+
+              {/* Status line */}
+              <div className="flex items-center gap-2 px-1">
+                <div className={`w-2 h-2 rounded-full shrink-0 ${
+                  modelStatus === 'ready' ? 'bg-green-400'
+                  : modelStatus === 'error' ? 'bg-red-400'
+                  : 'bg-yellow-400 animate-pulse'
+                }`} />
+                <p className="text-sm text-foreground font-medium truncate">
+                  {isSwitchingBackend ? 'Switching…'
+                    : backend === 'openrouter' ? `Cloud ${openRouterTier === 'paid' ? 'Paid' : 'Free'} · ${openRouterTier === 'paid' ? pendingPaidModel.split('/')[1] : 'Gemma 4 + 7 models'}`
+                    : backend === 'ollama' ? `Ollama · ${ollamaModel ?? '—'}`
+                    : `On-Device · ${LLM_PRESETS[webllmPreset as keyof typeof LLM_PRESETS]?.name ?? webllmPreset}`}
+                </p>
               </div>
 
-              {/* Ollama connection */}
+              {/* Progress bar — only when loading */}
+              {(modelStatus === 'downloading' || modelStatus === 'loading') && (
+                <div className="space-y-1 px-1">
+                  <div className="flex justify-between text-xs text-muted-foreground">
+                    <span>{modelStatus === 'loading' ? 'Compiling shaders…' : 'Downloading…'}</span>
+                    <span>{modelProgress}%</span>
+                  </div>
+                  <div className="w-full bg-border rounded-full h-1 overflow-hidden">
+                    <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${modelProgress}%` }} />
+                  </div>
+                </div>
+              )}
+
+              {/* Tab selector */}
+              <div className="flex bg-muted/50 rounded-xl p-1 gap-1">
+                {(
+                  [
+                    { key: 'webllm' as const, label: 'On-Device' },
+                    { key: 'cloud-free' as const, label: 'Cloud Free' },
+                    { key: 'cloud-paid' as const, label: 'Cloud Paid' },
+                  ] as Array<{ key: BackendCard; label: string }>
+                ).map(({ key, label }) => (
+                  <button
+                    key={key}
+                    onClick={() => setSelectedCard(key)}
+                    className={`flex-1 py-2 rounded-lg text-xs font-medium transition-all ${
+                      selectedCard === key
+                        ? 'bg-card text-foreground shadow-sm'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Per-tab config */}
+              {selectedCard === 'webllm' && (
+                <div className="space-y-2">
+                  <div className="relative">
+                    <select
+                      value={pendingWebllmPreset}
+                      onChange={(e) => setPendingWebllmPreset(e.target.value)}
+                      className="w-full appearance-none px-3 py-2.5 pr-8 bg-card border border-border rounded-xl text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 cursor-pointer"
+                    >
+                      {Object.entries(LLM_PRESETS).map(([key, cfg]) => (
+                        <option key={key} value={key}>
+                          {cfg.name} — {(cfg.sizeBytes / 1e9).toFixed(1)} GB
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+                  </div>
+                  <p className="text-xs text-muted-foreground px-1">Offline · downloads once · no account needed</p>
+                </div>
+              )}
+
+              {selectedCard === 'cloud-free' && (
+                <div className="bg-card border border-border rounded-xl px-4 py-3 flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-foreground">Gemma 4 + 7 models</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">{OPENROUTER_FREE_MODELS.length} models · auto-rotated · no credits</p>
+                  </div>
+                  <div className="w-2 h-2 rounded-full bg-green-400 shrink-0" />
+                </div>
+              )}
+
+              {selectedCard === 'cloud-paid' && (
+                <div className="space-y-2">
+                  <input
+                    type="password"
+                    value={pendingApiKey}
+                    onChange={(e) => setPendingApiKey(e.target.value)}
+                    placeholder="sk-or-... (OpenRouter key with credits)"
+                    className="w-full px-3 py-2.5 bg-card border border-border rounded-xl text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                  />
+                  <div className="relative">
+                    <select
+                      value={pendingPaidModel}
+                      onChange={(e) => setPendingPaidModel(e.target.value)}
+                      className="w-full appearance-none px-3 py-2.5 pr-8 bg-card border border-border rounded-xl text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 cursor-pointer"
+                    >
+                      {OPENROUTER_PAID_MODELS.map((m) => (
+                        <option key={m} value={m}>{m}</option>
+                      ))}
+                    </select>
+                    <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+                  </div>
+                  <p className="text-xs text-muted-foreground px-1">
+                    Link your OpenAI key at openrouter.ai/settings/integrations to unlock GPT-4o
+                  </p>
+                </div>
+              )}
+
+              {/* Apply */}
+              <button
+                onClick={handleApplyBackend}
+                disabled={isSwitchingBackend}
+                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-primary text-primary-foreground rounded-xl text-sm font-medium disabled:opacity-50 transition-opacity"
+              >
+                {isSwitchingBackend ? (
+                  <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> Switching…</>
+                ) : 'Apply'}
+              </button>
+              {backendSwitchError && (
+                <p className="text-xs text-destructive px-1">{backendSwitchError}</p>
+              )}
+
+              {/* Ollama (local server) */}
               <div className="bg-card border border-border rounded-xl p-4 space-y-4">
                 <div>
-                  <p className="text-xs text-muted-foreground uppercase tracking-wide mb-2">Ollama Server</p>
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide mb-2">Ollama (Local Server)</p>
                   <div className="flex gap-2">
                     <input
                       type="text"
@@ -786,26 +900,16 @@ export function SettingsPanel({ onClose, onRegenerate, onDeleteCompanion, onUpda
                     </p>
                   </div>
                 </div>
-
-                {/* CORS help */}
                 {!ollamaConnected && !isLoadingModels && (
                   <div className="border-t border-border pt-4">
                     <p className="text-xs text-muted-foreground leading-relaxed mb-2">
-                      If Ollama is running but not connecting, you need to allow CORS. Stop Ollama and restart it with:
+                      If Ollama is running but not connecting, restart it with CORS enabled:
                     </p>
                     <div className="bg-background border border-border rounded-lg px-3 py-2">
                       <code className="text-xs text-foreground break-all">OLLAMA_ORIGINS=* ollama serve</code>
                     </div>
-                    <p className="text-xs text-muted-foreground mt-2 leading-relaxed">
-                      On macOS, you can also set it permanently:
-                    </p>
-                    <div className="bg-background border border-border rounded-lg px-3 py-2 mt-1">
-                      <code className="text-xs text-foreground break-all">launchctl setenv OLLAMA_ORIGINS "*"</code>
-                    </div>
                   </div>
                 )}
-
-                {/* Model selector */}
                 {ollamaConnected && (
                   <div className="border-t border-border pt-4">
                     <p className="text-xs text-muted-foreground uppercase tracking-wide mb-2">Select Model</p>
@@ -816,33 +920,25 @@ export function SettingsPanel({ onClose, onRegenerate, onDeleteCompanion, onUpda
                         disabled={isSwitchingModel}
                         className="w-full appearance-none px-3 py-2.5 pr-8 bg-background border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50 cursor-pointer"
                       >
-                        {backend !== 'ollama' && (
-                          <option value="" disabled>Select a model...</option>
-                        )}
+                        {backend !== 'ollama' && <option value="" disabled>Select a model...</option>}
                         {ollamaModels.map((m) => (
-                          <option key={m.name} value={m.name}>
-                            {m.name} ({(m.size / 1e9).toFixed(1)} GB)
-                          </option>
+                          <option key={m.name} value={m.name}>{m.name} ({(m.size / 1e9).toFixed(1)} GB)</option>
                         ))}
                       </select>
                       <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
                     </div>
-                    {isSwitchingModel && (
-                      <p className="text-xs text-muted-foreground mt-2 animate-pulse">Switching model...</p>
-                    )}
-                    {modelSwitchError && (
-                      <p className="text-xs text-destructive mt-2">{modelSwitchError}</p>
-                    )}
+                    {isSwitchingModel && <p className="text-xs text-muted-foreground mt-2 animate-pulse">Switching model...</p>}
+                    {modelSwitchError && <p className="text-xs text-destructive mt-2">{modelSwitchError}</p>}
                   </div>
                 )}
               </div>
 
-              {/* Gemini API key — for semantic memory retrieval (online-optional) */}
+              {/* Gemini API key */}
               <div className="bg-card border border-border rounded-xl p-4 space-y-3">
                 <div>
                   <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Gemini API Key</p>
                   <p className="text-xs text-muted-foreground leading-relaxed mb-2">
-                    Optional. Enables semantic memory search when online. Works with your free Google AI Studio key. NAVI still works fully without it.
+                    Optional. Enables semantic memory search when online. Free at Google AI Studio.
                   </p>
                   <div className="flex gap-2">
                     <input
@@ -850,21 +946,13 @@ export function SettingsPanel({ onClose, onRegenerate, onDeleteCompanion, onUpda
                       value={geminiKeyDraft}
                       onChange={(e) => { setGeminiKeyDraft(e.target.value); setGeminiKeySaved(false); }}
                       onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          setGeminiApiKey(geminiKeyDraft.trim());
-                          updateGeminiApiKey(geminiKeyDraft.trim());
-                          setGeminiKeySaved(true);
-                        }
+                        if (e.key === 'Enter') { setGeminiApiKey(geminiKeyDraft.trim()); updateGeminiApiKey(geminiKeyDraft.trim()); setGeminiKeySaved(true); }
                       }}
                       placeholder="AIza..."
                       className="flex-1 px-3 py-2 bg-background border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
                     />
                     <button
-                      onClick={() => {
-                        setGeminiApiKey(geminiKeyDraft.trim());
-                        updateGeminiApiKey(geminiKeyDraft.trim());
-                        setGeminiKeySaved(true);
-                      }}
+                      onClick={() => { setGeminiApiKey(geminiKeyDraft.trim()); updateGeminiApiKey(geminiKeyDraft.trim()); setGeminiKeySaved(true); }}
                       className="px-3 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium"
                     >
                       {geminiKeySaved ? '✓' : 'Save'}
@@ -872,43 +960,6 @@ export function SettingsPanel({ onClose, onRegenerate, onDeleteCompanion, onUpda
                   </div>
                   {geminiApiKey && !geminiKeySaved && (
                     <p className="text-xs text-green-400 mt-1">Key saved — semantic search active when online.</p>
-                  )}
-                </div>
-              </div>
-
-              {/* OpenRouter API key — for richer character generation */}
-              <div className="bg-card border border-border rounded-xl p-4 space-y-3">
-                <div>
-                  <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">OpenRouter API Key</p>
-                  <p className="text-xs text-muted-foreground leading-relaxed mb-2">
-                    Optional. Uses LLaMA 3.3 70B for richer character creation + better portrait descriptions. Free at openrouter.ai.
-                  </p>
-                  <div className="flex gap-2">
-                    <input
-                      type="password"
-                      value={openRouterKeyDraft}
-                      onChange={(e) => { setOpenRouterKeyDraft(e.target.value); setOpenRouterKeySaved(false); }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          if (typeof localStorage !== 'undefined') localStorage.setItem('navi_openrouter_key', openRouterKeyDraft.trim());
-                          setOpenRouterKeySaved(true);
-                        }
-                      }}
-                      placeholder="sk-or-..."
-                      className="flex-1 bg-background border border-border rounded-lg px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary"
-                    />
-                    <button
-                      onClick={() => {
-                        if (typeof localStorage !== 'undefined') localStorage.setItem('navi_openrouter_key', openRouterKeyDraft.trim());
-                        setOpenRouterKeySaved(true);
-                      }}
-                      className="px-3 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium"
-                    >
-                      {openRouterKeySaved ? '✓' : 'Save'}
-                    </button>
-                  </div>
-                  {openRouterKeySaved && (
-                    <p className="text-xs text-green-400 mt-1">Key saved — next character generation will use LLaMA 3.3 70B.</p>
                   )}
                 </div>
               </div>
@@ -948,26 +999,12 @@ export function SettingsPanel({ onClose, onRegenerate, onDeleteCompanion, onUpda
                     <RefreshCw className={`w-3.5 h-3.5 ${isRegeneratingPortrait ? 'animate-spin' : ''}`} />
                     {isRegeneratingPortrait ? 'Generating…' : 'Regenerate Portrait'}
                   </button>
-                  {portraitRegenStatus === 'success' && (
-                    <p className="text-xs text-green-400">Portrait updated! Reload the chat to see it.</p>
-                  )}
-                  {portraitRegenStatus === 'fail' && !activeCharacter.portrait_prompt && (
-                    <p className="text-xs text-muted-foreground">No portrait description available for this character.</p>
-                  )}
-                  {portraitRegenStatus === 'fail' && activeCharacter.portrait_prompt && (
-                    <p className="text-xs text-amber-400">Generation failed — check your internet connection and try again.</p>
-                  )}
+                  {portraitRegenStatus === 'success' && <p className="text-xs text-green-400">Portrait updated! Reload the chat to see it.</p>}
+                  {portraitRegenStatus === 'fail' && !activeCharacter.portrait_prompt && <p className="text-xs text-muted-foreground">No portrait description available for this character.</p>}
+                  {portraitRegenStatus === 'fail' && activeCharacter.portrait_prompt && <p className="text-xs text-amber-400">Generation failed — check your internet connection and try again.</p>}
                 </div>
               )}
 
-              {/* Info */}
-              <div className="px-1">
-                <p className="text-xs text-muted-foreground leading-relaxed">
-                  {backend === 'ollama'
-                    ? 'Connected to Ollama. All inference runs on your machine.'
-                    : 'Using in-browser WebGPU. Connect to Ollama above to use any local model.'}
-                </p>
-              </div>
             </div>
           )}
         </div>

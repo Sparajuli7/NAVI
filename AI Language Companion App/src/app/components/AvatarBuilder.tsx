@@ -161,7 +161,6 @@ export function AvatarBuilder({ prefs, onChange }: AvatarBuilderProps) {
           onSelect={(v) => update({ topType: v })}
         />
       </div>
-
       <div>
         <RowLabel>Hair color</RowLabel>
         <SwatchRow
