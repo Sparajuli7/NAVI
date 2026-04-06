@@ -843,7 +843,8 @@ export class NaviAgent {
     const _ls = typeof localStorage !== 'undefined' ? localStorage : null;
 
     if (type === 'openrouter') {
-      const key = opts.apiKey?.trim() ?? _ls?.getItem('navi_openrouter_key') ?? '';
+      const envKey = (import.meta as unknown as { env: Record<string, string> }).env?.VITE_OPENROUTER_API_KEY?.split(',')[0]?.trim() ?? '';
+      const key = opts.apiKey?.trim() ?? _ls?.getItem('navi_openrouter_key') ?? envKey ?? '';
       if (!key) throw new Error('An OpenRouter API key is required. Get a free one at openrouter.ai.');
 
       const tier = opts.openRouterTier ?? 'free';
