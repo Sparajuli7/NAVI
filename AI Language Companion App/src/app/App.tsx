@@ -3,6 +3,7 @@ import { NewOnboardingScreen } from './components/NewOnboardingScreen';
 import { ConversationScreen } from './components/ConversationScreen';
 import { CameraOverlay } from './components/CameraOverlay';
 import { ModelDownloadScreen } from './components/ModelDownloadScreen';
+import { BackendSelectScreen } from './components/BackendSelectScreen';
 import { HomeScreen } from './components/HomeScreen';
 import { ScenarioLauncher, buildContextSummary } from './components/ScenarioLauncher';
 import { Navbar } from './components/Navbar';
@@ -54,7 +55,7 @@ function mapCharacterToUI(c: Character): GeneratedCharacter {
   };
 }
 
-type AppPhase = 'init' | 'no_webgpu' | 'downloading' | 'home' | 'onboarding' | 'chat';
+type AppPhase = 'init' | 'no_webgpu' | 'backend_select' | 'downloading' | 'home' | 'onboarding' | 'chat';
 
 export default function App() {
   const [appPhase, setAppPhase]             = useState<AppPhase>('init');
@@ -173,6 +174,12 @@ export default function App() {
 
       const targetPhase: AppPhase = activeChar ? 'home' : 'onboarding';
 
+      // First launch: no backend chosen yet — show the backend selector
+      if (!localStorage.getItem('navi_backend_pref')) {
+        setAppPhase('backend_select');
+        return;
+      }
+
       // Check if LLM is already ready (e.g., Ollama is running and was auto-detected)
       if (agent.isLLMReady()) {
         setAppPhase(targetPhase);
@@ -191,6 +198,25 @@ export default function App() {
 
     init();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Called after the user selects a backend on first launch
+  const handleBackendChosen = async () => {
+    const activeBackend = agent.getBackend();
+    if (activeBackend === 'webllm' && !isWebGPUSupported()) {
+      setAppPhase('no_webgpu');
+      return;
+    }
+    if (!agent.isLLMReady()) {
+      setAppPhase('downloading');
+      try {
+        await loadLLM();
+      } catch (err) {
+        console.error('Model load failed:', err);
+      }
+    }
+    const activeChar = useCharacterStore.getState().activeCharacter;
+    setAppPhase(activeChar ? 'home' : 'onboarding');
+  };
 
   // Called when onboarding finishes — add the new companion to the list
   const handleOnboardingComplete = async (generatedCharacter: GeneratedCharacter, selectedLocation: string) => {
@@ -444,6 +470,11 @@ export default function App() {
     useAppStore.getState().setUserProfile(text);
     await saveUserProfile(text);
   };
+
+  // First-launch backend selection
+  if (appPhase === 'backend_select') {
+    return <BackendSelectScreen onDone={handleBackendChosen} />;
+  }
 
   // WebGPU not supported (and Ollama not available)
   if (appPhase === 'no_webgpu') {
