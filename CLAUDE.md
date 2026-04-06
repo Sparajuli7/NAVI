@@ -25,9 +25,10 @@ NAVI is an **AI language companion app** — a local friend in your pocket who s
 /NAVI/
 ├── AI Language Companion App/        # Main React app (Vite + TypeScript)
 │   ├── src/
-│   │   ├── agent/                    # AGENT FRAMEWORK
+│   │   ├── agent/                    # MULTI-AGENT FRAMEWORK (Orchestrator pattern)
 │   │   │   ├── core/                 # Router, ExecutionEngine, ToolRegistry, EventBus, Types
-│   │   │   ├── memory/              # 6-tier memory (working, episodic, semantic, profile, learner, relationships)
+│   │   │   ├── agents/              # Sub-agents (MemoryRetrievalAgent, ResearchAgent)
+│   │   │   ├── memory/              # 9-tier memory (+ KnowledgeGraph + MemoryMaker)
 │   │   │   ├── models/              # Model providers (LLM, TTS, STT, Vision, Embedding)
 │   │   │   ├── avatar/              # AvatarContextController + template configs
 │   │   │   ├── location/            # LocationIntelligence module
@@ -36,7 +37,7 @@ NAVI is an **AI language companion app** — a local friend in your pocket who s
 │   │   │   ├── pipelines/           # Multi-step pipelines (image, pronunciation)
 │   │   │   ├── tools/               # 13 registered tools
 │   │   │   ├── react/               # useNaviAgent() hook
-│   │   │   └── index.ts             # NaviAgent class + createNaviAgent()
+│   │   │   └── index.ts             # NaviAgent (Orchestrator) + createNaviAgent()
 │   │   ├── app/
 │   │   │   ├── App.tsx               # Root component — phase state machine
 │   │   │   └── components/           # 15+ custom components
@@ -81,7 +82,8 @@ NAVI is an **AI language companion app** — a local friend in your pocket who s
 │   │   │       ├── systemLayers.json    # System prompt layer templates + conversation goals
 │   │   │       ├── warmthLevels.json    # 5-tier warmth behavior (stranger → family)
 │   │   │       ├── memoryExtraction.json # Memory consolidation prompt
-│   │   │       └── characterGen.json    # Character generation prompts
+│   │   │       ├── characterGen.json    # Character generation prompts
+│   │   │       └── learningProtocols.json # 8 evidence-based language learning protocols
 │   │   ├── types/                    # TypeScript interfaces
 │   │   ├── utils/                    # Helpers (storage, parsing, tokens, etc.)
 │   │   ├── data/cities.json          # Global city database
@@ -180,19 +182,30 @@ promptLoader.get('systemLayers.conversationGoals.review_due_phrases', { phrases:
 - **RelationshipState**: per-avatar warmth 0-1, milestones, shared references, streak
 - **TopicProficiency**: topic name, score 0-1, attempt count
 
-### Agent Framework (`src/agent/`)
-The agent framework sits underneath the UI as an orchestration layer:
-- **NaviAgent** — Unified entry point (`createNaviAgent()`)
+### Agent Framework (`src/agent/`) — Multi-Agent Orchestrator
+The agent framework uses an **Orchestrator pattern** with sub-agents:
+
+**Orchestrator (NaviAgent):**
+- **NaviAgent** — Orchestrator entry point (`createNaviAgent()`), delegates to sub-agents before each LLM call
 - **Router** — Rule-based intent routing (keyword matching, deterministic)
 - **ExecutionEngine** — Bounded tool execution (recursion limits, token budgets, timeouts)
 - **ToolRegistry** — 13 registered tools (chat, translate, pronounce, camera, culture, slang, etc.)
-- **MemoryManager** — 6-system memory (working, episodic, semantic, profile, learner, relationships)
-- **ModelRegistry** — Provider pattern for all models (LLM, TTS, STT, Vision, Embedding, Translation)
-- **AvatarContextController** — Config-driven avatar behavior (JSON-editable, 11-layer prompt builder)
+- **AvatarContextController** — Config-driven avatar behavior (JSON-editable, 15-layer prompt builder)
 - **ConversationDirector** — Pre/post-processing for learning goals (no extra LLM calls)
-- **LearnerProfileStore** — Phrase tracking + spaced repetition (Leitner-style intervals)
+- **Context Injection Protocol** — Merges sub-agent outputs into avatar scaffold layers
+
+**Sub-Agents (`src/agent/agents/`):**
+- **MemoryRetrievalAgent** — Traverses Knowledge Graph to surface relevant context (terms, engagement patterns, cross-location bridges)
+- **ResearchAgent** — Holds 8 evidence-based language learning protocols (Krashen i+1, Leitner SR, Output Hypothesis, Affective Filter, etc.); recommends which to apply per turn
+
+**Memory System (`src/agent/memory/`):**
+- **KnowledgeGraphStore** — Rich graph of ConversationNodes, TermNodes, TopicNodes, ScenarioNodes, AvatarNodes, LocationNodes with edges (LEARNED_IN, TAUGHT_BY, ENCOUNTERED_VIA, etc.)
+- **MemoryMaker** — Post-conversation graph writer extracting 5 metadata dimensions: terms learned, engagement score, language/script/avatar, encounter context, inferred reason
+- **MemoryManager** — 9-system memory (working, episodic, semantic, profile, learner, relationships, situation, graph, memoryMaker)
+- **ModelRegistry** — Provider pattern for all models (LLM, TTS, STT, Vision, Embedding, Translation)
+- **LearnerProfileStore** — Phrase tracking + spaced repetition (dual-track Leitner intervals)
 - **RelationshipStore** — Per-avatar warmth progression (~200 interactions stranger → family)
-- **PromptLoader** — Build-time JSON imports + `{{variable}}` interpolation + A/B testing
+- **PromptLoader** — Build-time JSON imports + `{{variable}}` interpolation + A/B testing (now loads 8 configs incl. `learningProtocols.json`)
 - **PhraseDetector** — Regex-based phrase card detection in LLM responses
 - **LocationIntelligence** — GPS detection + dialect inference + cross-location bridging
 - **Pipelines** — Multi-step orchestrations (image understanding, pronunciation evaluation)
@@ -281,6 +294,17 @@ The agent framework is fully built. All UI screens still call legacy services di
 - **Pending feedback sync** — `feedback.html` stores offline submissions in `localStorage` as `navi_pending_feedback`, but there is no retry mechanism to flush them when the user comes back online.
 - **AnimatedCharacter Lottie files missing** — `AnimatedCharacter.tsx` is built and falls back gracefully to emoji avatar. To activate: (1) `pnpm add lottie-react`, (2) place 4 Lottie JSON files in `public/lottie/`: `char_idle.json`, `char_speaking.json`, `char_thinking.json`, `char_success.json` (free downloads from lottiefiles.com). Component auto-activates when files are present.
 - **Existing characters lack `portrait_prompt`** — Characters created before 2026-03-27 do not have `portrait_prompt` set, so "Regenerate Portrait" in Settings will show as disabled. Workaround: create a new character.
+- **Knowledge Graph migration from flat stores not yet triggered** — `KnowledgeGraphStore` is built and wired but existing `EpisodicMemory[]` and `TrackedPhrase[]` data is not automatically migrated to graph nodes. New conversations write to both flat stores and the graph. Migration can be added when graph-first queries replace flat store queries.
+- **ResearchAgent web lookup not implemented** — `fetchWebContext()` method is defined in the plan but not yet built. Protocols are config-driven and sufficient for now.
+- **ExpandedPhraseCard TTS/STT still uses legacy services** — Not yet wired to agent TTS/STT tools.
+
+### Resolved Feature Gaps (2026-03-30)
+- ~~**No multi-agent architecture**~~ — NaviAgent refactored into Orchestrator pattern with MemoryRetrievalAgent (graph traversal) and ResearchAgent (learning protocols) as sub-agents. Context Injection Protocol merges sub-agent outputs into avatar scaffold before every LLM call.
+- ~~**Flat memory with no relationships**~~ — `KnowledgeGraphStore` added with 6 node types (Conversation, Term, Topic, Scenario, Avatar, Location) and 9 edge types. `MemoryMaker` writes rich metadata (engagement score, encounter type, inferred reason, language/script/avatar) after every exchange.
+- ~~**No language learning research protocols**~~ — `learningProtocols.json` defines 8 evidence-based protocols (Krashen i+1, Leitner SR, Output Hypothesis, Affective Filter, Recasting, Noticing, Contextual Learning, Multimodal Encoding). ResearchAgent selects and interpolates per-turn.
+- ~~**No engagement tracking**~~ — MemoryMaker scores engagement 0-1 per exchange using heuristic signals (message length, questions, target language use, emotion markers). Stored on ConversationNode and TermNode metadata.
+- ~~**No encounter context on learned terms**~~ — TermNode now tracks `encounterType` (scenario/organic/requested/corrected/overheard) and `inferredReason` (why the user needs this term).
+- ~~**No visual KG display in chat UI**~~ — `KnowledgeGraphExplorer.tsx` added as expandable overlay from chat screen (Brain icon, teal, `z-[44]`). Three views: Terms grid (mastery colors, encounter badges, engagement bars, inferred reasons), Term Detail (full context: location, scenario, avatar, related terms, conversation history), Timeline (conversations with engagement heatmap). Wired into `ConversationScreen.tsx` alongside existing `KnowledgeGraphScreen`.
 
 ### Resolved Feature Gaps (2026-03-27)
 - ~~**Generic cartoon avatar (avataaars) not bondable**~~ — `AIAvatarDisplay.tsx` replaces `AvatarRenderer` in `ConversationScreen`. 3-tier rendering: (1) AI portrait from Pollinations.ai (stored as base64 in IndexedDB), (2) DiceBear "notionists" editorial illustration (offline, deterministic from characterId seed), (3) letter fallback. DiceBear shows immediately on every render; AI portrait crossfades in async when available.

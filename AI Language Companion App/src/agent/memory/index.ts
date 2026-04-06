@@ -6,13 +6,15 @@
  * reaching into individual stores directly.
  *
  * Memory hierarchy:
- * 1. Working Memory  — Ring buffer, current session context, auto-expires
- * 2. Episodic Memory — Summarized conversation episodes, persisted
- * 3. Semantic Memory — Vector embeddings for similarity search
- * 4. Profile Memory  — User preferences and learning progress
- * 5. Learner Profile — Phrase tracking, topic proficiency, spaced repetition
- * 6. Relationships   — Per-avatar warmth, milestones, shared references
- * 7. Situation       — Proactive user situation model (urgency, comfort, goal)
+ * 1. Working Memory    — Ring buffer, current session context, auto-expires
+ * 2. Episodic Memory   — Summarized conversation episodes, persisted
+ * 3. Semantic Memory   — Vector embeddings for similarity search
+ * 4. Profile Memory    — User preferences and learning progress
+ * 5. Learner Profile   — Phrase tracking, topic proficiency, spaced repetition
+ * 6. Relationships     — Per-avatar warmth, milestones, shared references
+ * 7. Situation         — Proactive user situation model (urgency, comfort, goal)
+ * 8. Knowledge Graph   — Rich graph of terms, conversations, scenarios, locations
+ * 9. Memory Maker      — Post-conversation graph writer with 5 metadata extractors
  */
 
 import { WorkingMemory } from './workingMemory';
@@ -22,7 +24,10 @@ import { ProfileMemoryStore } from './profileMemory';
 import { LearnerProfileStore } from './learnerProfile';
 import { RelationshipStore } from './relationshipStore';
 import { SituationAssessor } from './situationAssessor';
+import { KnowledgeGraphStore } from './knowledgeGraph';
+import { MemoryMaker } from './memoryMaker';
 import type { EpisodicMemory } from '../core/types';
+import type { ChatLLM } from '../models/chatLLM';
 import { agentBus } from '../core/eventBus';
 
 export class MemoryManager {
@@ -33,10 +38,12 @@ export class MemoryManager {
   readonly learner: LearnerProfileStore;
   readonly relationships: RelationshipStore;
   readonly situation: SituationAssessor;
+  readonly graph: KnowledgeGraphStore;
+  readonly memoryMaker: MemoryMaker;
 
   private initialized = false;
 
-  constructor(workingMemoryCapacity: number = 32) {
+  constructor(workingMemoryCapacity: number = 32, llmProvider?: ChatLLM) {
     this.working = new WorkingMemory(workingMemoryCapacity);
     this.episodic = new EpisodicMemoryStore();
     this.semantic = new SemanticMemoryStore();
@@ -44,9 +51,11 @@ export class MemoryManager {
     this.learner = new LearnerProfileStore();
     this.relationships = new RelationshipStore();
     this.situation = new SituationAssessor();
+    this.graph = new KnowledgeGraphStore();
+    this.memoryMaker = new MemoryMaker(this.graph, llmProvider ?? null);
   }
 
-  /** Initialize all persistent stores */
+  /** Initialize all persistent stores (including knowledge graph) */
   async initialize(): Promise<void> {
     if (this.initialized) return;
     await Promise.all([
@@ -56,6 +65,7 @@ export class MemoryManager {
       this.learner.load(),
       this.relationships.load(),
       this.situation.load(),
+      this.graph.load(),
     ]);
     this.initialized = true;
     agentBus.emit('memory:update', { type: 'initialized' });
@@ -138,6 +148,8 @@ export class MemoryManager {
     phrasesTracked: number;
     phrasesMastered: number;
     relationshipCount: number;
+    graphNodes: number;
+    graphEdges: number;
   } {
     return {
       workingSlots: this.working.size,
@@ -146,6 +158,8 @@ export class MemoryManager {
       phrasesTracked: this.learner.stats.totalPhrases,
       phrasesMastered: this.learner.stats.masteredPhrases,
       relationshipCount: this.relationships.count,
+      graphNodes: this.graph.nodeCount,
+      graphEdges: this.graph.edgeCount,
     };
   }
 
@@ -158,6 +172,7 @@ export class MemoryManager {
     await this.learner.clear();
     await this.relationships.clear();
     await this.situation.reset();
+    await this.graph.clear();
     agentBus.emit('memory:update', { type: 'cleared' });
   }
 }
@@ -169,3 +184,5 @@ export { ProfileMemoryStore } from './profileMemory';
 export { LearnerProfileStore } from './learnerProfile';
 export { RelationshipStore } from './relationshipStore';
 export { SituationAssessor } from './situationAssessor';
+export { KnowledgeGraphStore } from './knowledgeGraph';
+export { MemoryMaker } from './memoryMaker';
