@@ -21,15 +21,29 @@ type Card = 'cloud-free' | 'cloud-paid' | 'webllm';
 export function BackendSelectScreen({ onDone }: BackendSelectScreenProps) {
   const { switchBackend } = useNaviAgent();
 
+  const PAID_PASSCODE = (import.meta as unknown as { env: Record<string, string> }).env?.VITE_PAID_PASSCODE ?? '';
+
   const [selectedCard, setSelectedCard] = useState<Card>('cloud-free');
   const [pendingPreset, setPendingPreset] = useState<string>(Object.keys(LLM_PRESETS)[0]);
-  const [pendingApiKey, setPendingApiKey] = useState('');
   const [pendingPaidModel, setPendingPaidModel] = useState<string>(OPENROUTER_PAID_MODELS[0]);
+  const [passcodeInput, setPasscodeInput] = useState('');
+  const [passcodeError, setPasscodeError] = useState(false);
   const [isSwitching, setIsSwitching] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const handleContinue = async () => {
     if (isSwitching) return;
+
+    // Passcode check for paid tier
+    if (selectedCard === 'cloud-paid') {
+      if (PAID_PASSCODE && passcodeInput.trim() !== PAID_PASSCODE) {
+        setPasscodeError(true);
+        return;
+      }
+      // Remember unlock for this session
+      sessionStorage.setItem('navi_paid_unlocked', '1');
+    }
+
     setIsSwitching(true);
     setError(null);
     try {
@@ -38,7 +52,7 @@ export function BackendSelectScreen({ onDone }: BackendSelectScreenProps) {
       } else if (selectedCard === 'cloud-free') {
         await switchBackend('openrouter', { openRouterTier: 'free', openRouterModels: OPENROUTER_FREE_MODELS });
       } else {
-        await switchBackend('openrouter', { apiKey: pendingApiKey, openRouterTier: 'paid', openRouterModels: [pendingPaidModel] });
+        await switchBackend('openrouter', { openRouterTier: 'paid', openRouterModels: [pendingPaidModel] });
       }
       onDone();
     } catch (err) {
@@ -130,13 +144,6 @@ export function BackendSelectScreen({ onDone }: BackendSelectScreenProps) {
 
             {selectedCard === key && key === 'cloud-paid' && (
               <div className="mt-3 pt-3 border-t border-border/60 space-y-2" onClick={(e) => e.stopPropagation()}>
-                <input
-                  type="password"
-                  value={pendingApiKey}
-                  onChange={(e) => setPendingApiKey(e.target.value)}
-                  placeholder="sk-or-... (OpenRouter key with credits)"
-                  className="w-full px-3 py-2.5 bg-background border border-border rounded-xl text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
-                />
                 <div className="relative">
                   <select
                     value={pendingPaidModel}
@@ -149,9 +156,18 @@ export function BackendSelectScreen({ onDone }: BackendSelectScreenProps) {
                   </select>
                   <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  Link your OpenAI key at openrouter.ai/settings/integrations to unlock GPT-4o
-                </p>
+                <input
+                  type="password"
+                  value={passcodeInput}
+                  onChange={(e) => { setPasscodeInput(e.target.value); setPasscodeError(false); }}
+                  placeholder="Access code"
+                  className={`w-full px-3 py-2.5 bg-background border rounded-xl text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 ${
+                    passcodeError ? 'border-destructive' : 'border-border'
+                  }`}
+                />
+                {passcodeError && (
+                  <p className="text-xs text-destructive">Incorrect access code</p>
+                )}
               </div>
             )}
           </button>
@@ -168,7 +184,7 @@ export function BackendSelectScreen({ onDone }: BackendSelectScreenProps) {
         {error && <p className="text-xs text-destructive text-center mb-2">{error}</p>}
         <button
           onClick={handleContinue}
-          disabled={isSwitching || (selectedCard === 'cloud-paid' && !pendingApiKey.trim())}
+          disabled={isSwitching}
           className="w-full flex items-center justify-center gap-2 px-6 py-3.5 bg-primary text-primary-foreground rounded-2xl text-sm font-semibold disabled:opacity-50 transition-opacity"
         >
           {isSwitching ? (

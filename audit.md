@@ -6,6 +6,21 @@
 
 ---
 
+## ⚠️ Security TODOs (before public launch)
+
+### PAID_PASSCODE — upgrade to server-side proxy
+**Current:** `VITE_PAID_PASSCODE` gates Cloud Paid via a client-side passcode check. The passcode is baked into the JS bundle at build time (Vite `VITE_` prefix = client-side). A determined user can find it in DevTools. Stops casual visitors, not a motivated attacker.
+
+**Fix when ready:** Replace with a Vercel serverless function (`/api/chat-paid.ts`) that:
+1. Holds `OPENROUTER_PAID_KEY` as a non-`VITE_` env var (truly server-side, never in bundle)
+2. Validates an `x-navi-token` header against `NAVI_ACCESS_TOKEN` (also server-side)
+3. Proxies the request to OpenRouter and streams the response back
+4. Update `OpenRouterProvider` to route paid-tier requests to `/api/chat-paid` instead of directly to OpenRouter
+
+This is ~50 lines of TypeScript. Do this before sharing the Vercel link with anyone outside the founding team.
+
+---
+
 ## Dependencies (`package.json`)
 
 **Runtime (installed):**
