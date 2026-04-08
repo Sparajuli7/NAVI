@@ -26,9 +26,10 @@ interface SettingsPanelProps {
   onDeleteCompanion?: (charId: string) => Promise<void>;
   onUpdateCharacter: (updates: Partial<Character>) => Promise<void>;
   onSaveUserProfile: (text: string) => Promise<void>;
+  onShowModelPicker?: () => void;
 }
 
-export function SettingsPanel({ onClose, onRegenerate, onDeleteCompanion, onUpdateCharacter, onSaveUserProfile: _onSaveUserProfile }: SettingsPanelProps) {
+export function SettingsPanel({ onClose, onRegenerate, onDeleteCompanion, onUpdateCharacter, onSaveUserProfile: _onSaveUserProfile, onShowModelPicker }: SettingsPanelProps) {
   const [activeSection, setActiveSection] = useState<Section>('companion');
   const [confirmClear, setConfirmClear] = useState(false);
   const [confirmDeleteCompanion, setConfirmDeleteCompanion] = useState(false);
@@ -870,6 +871,16 @@ export function SettingsPanel({ onClose, onRegenerate, onDeleteCompanion, onUpda
               </button>
               {backendSwitchError && (
                 <p className="text-xs text-destructive px-1">{backendSwitchError}</p>
+              )}
+
+              {/* Re-open full model picker */}
+              {onShowModelPicker && (
+                <button
+                  onClick={() => { onClose(); onShowModelPicker(); }}
+                  className="w-full px-4 py-2 text-xs text-muted-foreground border border-dashed border-border rounded-xl hover:border-primary/40 hover:text-foreground transition-colors"
+                >
+                  Re-run model setup →
+                </button>
               )}
 
               {/* Ollama (local server) */}

@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite'
+import { defineConfig } from 'vitest/config'
 import path from 'path'
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
@@ -19,4 +19,14 @@ export default defineConfig({
 
   // File types to support raw imports. Never add .css, .tsx, or .ts files to this.
   assetsInclude: ['**/*.svg', '**/*.csv'],
+
+  test: {
+    environment: 'node',
+    globals: true,
+    exclude: [
+      '**/node_modules/**',
+      // Pre-existing manual test harness — not a Vitest suite
+      '**/agent/__tests__/**',
+    ],
+  },
 })

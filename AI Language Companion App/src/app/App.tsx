@@ -7,6 +7,7 @@ import { BackendSelectScreen } from './components/BackendSelectScreen';
 import { HomeScreen } from './components/HomeScreen';
 import { ScenarioLauncher, buildContextSummary } from './components/ScenarioLauncher';
 import { Navbar } from './components/Navbar';
+import { SettingsPanel } from './components/SettingsPanel';
 import { AnimatePresence } from 'motion/react';
 import type { ScenarioKey, ParsedScenarioContext, LocationContext, DialectInfo } from '../types/config';
 import { isWebGPUSupported } from '../services/modelManager';
@@ -64,6 +65,7 @@ export default function App() {
   const [isDark, setIsDark]                 = useState(true);
   const [showCamera, setShowCamera]         = useState(false);
   const [showScenarioLauncher, setShowScenarioLauncher] = useState(false);
+  const [showHomeSettings, setShowHomeSettings] = useState(false);
   // Full list of companions (Character objects for HomeScreen)
   const [companions, setCompanions]         = useState<Character[]>([]);
 
@@ -142,7 +144,16 @@ export default function App() {
           loadCharacterConversation(activeChar.id),
           loadCharacterMemories(activeChar.id),
         ]);
-        const msgs = perCharMsgs.length > 0 ? perCharMsgs : savedMsgs;
+        const rawMsgs = perCharMsgs.length > 0 ? perCharMsgs : savedMsgs;
+        // Strip persisted error messages so stale failures don't show on reload
+        const msgs = rawMsgs.filter(m => {
+          if (m.role !== 'character') return true;
+          const c = m.content ?? '';
+          return !c.startsWith('NAVI is experiencing') &&
+                 !c.startsWith('OpenRouter error') &&
+                 !c.startsWith('OpenRouter request timed out') &&
+                 c !== 'Hmm, let me try that again... 🔄';
+        });
         if (msgs.length > 0) {
           useChatStore.setState({ messages: msgs });
           // Migrate: write into per-char key so future loads use it
@@ -508,9 +519,15 @@ export default function App() {
   const memoryCount = useCharacterStore.getState().memories.length;
   const lastMsg    = messages.filter((m) => m.role !== 'system').at(-1);
 
+  const activeChar = useCharacterStore.getState().activeCharacter;
+
   return (
     <div className="relative w-full max-w-md mx-auto min-h-screen shadow-2xl">
-      <Navbar onGoHome={handleGoHome} />
+      <Navbar
+        onGoHome={handleGoHome}
+        onEdit={appPhase === 'home' && activeChar ? () => setShowHomeSettings(true) : undefined}
+        onSettings={appPhase === 'home' ? () => setShowHomeSettings(true) : undefined}
+      />
 
       {appPhase === 'home' ? (
         <HomeScreen
@@ -550,6 +567,10 @@ export default function App() {
             onUpdateCharacter={handleUpdateCharacter}
             onSaveUserProfile={handleSaveUserProfile}
             onOpenScenarios={handleOpenScenarios}
+            onShowModelPicker={() => {
+              localStorage.removeItem('navi_backend_pref');
+              setAppPhase('backend_select');
+            }}
             isDark={isDark}
           />
 
@@ -563,6 +584,22 @@ export default function App() {
           </AnimatePresence>
         </>
       ) : null}
+
+      {/* Settings panel — accessible from home screen Navbar buttons */}
+      {showHomeSettings && (
+        <SettingsPanel
+          onClose={() => setShowHomeSettings(false)}
+          onRegenerate={handleRegenerate}
+          onDeleteCompanion={handleDeleteCompanion}
+          onUpdateCharacter={handleUpdateCharacter}
+          onSaveUserProfile={handleSaveUserProfile}
+          onShowModelPicker={() => {
+            setShowHomeSettings(false);
+            localStorage.removeItem('navi_backend_pref');
+            setAppPhase('backend_select');
+          }}
+        />
+      )}
 
       {/* Scenario Launcher — accessible from both home and chat */}
       <AnimatePresence>

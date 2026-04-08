@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
   Settings, Sun, Moon, Camera, Mic, RotateCcw, RefreshCw, Zap,
-  X as XIcon, MessageSquare, ChevronDown, BookOpen, LayoutList, Brain,
+  X as XIcon, MessageSquare, ChevronDown,
 } from 'lucide-react';
 import { SpeechBubble, ThoughtBubble, ChatLogEntry } from './NewChatBubble';
 import { AIAvatarDisplay } from './AIAvatarDisplay';
@@ -45,6 +45,7 @@ interface ConversationScreenProps {
   onUpdateCharacter: (updates: Partial<Character>) => Promise<void>;
   onSaveUserProfile: (text: string) => Promise<void>;
   onOpenScenarios: () => void;
+  onShowModelPicker?: () => void;
   onDeleteCompanion?: (charId: string) => Promise<void>;
   isDark: boolean;
 }
@@ -93,6 +94,7 @@ export function ConversationScreen({
   onUpdateCharacter,
   onSaveUserProfile,
   onOpenScenarios,
+  onShowModelPicker,
   onDeleteCompanion,
   isDark,
 }: ConversationScreenProps) {
@@ -378,8 +380,8 @@ export function ConversationScreen({
   const hasStreamingContent = messages.some(m => m.metadata?.isStreaming && m.content.length > 0);
   const showTypingDots = isGenerating && !hasStreamingContent;
 
-  const dialectIndicator = currentLocation?.dialectInfo
-    ? `${countryFlag(currentLocation.countryCode)} ${currentLocation.dialectInfo.dialect}`
+  const dialectIndicator = currentLocation?.countryCode
+    ? countryFlag(currentLocation.countryCode)
     : null;
 
   const latestCharMsg = [...messages]
@@ -423,12 +425,9 @@ export function ConversationScreen({
           </button>
         )}
         {dialectIndicator && (
-          <span className="text-xs text-muted-foreground whitespace-nowrap hidden sm:inline">
+          <span className="text-sm" title={currentLocation?.dialectInfo?.dialect ?? ''}>
             {dialectIndicator}
           </span>
-        )}
-        {!dialectIndicator && !activeScenario && (
-          <span className="text-xs text-muted-foreground truncate hidden sm:inline">{location}</span>
         )}
       </div>
 
@@ -449,27 +448,6 @@ export function ConversationScreen({
           ) : (
             <Moon className="w-4 h-4 text-muted-foreground" />
           )}
-        </button>
-        <button
-          onClick={() => setShowGraphExplorer(true)}
-          className="p-2 hover:bg-muted/50 rounded-lg transition-colors"
-          title="Memory graph"
-        >
-          <Brain className="w-4 h-4 text-[#6BBAA7]" />
-        </button>
-        <button
-          onClick={() => setShowKnowledgeGraph(true)}
-          className="p-2 hover:bg-muted/50 rounded-lg transition-colors"
-          title="Phrase map"
-        >
-          <BookOpen className="w-4 h-4 text-[#D4A853]" />
-        </button>
-        <button
-          onClick={() => setShowFlashcards(true)}
-          className="p-2 hover:bg-muted/50 rounded-lg transition-colors"
-          title="Phrase cards"
-        >
-          <LayoutList className="w-4 h-4 text-muted-foreground" />
         </button>
         <button
           onClick={() => setShowSettings(true)}
@@ -860,6 +838,7 @@ export function ConversationScreen({
             onUpdateCharacter={onUpdateCharacter}
             onSaveUserProfile={onSaveUserProfile}
             onDeleteCompanion={onDeleteCompanion}
+            onShowModelPicker={onShowModelPicker}
           />
         )}
       </AnimatePresence>

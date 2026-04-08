@@ -288,6 +288,10 @@ The agent framework is fully built. All UI screens still call legacy services di
 - ~~**Model selection never shown to users**~~ — `BackendSelectScreen.tsx` added as a `'backend_select'` AppPhase shown on first launch (when `navi_backend_pref` absent). Presents 3 cards (Cloud Free / Cloud Paid / On-Device) in a clean full-screen UI. After user picks and taps "Get Started →", `switchBackend()` writes the pref and the screen is never shown again. Subsequent launches go straight to the normal flow. Qwen3 presets (1.7B default, 4B, 0.6B) + Gemma 4 as top free model + OpenAI models in paid list.
 - ~~**Qwen2.5 as default WebLLM model despite Qwen3 being available**~~ — Default preset changed to `qwen3-1.7b` (better multilingual performance). All 3 Qwen3 sizes added. FALLBACK_MODELS expanded to 8 (Gemma 4 first for best quality). PAID_MODELS includes OpenAI models accessible via OpenRouter integrations.
 
+### Resolved Feature Gaps (2026-04-08)
+- ~~**Navbar edit/settings buttons non-functional on home screen**~~ — `Navbar.tsx` buttons now conditional on `onEdit`/`onSettings` props (hidden when not provided). `App.tsx` passes handlers on home phase: both pencil and gear open `SettingsPanel` (mounted from `App.tsx` via `showHomeSettings` state). Model picker accessible via home settings → Model tab → "Re-run model setup".
+- ~~**Chat screen second bar too cluttered (6 icons)**~~ — Removed Brain (memory graph), BookOpen (phrase map), LayoutList (flashcards) buttons from the header bar. Bar now shows Zap + Sun/Moon + Settings only. Overlays still accessible via in-chat quick pills. Dialect indicator shortened to flag emoji only.
+
 ### Known Feature Gaps
 - **CameraOverlay OCR/LLM pipeline not wired** — Prompt 7 incomplete. `CameraOverlay.tsx` still uses a mocked scan flow; `agent.handleImage()` pipeline exists but is not connected.
 - **`generateCharacter()` in `llm.ts` is dead code** — onboarding uses `agent.getLLM().chat()` directly; `generateCharacter()` updated to return `{ character, avatarPrefs }` for consistency but has no active callers.
