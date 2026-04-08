@@ -52,7 +52,16 @@ export function BackendSelectScreen({ onDone }: BackendSelectScreenProps) {
     try {
       if (selected.type === 'cloud') {
         const tier = selected.model.free ? 'free' : 'paid';
-        await switchBackend('openrouter', { openRouterTier: tier, openRouterModels: [selected.model.id] });
+        let openRouterModels: string[];
+        if (selected.model.free) {
+          // Put selected model first, then remaining free models as fallbacks so
+          // the retry loop has multiple attempts (1 key × N models) instead of 1.
+          const allFreeIds = CLOUD_MODELS.filter(m => m.free).map(m => m.id);
+          openRouterModels = [selected.model.id, ...allFreeIds.filter(id => id !== selected.model.id)];
+        } else {
+          openRouterModels = [selected.model.id];
+        }
+        await switchBackend('openrouter', { openRouterTier: tier, openRouterModels });
       } else {
         await switchBackend('webllm', { webllmPreset: selected.presetKey });
       }
