@@ -18,6 +18,9 @@ import type { EpisodicMemoryStore } from '../memory/episodicMemory';
 const STREAK_MILESTONES = [7, 14, 30];
 
 export class ProactiveEngine {
+  /** Prevents the proactive message from firing more than once per app session. */
+  private firedThisSession = false;
+
   constructor(
     private learner: LearnerProfileStore,
     private episodic: EpisodicMemoryStore,
@@ -27,34 +30,39 @@ export class ProactiveEngine {
    * Returns a warm opening message if a proactive trigger is active,
    * or null if no proactive message is needed.
    * Call this on app open before the user types anything.
+   * Guaranteed to return a non-null value at most once per session.
    */
   getProactiveMessage(): string | null {
+    if (this.firedThisSession) return null;
+
     const stats = this.learner.stats;
     const daysSinceLast = this.daysSince(stats.lastSessionDate);
     const streak = stats.currentStreak;
 
+    let message: string | null = null;
+
     // 1. Long absence (> 7 days)
     if (daysSinceLast > 7) {
-      return `Hey, it's been a while! Life got busy? No pressure — we can ease back in whenever you're ready. What's been going on?`;
+      message = `Hey, it's been a while! Life got busy? No pressure — we can ease back in whenever you're ready. What's been going on?`;
     }
-
     // 2. Short absence (> 2 days)
-    if (daysSinceLast > 2) {
-      return `Hey, haven't heard from you in a couple days — everything good? Whenever you're ready, I'm here.`;
+    else if (daysSinceLast > 2) {
+      message = `Hey, haven't heard from you in a couple days — everything good? Whenever you're ready, I'm here.`;
     }
-
     // 3. Streak milestone
-    if (streak > 0 && this.isStreakMilestone(streak)) {
-      return `🔥 ${streak}-day streak! You've been showing up — that's the whole game.`;
+    else if (streak > 0 && this.isStreakMilestone(streak)) {
+      message = `🔥 ${streak}-day streak! You've been showing up — that's the whole game.`;
     }
-
     // 4. Struggling phrases + at least 1 day since last session
-    const struggling = this.learner.getStrugglingPhrases(1);
-    if (struggling.length > 0 && daysSinceLast >= 1) {
-      return `That phrase we've been working on — want to give it another shot today? No pressure, just checking in.`;
+    else {
+      const struggling = this.learner.getStrugglingPhrases(1);
+      if (struggling.length > 0 && daysSinceLast >= 1) {
+        message = `That phrase we've been working on — want to give it another shot today? No pressure, just checking in.`;
+      }
     }
 
-    return null;
+    if (message) this.firedThisSession = true;
+    return message;
   }
 
   // ── Private ────────────────────────────────────────────────────

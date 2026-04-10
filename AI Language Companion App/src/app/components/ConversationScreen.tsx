@@ -153,6 +153,7 @@ export function ConversationScreen({
       content: proactiveMsg,
       timestamp: Date.now(),
       type: 'text',
+      metadata: { isProactive: true },
     });
   }, [agent, isLLMReady]);
 
@@ -229,7 +230,7 @@ export function ConversationScreen({
 
     try {
       const history = historySnapshot
-        .filter(m => m.role === 'user' || m.role === 'character')
+        .filter(m => (m.role === 'user' || m.role === 'character') && !m.metadata?.isProactive)
         .slice(-8)
         .map(m => ({
           role: m.role === 'user' ? 'user' : 'assistant',

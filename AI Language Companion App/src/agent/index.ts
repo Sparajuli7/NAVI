@@ -322,7 +322,10 @@ export class NaviAgent {
       : savedORKey ? [savedORKey] : [];
 
     // Create the LLM provider based on backend selection
-    if (openRouterKeys.length > 0 && this.llmBackend !== 'webllm') {
+    // Only use OpenRouter when the user explicitly chose it (savedBackendPref === 'openrouter').
+    // An env key alone must NOT override 'auto' or 'webllm' — that would fire OpenRouter before
+    // the user has visited BackendSelectScreen on first run.
+    if (openRouterKeys.length > 0 && this.llmBackend === 'openrouter') {
       // OpenRouter cloud mode — no local model download needed
       this.openRouterProvider = new OpenRouterProvider(openRouterKeys);
       this.llm = this.openRouterProvider;

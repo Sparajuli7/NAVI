@@ -291,3 +291,10 @@ Added target language onboarding step (step 0 before native language picker); sa
 | Companion switch restores wrong/shallow avatar | `handleSelectCompanion` in `App.tsx` now resolves dialect key (stored → dialectMap scan fallback), calls `agent.avatar.createFromDescription()` with full `AvatarProfile` shape including visual prefs. Also syncs `agent.location` + `appStore.currentLocation` so system prompt uses correct dialect. |
 | LLM responses contain raw Markdown formatting | `stripInlineMarkdown()` added to `utils/responseParser.ts`. Strips `##` headings, `**bold**`, `__bold__`, `*italic*`, `_italic_`. Applied at all `segments.push({ type: 'text' })` sites in `parseResponse()` and to `displayContent` in `SpeechBubble` + `ChatLogEntry` in `NewChatBubble.tsx`. |
 | Language calibration tier is static (only advances on consecutive full exchanges) | `ConversationDirector` now maintains a 5-message rolling window of user input. `computeCalibrationTier()` scores non-ASCII density to produce a tier 0–4, written to `WorkingMemory` (key: `calibration_tier`, TTL: 30 min). `preProcess()` prefers the WM tier over `learner.languageComfortTier`. `WorkingMemory` passed as 4th arg to `ConversationDirector` from `agent/index.ts`. |
+
+## Resolved Gaps (2026-04-10)
+
+| Gap | Resolution |
+|---|---|
+| OpenRouter invoked without explicit user choice | `agent/index.ts:325` — changed routing condition from `llmBackend !== 'webllm'` to `llmBackend === 'openrouter'`. Env key alone no longer activates cloud inference; user must pick OpenRouter explicitly. |
+| Proactive message repeats and poisons context | `ProactiveEngine.ts` — added `firedThisSession` flag so message fires at most once per session. `ConversationScreen.tsx` — proactive messages tagged `metadata.isProactive=true` and filtered from LLM history slice at line 232. |
