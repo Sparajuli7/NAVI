@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { NewOnboardingScreen } from './components/NewOnboardingScreen';
+import { AvatarSelectScreen } from './components/AvatarSelectScreen';
 import { ConversationScreen } from './components/ConversationScreen';
 import { CameraOverlay } from './components/CameraOverlay';
 import { ModelDownloadScreen } from './components/ModelDownloadScreen';
@@ -10,6 +10,8 @@ import { Navbar } from './components/Navbar';
 import { SettingsPanel } from './components/SettingsPanel';
 import { AnimatePresence } from 'motion/react';
 import type { ScenarioKey, ParsedScenarioContext, LocationContext, DialectInfo } from '../types/config';
+import type { AvatarTemplate } from '../types/character';
+import type { Message } from '../types/chat';
 import { isWebGPUSupported } from '../services/modelManager';
 import { useNaviAgent } from '../agent/react/useNaviAgent';
 import { useAppStore } from '../stores/appStore';
@@ -28,6 +30,7 @@ import {
   saveCharacters,
   saveCharacter,
   saveCharacterConversation,
+  saveLocation,
   saveUserProfile,
   deleteCharacterData,
 } from '../utils/storage';
@@ -185,9 +188,22 @@ export default function App() {
 
       const targetPhase: AppPhase = activeChar ? 'home' : 'onboarding';
 
-      // First launch: no backend chosen yet — show the backend selector
+      // First launch: auto-set webllm default (skip backend selection screen)
       if (!localStorage.getItem('navi_backend_pref')) {
-        setAppPhase('backend_select');
+        if (isWebGPUSupported()) {
+          localStorage.setItem('navi_backend_pref', 'webllm');
+          localStorage.setItem('navi_webllm_preset', 'qwen3-1.7b');
+        } else {
+          // No WebGPU — user must pick a cloud model
+          setAppPhase('backend_select');
+          return;
+        }
+      }
+
+      // First launch (no character): go straight to avatar selection
+      // Model download happens after the user picks a companion
+      if (!activeChar) {
+        setAppPhase('onboarding');
         return;
       }
 
@@ -210,7 +226,7 @@ export default function App() {
     init();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Called after the user selects a backend on first launch
+  // Called after the user selects a backend (from Settings or no-WebGPU fallback)
   const handleBackendChosen = async () => {
     const activeBackend = agent.getBackend();
     if (activeBackend === 'webllm' && !isWebGPUSupported()) {
@@ -229,30 +245,77 @@ export default function App() {
     setAppPhase(activeChar ? 'home' : 'onboarding');
   };
 
-  // Called when onboarding finishes — add the new companion to the list
-  const handleOnboardingComplete = async (generatedCharacter: GeneratedCharacter, selectedLocation: string) => {
-    const newChar = useCharacterStore.getState().activeCharacter;
-    if (newChar) {
-      const updated = [...companions.filter((c) => c.id !== newChar.id), newChar];
-      setCompanions(updated);
-      useCharacterStore.getState().setCharacters(updated);
-      await saveCharacters(updated);
-    }
-    setCharacter(generatedCharacter);
-    setLocation(selectedLocation);
+  // Called when the user picks an avatar template — creates character from template defaults
+  const handleAvatarSelected = async (template: AvatarTemplate, locationCtx: LocationContext | null) => {
+    const city = locationCtx?.city ?? 'Ho Chi Minh City';
+    const country = locationCtx?.country ?? 'Vietnam';
+    const dialectKey = locationCtx?.dialectKey ?? '';
 
-    // Set up the avatar in the agent framework from the generated character
-    const activeChar = useCharacterStore.getState().activeCharacter;
-    if (activeChar) {
-      const loc = useAppStore.getState().currentLocation;
-      const avatarProfile = agent.createAvatarFromTemplate(
-        activeChar.template_id ?? 'default',
-        selectedLocation,
-        activeChar.dialect_key ?? loc?.dialectKey,
-      );
-      avatarProfile.name = activeChar.name;
-      avatarProfile.personality = activeChar.summary;
-      agent.setAvatar(avatarProfile);
+    // Create character from template (no LLM needed)
+    const newChar: Character = {
+      id: `char_${Date.now()}`,
+      name: template.label,
+      summary: template.base_personality,
+      detailed: '',
+      style: template.default_style,
+      emoji: template.emoji,
+      avatar_color: { primary: '#6BBAA7', secondary: '#D4A853', accent: '#F5F0EB' },
+      avatar_accessory: template.emoji,
+      speaks_like: 'warm and conversational',
+      template_id: template.id,
+      location_city: city,
+      location_country: country,
+      dialect_key: dialectKey,
+      first_message: `Hey! I'm your ${template.label.toLowerCase()}. Ready to explore ${city}?`,
+    };
+
+    // Save to stores + IndexedDB
+    useCharacterStore.getState().setActiveCharacter(newChar);
+    const updated = [...companions.filter(c => c.id !== newChar.id), newChar];
+    setCompanions(updated);
+    useCharacterStore.getState().setCharacters(updated);
+    await saveCharacters(updated);
+    await saveCharacter(newChar);
+
+    if (locationCtx) {
+      useAppStore.getState().setCurrentLocation(locationCtx);
+      await saveLocation(locationCtx);
+    }
+
+    // Add first message to chat
+    const firstMsg: Message = {
+      id: Date.now().toString(),
+      role: 'character',
+      content: newChar.first_message!,
+      type: 'text',
+      timestamp: Date.now(),
+      showAvatar: true,
+    };
+    useChatStore.getState().clearMessages();
+    useChatStore.setState({ messages: [firstMsg] });
+    await saveCharacterConversation(newChar.id, [firstMsg]);
+
+    // Set up agent avatar
+    const avatarProfile = agent.createAvatarFromTemplate(
+      template.id,
+      city,
+      dialectKey,
+    );
+    avatarProfile.name = newChar.name;
+    avatarProfile.personality = newChar.summary;
+    agent.setAvatar(avatarProfile);
+
+    setCharacter(mapCharacterToUI(newChar));
+    setLocation(`${city}, ${country}`);
+
+    // Download model if not yet ready
+    if (!agent.isLLMReady()) {
+      setAppPhase('downloading');
+      try {
+        await loadLLM();
+      } catch (err) {
+        console.error('Model load failed:', err);
+      }
     }
 
     setAppPhase('chat');
@@ -482,7 +545,7 @@ export default function App() {
     await saveUserProfile(text);
   };
 
-  // First-launch backend selection
+  // Backend selection (Settings model picker or no-WebGPU fallback)
   if (appPhase === 'backend_select') {
     return <BackendSelectScreen onDone={handleBackendChosen} />;
   }
@@ -550,9 +613,8 @@ export default function App() {
           }}
         />
       ) : appPhase === 'onboarding' ? (
-        <NewOnboardingScreen
-          onComplete={handleOnboardingComplete}
-          onRetryLoadModel={handleRetryModel}
+        <AvatarSelectScreen
+          onSelect={handleAvatarSelected}
         />
       ) : character ? (
         <>

@@ -43,7 +43,8 @@ NAVI is an **AI language companion app** — a local friend in your pocket who s
 │   │   │   └── components/           # 15+ custom components
 │   │   │       ├── ui/               # 50+ shadcn/ui primitives
 │   │   │       ├── ConversationScreen.tsx   # Main chat interface
-│   │   │       ├── NewOnboardingScreen.tsx  # Character creation flow
+│   │   │       ├── AvatarSelectScreen.tsx    # Onboarding — pick avatar template
+│   │   │       ├── NewOnboardingScreen.tsx  # (Legacy) Character creation flow
 │   │   │       ├── CameraOverlay.tsx        # Camera + OCR UI
 │   │   │       ├── ExpandedPhraseCard.tsx   # Phrase detail bottom sheet
 │   │   │       ├── NewChatBubble.tsx        # Chat message bubbles
@@ -130,10 +131,11 @@ NAVI is an **AI language companion app** — a local friend in your pocket who s
 ### App Phase State Machine
 ```
 init → [check WebGPU]
-  ├── no_webgpu (error screen)
-  └── downloading (model download)
-       └── onboarding (character creation)
-            └── chat (main conversation interface)
+  ├── no_webgpu → backend_select (pick cloud model)
+  └── First launch (WebGPU OK):
+       onboarding (avatar selection) → downloading (model download) → chat
+  └── Returning user:
+       downloading (if needed) → home / chat
 ```
 
 ### On-Device AI Pipeline
@@ -296,9 +298,13 @@ The agent framework is fully built. All UI screens still call legacy services di
 - ~~**Navbar edit/settings buttons non-functional on home screen**~~ — `Navbar.tsx` buttons now conditional on `onEdit`/`onSettings` props (hidden when not provided). `App.tsx` passes handlers on home phase: both pencil and gear open `SettingsPanel` (mounted from `App.tsx` via `showHomeSettings` state). Model picker accessible via home settings → Model tab → "Re-run model setup".
 - ~~**Chat screen second bar too cluttered (6 icons)**~~ — Removed Brain (memory graph), BookOpen (phrase map), LayoutList (flashcards) buttons from the header bar. Bar now shows Zap + Sun/Moon + Settings only. Overlays still accessible via in-chat quick pills. Dialect indicator shortened to flag emoji only.
 
+### Resolved Feature Gaps (2026-04-13)
+- ~~**Multi-step onboarding too complex for first launch**~~ — Replaced 4-step onboarding (target language → native language → describe companion → appearance) with a single `AvatarSelectScreen.tsx` showing 8 avatar template cards (Street Food Guide, Form Helper, etc.). User picks a template and hits Start. Character is created from template defaults (no LLM generation needed). Model auto-defaults to WebGPU Qwen3 1.7B — `backend_select` screen is skipped on first launch (kept accessible via Settings for model changes). GPS location detected in background. `NewOnboardingScreen.tsx` retained but no longer rendered.
+
 ### Known Feature Gaps
 - **CameraOverlay OCR/LLM pipeline not wired** — Prompt 7 incomplete. `CameraOverlay.tsx` still uses a mocked scan flow; `agent.handleImage()` pipeline exists but is not connected.
 - **`generateCharacter()` in `llm.ts` is dead code** — onboarding uses `agent.getLLM().chat()` directly; `generateCharacter()` updated to return `{ character, avatarPrefs }` for consistency but has no active callers.
+- **`NewOnboardingScreen.tsx` is dead code** — Replaced by `AvatarSelectScreen.tsx` but file retained. Can be deleted when confirmed no longer needed.
 - **Cloudflare Worker D1 database ID not set** — `web/wrangler.toml` contains `database_id = "YOUR_D1_DATABASE_ID"` placeholder. Run `wrangler d1 create navi-feedback`, copy the returned ID, and update `wrangler.toml`. Then run the CREATE TABLE command from `web/worker.js` header comments before deploying.
 - **Feedback worker URL** — `web/feedback.html` references `https://navi-feedback.shreyashparajuli.workers.dev`. Update this constant if the worker is deployed under a different subdomain.
 - **Pending feedback sync** — `feedback.html` stores offline submissions in `localStorage` as `navi_pending_feedback`, but there is no retry mechanism to flush them when the user comes back online.

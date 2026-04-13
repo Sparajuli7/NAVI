@@ -1,6 +1,8 @@
 # NAVI Codebase Audit
 
-**Last updated: 2026-04-08** (UI polish: `Navbar.tsx` — pencil + gear buttons now conditional on `onEdit`/`onSettings` props (were stubs with empty onClick); `App.tsx` — passes `onEdit`/`onSettings` to Navbar on home phase only, adds `showHomeSettings` state to render `SettingsPanel` from home screen (model picker accessible via Settings → Model tab); `ConversationScreen.tsx` — removed Brain/BookOpen/LayoutList icon buttons from second bar (3 icons → Zap/Sun/Settings only); dialect indicator shortened to flag emoji only (was "🇳🇵 Standard Nepali (Kathmandu)"))
+**Last updated: 2026-04-13** (simplified onboarding: replaced 4-step `NewOnboardingScreen` with single-step `AvatarSelectScreen.tsx` — 8 avatar template grid, no LLM needed for character creation; auto-default WebGPU Qwen3 1.7B on first launch, `backend_select` skipped unless no WebGPU; model changes only in Settings; GPS location detected in background during avatar selection)
+
+**Previously: 2026-04-08** (UI polish: `Navbar.tsx` — pencil + gear buttons now conditional on `onEdit`/`onSettings` props (were stubs with empty onClick); `App.tsx` — passes `onEdit`/`onSettings` to Navbar on home phase only, adds `showHomeSettings` state to render `SettingsPanel` from home screen (model picker accessible via Settings → Model tab); `ConversationScreen.tsx` — removed Brain/BookOpen/LayoutList icon buttons from second bar (3 icons → Zap/Sun/Settings only); dialect indicator shortened to flag emoji only (was "🇳🇵 Standard Nepali (Kathmandu)"))
 
 **Previously: 2026-04-06b** (first-launch backend selection: `BackendSelectScreen.tsx` — full-screen 3-card picker shown once on first launch when `navi_backend_pref` absent from localStorage; `App.tsx` gains `'backend_select'` AppPhase + `handleBackendChosen` callback; Qwen3 PRESET_CONFIGS (9 models, Qwen3-1.7B default); FALLBACK_MODELS expanded to 8 (Gemma 4 first); PAID_MODELS includes OpenAI models; `switchBackend()` on NaviAgent with localStorage persistence; `useNaviAgent` exposes `switchBackend`/`webllmPreset`/`openRouterTier`; SettingsPanel 3-card Model UI with no key input on free tier) **2026-04-06:** (3-way backend selector: `NaviAgent.switchBackend()` — On-Device WebGPU / Cloud Free / Cloud Paid OpenRouter; `navi_backend_pref` localStorage; 4 WebLLM presets (Phi-3.5 Mini, Gemma 2 2B, Llama 3.2 1B/3B); `OpenRouterProvider.setApiKeys()` + `setModels()`; `useNaviAgent` exposes `switchBackend`/`webllmPreset`/`openRouterTier`; SettingsPanel 3-card Model UI). **2026-03-30:** Multi-agent orchestrator — `MemoryRetrievalAgent` + `ResearchAgent`; `KnowledgeGraphStore` (6 node + 9 edge types); MemoryMaker rich metadata; `learningProtocols.json`; Context Injection Protocol; MemoryManager 9 systems; `KnowledgeGraphExplorer.tsx` (Brain icon); 63/63 integration tests.
 
@@ -45,7 +47,7 @@
 ## State Management
 
 - **Zustand** is in use — 3 stores: `appStore` (model status, location, preferences), `characterStore` (active character, memories), `chatStore` (messages, scenario, generation state)
-- App-level phase switching in `App.tsx` via `useState` (`phase`: init → downloading → onboarding → chat)
+- App-level phase switching in `App.tsx` via `useState` (`phase`: init → onboarding (avatar select) → downloading → chat; backend_select only for Settings or no-WebGPU fallback)
 - All stores persist to IndexedDB via `utils/storage.ts` (idb-keyval)
 - Full state survives page refresh
 
