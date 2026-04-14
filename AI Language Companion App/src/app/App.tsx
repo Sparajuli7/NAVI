@@ -253,10 +253,9 @@ export default function App() {
 
     // Create character from template (no LLM needed)
     const isCustom = template.id === 'custom';
-    const charName = isCustom ? template.label : template.label;
     const newChar: Character = {
       id: `char_${Date.now()}`,
-      name: charName,
+      name: template.label,
       summary: template.base_personality,
       detailed: isCustom ? template.base_personality : '',
       style: template.default_style,
@@ -269,7 +268,7 @@ export default function App() {
       location_country: country,
       dialect_key: dialectKey,
       first_message: isCustom
-        ? `Hey! I'm ${charName}. Ready to explore ${city} together?`
+        ? `Hey! I'm ${template.label}. Ready to explore ${city} together?`
         : `Hey! I'm your ${template.label.toLowerCase()}. Ready to explore ${city}?`,
     };
 
@@ -339,17 +338,7 @@ export default function App() {
     setCharacter(mapCharacterToUI(newChar));
     setLocation(`${city}, ${country}`);
 
-    // Download model if not yet ready
-    if (!agent.isLLMReady()) {
-      setAppPhase('downloading');
-      try {
-        await loadLLM();
-      } catch (err) {
-        console.error('Model load failed:', err);
-      }
-    }
-
-    setAppPhase('chat');
+    // Model download + chat are handled by the AvatarSelectScreen itself
   };
 
   // Select a companion from the HomeScreen list
