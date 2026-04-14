@@ -338,7 +338,17 @@ export default function App() {
     setCharacter(mapCharacterToUI(newChar));
     setLocation(`${city}, ${country}`);
 
-    // Model download + chat are handled by the AvatarSelectScreen itself
+    // Download model if not yet ready, then go to chat
+    if (!agent.isLLMReady()) {
+      setAppPhase('downloading');
+      try {
+        await loadLLM();
+      } catch (err) {
+        console.error('Model load failed:', err);
+      }
+    }
+
+    setAppPhase('chat');
   };
 
   // Select a companion from the HomeScreen list
