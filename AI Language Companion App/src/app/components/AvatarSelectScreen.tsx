@@ -1,13 +1,15 @@
 /**
  * AvatarSelectScreen — Simplified onboarding
  *
- * Shows a grid of 8 avatar templates. User picks one, hits Start.
+ * Shows a grid of 8 avatar templates plus a "Create your own" option.
+ * User can pick a preset or describe their own companion.
  * GPS location is detected on mount and passed back with the selection.
- * No LLM needed — character is created from template defaults.
+ * No LLM needed — character is created from template/description defaults.
  */
 
 import React, { useState, useEffect } from 'react';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
+import { Pencil } from 'lucide-react';
 import { detectLocation } from '../../services/location';
 import avatarTemplates from '../../config/avatarTemplates.json';
 import type { AvatarTemplate } from '../../types/character';
@@ -26,10 +28,13 @@ const TEMPLATE_GRADIENTS: Record<string, string> = {
   night_guide:         'from-violet-500/20 to-purple-500/10',
   elder_speaker:       'from-amber-500/20 to-yellow-500/10',
   youth_translator:    'from-pink-500/20 to-rose-500/10',
+  custom:              'from-teal-500/20 to-cyan-500/10',
 };
 
 export function AvatarSelectScreen({ onSelect }: AvatarSelectScreenProps) {
   const [selected, setSelected] = useState<string | null>(null);
+  const [customDesc, setCustomDesc] = useState('');
+  const [customName, setCustomName] = useState('');
   const [locationCtx, setLocationCtx] = useState<LocationContext | null>(null);
   const templates = avatarTemplates as AvatarTemplate[];
 
@@ -40,9 +45,29 @@ export function AvatarSelectScreen({ onSelect }: AvatarSelectScreenProps) {
       .catch(() => { /* GPS failed — defaults used later */ });
   }, []);
 
+  const isCustom = selected === 'custom';
+  const canStart = selected && (!isCustom || customDesc.trim().length > 0);
+
   const handleStart = () => {
-    const template = templates.find(t => t.id === selected);
-    if (template) onSelect(template, locationCtx);
+    if (!selected) return;
+
+    if (isCustom) {
+      // Build a synthetic template from user input
+      const custom: AvatarTemplate = {
+        id: 'custom',
+        emoji: '✨',
+        label: customName.trim() || 'My Companion',
+        base_personality: customDesc.trim(),
+        default_style: 'casual',
+        default_formality: 'casual',
+        vocabulary_focus: [],
+        scenario_hint: '',
+      };
+      onSelect(custom, locationCtx);
+    } else {
+      const template = templates.find(t => t.id === selected);
+      if (template) onSelect(template, locationCtx);
+    }
   };
 
   return (
@@ -66,11 +91,11 @@ export function AvatarSelectScreen({ onSelect }: AvatarSelectScreenProps) {
             Choose your companion
           </h1>
           <p className="text-xs text-muted-foreground mt-1">
-            Pick who you want by your side
+            Pick a preset or create your own
           </p>
         </motion.div>
 
-        {/* Template grid */}
+        {/* Template grid + custom option */}
         <motion.div
           className="flex-1 overflow-y-auto"
           initial={{ opacity: 0 }}
@@ -104,13 +129,64 @@ export function AvatarSelectScreen({ onSelect }: AvatarSelectScreenProps) {
                 </motion.button>
               );
             })}
+
+            {/* Create your own tile */}
+            <motion.button
+              onClick={() => setSelected('custom')}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.05 * templates.length + 0.15 }}
+              className={`flex flex-col items-center p-4 rounded-2xl border-2 text-center transition-all col-span-2 ${
+                isCustom
+                  ? 'bg-gradient-to-br from-teal-500/20 to-cyan-500/10 border-primary shadow-lg'
+                  : 'bg-card border-dashed border-border hover:border-primary/30'
+              }`}
+            >
+              <Pencil className={`w-7 h-7 mb-2 ${isCustom ? 'text-primary' : 'text-muted-foreground'}`} />
+              <span className={`text-sm font-semibold ${isCustom ? 'text-foreground' : 'text-muted-foreground'}`}>
+                Create your own
+              </span>
+              <span className="text-xs text-muted-foreground mt-1">
+                Describe exactly who you want
+              </span>
+            </motion.button>
           </div>
+
+          {/* Custom description inputs — shown when "Create your own" is selected */}
+          <AnimatePresence>
+            {isCustom && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                className="overflow-hidden"
+              >
+                <div className="mt-4 space-y-3">
+                  <input
+                    type="text"
+                    value={customName}
+                    onChange={(e) => setCustomName(e.target.value)}
+                    placeholder="Give them a name (optional)"
+                    className="w-full px-4 py-3 bg-card border border-border rounded-xl text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/50 text-sm"
+                  />
+                  <textarea
+                    value={customDesc}
+                    onChange={(e) => setCustomDesc(e.target.value)}
+                    placeholder="Describe your companion... e.g. a chill surfer who loves street food, a wise grandma who tells it like it is"
+                    rows={3}
+                    autoFocus
+                    className="w-full px-4 py-3 bg-card border border-border rounded-xl text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/50 text-sm resize-none"
+                  />
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </motion.div>
 
         {/* Start button */}
         <motion.button
           onClick={handleStart}
-          disabled={!selected}
+          disabled={!canStart}
           className="w-full mt-4 px-6 py-3.5 bg-primary text-primary-foreground rounded-2xl text-sm font-semibold disabled:opacity-30 transition-opacity"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}

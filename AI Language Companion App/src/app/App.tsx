@@ -252,21 +252,25 @@ export default function App() {
     const dialectKey = locationCtx?.dialectKey ?? '';
 
     // Create character from template (no LLM needed)
+    const isCustom = template.id === 'custom';
+    const charName = isCustom ? template.label : template.label;
     const newChar: Character = {
       id: `char_${Date.now()}`,
-      name: template.label,
+      name: charName,
       summary: template.base_personality,
-      detailed: '',
+      detailed: isCustom ? template.base_personality : '',
       style: template.default_style,
       emoji: template.emoji,
       avatar_color: { primary: '#6BBAA7', secondary: '#D4A853', accent: '#F5F0EB' },
       avatar_accessory: template.emoji,
       speaks_like: 'warm and conversational',
-      template_id: template.id,
+      template_id: isCustom ? null : template.id,
       location_city: city,
       location_country: country,
       dialect_key: dialectKey,
-      first_message: `Hey! I'm your ${template.label.toLowerCase()}. Ready to explore ${city}?`,
+      first_message: isCustom
+        ? `Hey! I'm ${charName}. Ready to explore ${city} together?`
+        : `Hey! I'm your ${template.label.toLowerCase()}. Ready to explore ${city}?`,
     };
 
     // Save to stores + IndexedDB
@@ -296,14 +300,41 @@ export default function App() {
     await saveCharacterConversation(newChar.id, [firstMsg]);
 
     // Set up agent avatar
-    const avatarProfile = agent.createAvatarFromTemplate(
-      template.id,
-      city,
-      dialectKey,
-    );
-    avatarProfile.name = newChar.name;
-    avatarProfile.personality = newChar.summary;
-    agent.setAvatar(avatarProfile);
+    if (isCustom) {
+      const avatarProfile = agent.avatar.createFromDescription(
+        newChar.summary,
+        {
+          name: newChar.name,
+          personality: newChar.summary,
+          speaksLike: 'warm and conversational',
+          energyLevel: 'medium',
+          humorStyle: 'warm',
+          slangLevel: 0.5,
+          dialect: dialectKey,
+          culturalContext: '',
+          location: city,
+          scenario: '',
+          visual: {
+            primaryColor: '#6BBAA7',
+            secondaryColor: '#D4A853',
+            accentColor: '#F5F0EB',
+            accessory: '✨',
+            emoji: '✨',
+          },
+        },
+        city,
+      );
+      agent.setAvatar(avatarProfile);
+    } else {
+      const avatarProfile = agent.createAvatarFromTemplate(
+        template.id,
+        city,
+        dialectKey,
+      );
+      avatarProfile.name = newChar.name;
+      avatarProfile.personality = newChar.summary;
+      agent.setAvatar(avatarProfile);
+    }
 
     setCharacter(mapCharacterToUI(newChar));
     setLocation(`${city}, ${country}`);
