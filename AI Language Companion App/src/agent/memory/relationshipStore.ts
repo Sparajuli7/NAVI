@@ -42,6 +42,11 @@ export class RelationshipStore {
   async load(): Promise<void> {
     const stored = await get<Record<string, RelationshipState>>(STORAGE_KEY);
     if (stored) {
+      // Validate array fields — IndexedDB data may be corrupted
+      for (const rel of Object.values(stored)) {
+        if (!Array.isArray(rel.sharedReferences)) rel.sharedReferences = [];
+        if (!Array.isArray(rel.milestones)) rel.milestones = [];
+      }
       this.relationships = stored;
     }
     this.loaded = true;

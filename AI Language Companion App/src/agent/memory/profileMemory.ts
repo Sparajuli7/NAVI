@@ -125,8 +125,9 @@ export class ProfileMemoryStore {
       lines.push(`Preferences: ${prefStr}`);
     }
 
-    if (this.profile.notes.length > 0) {
-      lines.push(`User notes: ${this.profile.notes.slice(-5).join('; ')}`);
+    const notes = Array.isArray(this.profile.notes) ? this.profile.notes : [];
+    if (notes.length > 0) {
+      lines.push(`User notes: ${notes.slice(-5).join('; ')}`);
     }
 
     return lines.join('\n');
