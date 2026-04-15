@@ -11,6 +11,7 @@ import type { AvatarContextController } from '../avatar/contextController';
 import type { LocationIntelligence } from '../location/locationIntelligence';
 import type { MemoryManager } from '../memory';
 import { promptLoader } from '../prompts/promptLoader';
+import { enrichPronunciations, lookupPhraseIPA } from '../../utils/pronunciationLookup';
 
 export function createPronounceTool(
   llmProvider: ChatLLM,
@@ -37,19 +38,30 @@ export function createPronounceTool(
       };
       const modeHeader = toolConfig.mode_header;
       const userNativeLanguage = memoryManager.profile.getProfile().nativeLanguage || 'English';
+
+      // Pre-lookup: try to find real IPA for the phrase the user is asking about
+      let ipaHint = '';
+      const ipa = await lookupPhraseIPA(message, language).catch(() => null);
+      if (ipa) {
+        ipaHint = `\nREFERENCE IPA (use this as the basis for the "Say it" field — convert to reader-friendly pronunciation): ${ipa}\n`;
+      }
+
       const toolPrompt = promptLoader.get('toolPrompts.pronounce.template', { language, dialect, userNativeLanguage });
 
-      const systemPrompt = `${avatarController.buildSystemPrompt({ userNativeLanguage })}\n\n${modeHeader}\n${toolPrompt}`;
+      const systemPrompt = `${avatarController.buildSystemPrompt({ userNativeLanguage })}\n\n${modeHeader}\n${toolPrompt}${ipaHint}`;
 
       const messages = [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: message },
       ];
 
-      const response = await llmProvider.chat(messages, {
+      const rawResponse = await llmProvider.chat(messages, {
         temperature: toolConfig.temperature,
         max_tokens: toolConfig.max_tokens,
       });
+
+      // Post-process: replace hallucinated pronunciations with real IPA where available
+      const response = await enrichPronunciations(rawResponse, language).catch(() => rawResponse);
 
       return { response };
     },

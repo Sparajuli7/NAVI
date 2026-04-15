@@ -1,6 +1,8 @@
 # NAVI Codebase Audit
 
-**Last updated: 2026-04-13** (simplified onboarding: replaced 4-step `NewOnboardingScreen` with single-step `AvatarSelectScreen.tsx` — 8 avatar template grid, no LLM needed for character creation; auto-default WebGPU Qwen3 1.7B on first launch, `backend_select` skipped unless no WebGPU; model changes only in Settings; GPS location detected in background during avatar selection)
+**Last updated: 2026-04-14** (pronunciation grounding: `pronunciationLookup.ts` — Free Dictionary API + IndexedDB cache for real IPA data; `pronounceTool` pre-injects IPA reference; both pronounce/phrase tools post-process via `enrichPronunciations()` to replace hallucinated pronunciations; prompt templates hardened with syllable-mapping rules + skip-native-language guard)
+
+**Previously: 2026-04-13** (simplified onboarding: replaced 4-step `NewOnboardingScreen` with single-step `AvatarSelectScreen.tsx` — 8 avatar template grid, no LLM needed for character creation; auto-default WebGPU Qwen3 1.7B on first launch, `backend_select` skipped unless no WebGPU; model changes only in Settings; GPS location detected in background during avatar selection)
 
 **Previously: 2026-04-08** (UI polish: `Navbar.tsx` — pencil + gear buttons now conditional on `onEdit`/`onSettings` props (were stubs with empty onClick); `App.tsx` — passes `onEdit`/`onSettings` to Navbar on home phase only, adds `showHomeSettings` state to render `SettingsPanel` from home screen (model picker accessible via Settings → Model tab); `ConversationScreen.tsx` — removed Brain/BookOpen/LayoutList icon buttons from second bar (3 icons → Zap/Sun/Settings only); dialect indicator shortened to flag emoji only (was "🇳🇵 Standard Nepali (Kathmandu)"))
 
