@@ -137,6 +137,7 @@ import { registerAllTools } from './tools';
 import { handleUserInput } from './core/router';
 import { agentBus } from './core/eventBus';
 import { detectPhrases, detectTopics } from './prompts/phraseDetector';
+import { buildPronunciationBank } from '../utils/pronunciationLookup';
 import type { ToolResult, EnergyMode, AvatarProfile, ProfileMemory, ContextPacket, ResearchRecommendation, TurnContext, TermNode, ConversationNode } from './core/types';
 
 // ─── Mode Keyword Classifier ────────────────────────────────────
@@ -593,10 +594,21 @@ export class NaviAgent {
     if (researchContext.promptInjection) subAgentInjections.push(researchContext.promptInjection);
     const combinedSubAgentContext = subAgentInjections.join('\n\n');
 
-    // Merge director goals + sub-agent context
+    // Pronunciation reference bank — gives ALL tools (including chat) factual IPA data
+    // so the LLM can generate accurate reader-friendly pronunciations naturally in conversation
+    let pronunciationBank = '';
+    try {
+      pronunciationBank = await buildPronunciationBank(
+        currentLanguage,
+        this.memory.learner.phrases.slice(0, 5),
+      );
+    } catch { /* non-blocking — pronunciation is best-effort */ }
+
+    // Merge director goals + sub-agent context + pronunciation bank
     const fullConversationGoals = [
       directorCtx.promptInjection,
       combinedSubAgentContext,
+      pronunciationBank,
     ].filter(Boolean).join('\n\n');
 
     const contextParams: Record<string, unknown> = {

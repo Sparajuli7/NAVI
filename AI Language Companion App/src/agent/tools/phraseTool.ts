@@ -10,8 +10,6 @@ import type { AvatarContextController } from '../avatar/contextController';
 import type { LocationIntelligence } from '../location/locationIntelligence';
 import type { MemoryManager } from '../memory';
 import { promptLoader } from '../prompts/promptLoader';
-import { enrichPronunciations } from '../../utils/pronunciationLookup';
-
 export function createPhraseTool(
   llmProvider: ChatLLM,
   avatarController: AvatarContextController,
@@ -53,13 +51,10 @@ export function createPhraseTool(
         { role: 'user', content: message },
       ];
 
-      const rawResponse = await llmProvider.chat(messages, {
+      const response = await llmProvider.chat(messages, {
         temperature: toolConfig.temperature,
         max_tokens: toolConfig.max_tokens,
       });
-
-      // Post-process: replace hallucinated pronunciations with real IPA where available
-      const response = await enrichPronunciations(rawResponse, language).catch(() => rawResponse);
 
       return { response };
     },

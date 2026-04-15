@@ -125,48 +125,58 @@ export async function lookupPhraseIPA(
 }
 
 /**
- * Enrich a raw LLM response by replacing hallucinated pronunciations
- * with real IPA data from the dictionary API.
+ * Build a pronunciation reference bank from cached IPA data and tracked phrases.
+ * This is injected into the system prompt so the LLM has factual pronunciation
+ * data to draw from when naturally weaving phrases into conversation.
  *
- * Finds **Say it:** lines, looks up the preceding **Phrase:** line,
- * and replaces the pronunciation if real IPA is found.
+ * Returns a prompt-ready string like:
+ * "PRONUNCIATION REFERENCE (use these IPA values to generate accurate reader-friendly pronunciations):
+ *  bonjour → /bɔ̃.ʒuʁ/
+ *  merci → /mɛʁ.si/"
+ *
+ * Returns empty string if no cached data is available.
  */
-export async function enrichPronunciations(
-  text: string,
-  targetLanguage: string,
+export async function buildPronunciationBank(
+  language: string,
+  recentPhrases?: Array<{ phrase: string }>,
 ): Promise<string> {
-  // Match phrase cards: find pairs of **Phrase:** and **Say it:** lines
-  const phrasePattern = /\*\*Phrase:\*\*\s*(.+)/gi;
-  const phrases: Array<{ phrase: string; index: number }> = [];
-  let match: RegExpExecArray | null;
-  while ((match = phrasePattern.exec(text)) !== null) {
-    phrases.push({ phrase: match[1].trim(), index: match.index });
+  await loadCache();
+
+  const langCode = LANG_CODES[language];
+  if (!langCode) return '';
+
+  const entries: string[] = [];
+
+  // Pull from cache — all entries for this language
+  const prefix = `${langCode}:`;
+  for (const [key, entry] of Object.entries(memoryCache)) {
+    if (key.startsWith(prefix)) {
+      const word = key.slice(prefix.length);
+      entries.push(`${word} → ${entry.ipa}`);
+    }
   }
 
-  if (phrases.length === 0) return text;
+  // Also try to look up recently taught phrases (non-blocking, best-effort)
+  if (recentPhrases && recentPhrases.length > 0) {
+    const toLookup = recentPhrases
+      .slice(0, 5)
+      .map(p => p.phrase)
+      .filter(p => !entries.some(e => e.startsWith(p.toLowerCase())));
 
-  let result = text;
+    const results = await Promise.all(
+      toLookup.map(p => lookupPhraseIPA(p, language).catch(() => null)),
+    );
 
-  // Process in reverse order so replacement indices stay valid
-  for (let i = phrases.length - 1; i >= 0; i--) {
-    const { phrase } = phrases[i];
-    const ipa = await lookupPhraseIPA(phrase, targetLanguage);
-    if (!ipa) continue;
-
-    // Find the **Say it:** line that follows this **Phrase:** line
-    const afterPhrase = result.slice(phrases[i].index);
-    const sayItMatch = afterPhrase.match(/\*\*Say it:\*\*\s*(.+)/i);
-    if (!sayItMatch) continue;
-
-    const sayItStart = phrases[i].index + (sayItMatch.index ?? 0);
-    const sayItEnd = sayItStart + sayItMatch[0].length;
-
-    result = result.slice(0, sayItStart)
-      + `**Say it:** ${ipa}`
-      + result.slice(sayItEnd);
+    for (let i = 0; i < toLookup.length; i++) {
+      if (results[i]) entries.push(`${toLookup[i]} → ${results[i]}`);
+    }
   }
 
-  return result;
+  if (entries.length === 0) return '';
+
+  // Cap at 15 entries to avoid bloating the prompt
+  const capped = entries.slice(0, 15);
+  return `PRONUNCIATION REFERENCE (use these IPA values to write accurate reader-friendly pronunciations — convert IPA to simple syllable-by-syllable form the user can read, like "bon-ZHOOR" from /bɔ̃.ʒuʁ/):\n${capped.join('\n')}`
 }
 
 /** Get the count of cached pronunciations */
