@@ -5,8 +5,17 @@ import type { ParsedSegment, PhraseCardData } from '../types/chat';
 const PHRASE_CARD_PATTERN =
   /\*\*Phrase:\*\*[ \t]*(.+?)[\r\n]+\*\*Say it:\*\*[ \t]*(.+?)[\r\n]+\*\*Sound tip:\*\*[ \t]*(.+?)[\r\n]+\*\*Means:\*\*[ \t]*(.+?)[\r\n]+\*\*Tip:\*\*[ \t]*(.+?)(?:[\r\n]|$)/gs;
 
+/** Strip <think>...</think> blocks (and unclosed <think> during streaming) */
+export function stripThinkTags(text: string): string {
+  // Remove complete <think>...</think> blocks (case-insensitive, dotall)
+  let result = text.replace(/<think>[\s\S]*?<\/think>/gi, '');
+  // Remove unclosed <think>... at end (streaming — model is still thinking)
+  result = result.replace(/<think>[\s\S]*$/gi, '');
+  return result.trim();
+}
+
 export function stripInlineMarkdown(text: string): string {
-  return text
+  return stripThinkTags(text)
     .replace(/^#{1,3}\s+/gm, '')          // ## headings → plain text
     .replace(/\*\*(.+?)\*\*/g, '$1')       // **bold** → bold
     .replace(/__(.+?)__/g, '$1')            // __bold__ → bold
