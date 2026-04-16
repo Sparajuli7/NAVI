@@ -425,3 +425,26 @@ The emotional support mode overrides the language instruction. Needs stronger "i
 - Anti-sycophancy: STILL 100% across all scenarios and all runs
 - Paris jumped from 3.7 → 4.8 with all fixes in place
 - Kathmandu holds at 4.9 — frustration fix + Nepali comfort working perfectly
+
+---
+
+## LIVE TEST — qwen3.5:4b with think:false (2026-04-16)
+
+### Model: qwen3.5:4b (4.7B) via Ollama with think:false
+### First successful test of this model (previously returned empty responses)
+
+| Scenario | Score | Sycophancy |
+|----------|-------|-----------|
+| Production: Street Food (HCMC) | **4.4/5.0** | 5/5 |
+| Production: Restaurant Scenario | **4.8/5.0** | 5/5 |
+| Production: Memory Review | **5.0/5.0** | 5/5 |
+
+### Model comparison (all post-production-fix):
+| Model | Size | Street Food | Scenario | Memory |
+|-------|------|------------|----------|--------|
+| qwen2.5 | 1.5B | ~3.1 | — | — |
+| qwen3.5 | 4.7B | **4.4** | **4.8** | **5.0** |
+| gemma4:e2b | 5.1B | **4.8** | **4.9** | — |
+| gemma4:e4b | 8B | **4.9** | — | — |
+
+qwen3.5:4b is now a viable model — memory review scored PERFECT 5.0/5.0.

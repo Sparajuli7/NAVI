@@ -2284,3 +2284,208 @@ Test Files  8 passed (8)
 ```
 
 All experiments validated. No regressions.
+
+---
+
+## EXP-061: Scenario Phase Tracking
+**Date:** 2026-04-16
+**Status:** IMPLEMENTED
+
+**Hypothesis:** Scenarios currently have no sense of progression — the model doesn't know if the user just started or is wrapping up. A simple phase tracker using WorkingMemory turn counts should give the model structural awareness of where the scenario is in its arc, producing better paced interactions with distinct opening/middle/closing phases.
+
+**What was done:**
+
+Added scenario phase tracking to `ConversationDirector.preProcess()`:
+
+1. **Turn counter in WorkingMemory:** When a scenario is active, increments `scenario_turn_{scenarioKey}` on each user message (2h TTL).
+
+2. **Phase hint injection based on turn count:**
+   - **Turns 1-2 (OPENING):** "Set the scene, introduce key phrases for this situation. Ground the user in where they are and what's about to happen."
+   - **Turns 3-5 (MIDDLE):** "This is the core interaction. Let the user practice. Coach them through the real moments. Correct by recasting, not lecturing."
+   - **Turns 6+ (WRAPPING UP):** "Start closing the scenario naturally. Hint that a debrief is coming. If the user hasn't used a key phrase yet, create one last natural opportunity."
+
+3. **Turn number included in hint:** The model sees "turn 3/8" so it has a concrete sense of progress through the arc.
+
+**Why these phase boundaries:**
+- **1-2 as opening:** TBLT research (Willis, 1996) shows the pre-task/early-task phase is about orientation and key phrase preview. Two turns gives the model enough space to set the scene and teach 2-3 key phrases without rushing.
+- **3-5 as middle:** This is the core practice window. The user should be attempting phrases, making mistakes, and getting recast corrections. Three turns is the minimum for meaningful practice.
+- **6+ as wrapping up:** By turn 6, the model should start winding down. The "one last natural opportunity" instruction ensures that unused key phrases get surfaced before the debrief.
+
+**Interaction with existing systems:**
+- Works alongside the TBLT pretask/posttask skills (EXP-050) which fire on scenario transitions. Phase tracking provides WITHIN-scenario progression, while TBLT handles the start/end transitions.
+- The turn counter uses the same WorkingMemory and TTL pattern as other scenario-scoped data (e.g., `register_awareness_{scenario}`).
+- When the user ends the scenario (handleEndScenario), the WorkingMemory TTL naturally expires the counter.
+
+**Files changed:**
+- `AI Language Companion App/src/agent/director/ConversationDirector.ts` (phase tracking + hint injection in preProcess)
+
+**Validation:** Build passes, 104/104 tests pass.
+
+---
+
+## EXP-062: Teach Pronunciation Through Conversation, Not Cards
+**Date:** 2026-04-16
+**Status:** IMPLEMENTED
+
+**Hypothesis:** The full phrase card format (**Phrase:** / **Say it:** / **Sound tip:** / **Means:** / **Tip:**) is good for reference but interrupts conversational flow. Research on incidental vocabulary acquisition (Hulstijn & Laufer, 2001) shows that words learned in context with natural exposure are retained better than words presented in isolation. Inline teaching — **bonjour** (bon-ZHOOR) — keeps the conversation flowing while still providing pronunciation support.
+
+**What was done:**
+
+Added a `TEACHING STYLE` section to the `chat` template in `toolPrompts.json`:
+
+```
+TEACHING STYLE — inline, not cards:
+- When teaching a new phrase in conversation, bold it with pronunciation inline: **bonjour** (bon-ZHOOR). Keep it embedded and natural — the conversation IS the lesson.
+- Only use the full phrase card format (**Phrase:** / **Say it:** / **Sound tip:** / **Means:** / **Tip:**) when the user ASKS for detailed pronunciation help or when the tool explicitly routes to pronounce/phrase mode.
+- In casual conversation, weave teaching into what you're already saying. "The vendor is going to ask **bao nhiêu** (bow nyew) — that means how much." Not a card, just a friend explaining.
+```
+
+This replaces the previous single-line instruction "When introducing a new word or phrase, bold it with pronunciation: **phrase** (pronunciation)."
+
+**Why this matters:**
+- The old instruction didn't distinguish between casual teaching and explicit pronunciation requests. The model would sometimes produce full phrase cards in the middle of a flowing conversation, breaking the rhythm.
+- The new instruction creates a clear hierarchy: inline for casual, full card for explicit requests, phrase/pronounce tool for deep dives.
+- The example ("The vendor is going to ask **bao nhiêu** (bow nyew)...") shows the model exactly what inline teaching looks like in practice.
+
+**What was NOT changed:**
+- The `pronounce` and `phrase` tool templates still use the full card format. These are explicitly for when the user asks for detailed pronunciation.
+- The phraseDetector regex still catches both inline bold phrases and full cards, so learning tracking is unaffected.
+
+**Files changed:**
+- `AI Language Companion App/src/config/prompts/toolPrompts.json` (chat template TEACHING STYLE section)
+
+**Validation:** Build passes, 104/104 tests pass.
+
+---
+
+## EXP-063: Improve Debrief Quality
+**Date:** 2026-04-16
+**Status:** IMPLEMENTED
+
+**Hypothesis:** The current debrief instruction ("Give a brief, honest debrief: what went well, one or two specific things to work on") produces generic debriefs because it doesn't require the model to reference specific things the user actually said. Research on corrective feedback (Lyster & Ranta, 1997) shows that specific, targeted feedback citing actual production errors is significantly more effective than general encouragement.
+
+**What was done:**
+
+Replaced the debrief injection in `handleEndScenario()` in `ConversationScreen.tsx`:
+
+**Before:**
+```
+DEBRIEF MODE: The user just finished a '${scenarioLabel}' practice session. Step out of scenario mode. Give a brief, honest debrief: what went well, one or two specific things to work on, and any phrases worth saving. Reference specific things from the conversation. 3-4 sentences max. No cheerleading.
+```
+
+**After:**
+```
+DEBRIEF MODE: The user just finished a '${scenarioLabel}' practice session. Step completely out of scenario mode. Your debrief MUST follow this structure:
+(1) NAME ONE SPECIFIC THING THEY SAID CORRECTLY — quote their actual words. "When you said '...' — that was spot on."
+(2) NAME ONE SPECIFIC THING TO IMPROVE — give the corrected form. "When you tried to say X, the natural way is Y. Here's how: **Y** (pronunciation)."
+(3) Present 2 phrase cards for the most useful phrases from this scenario (use full **Phrase:**/**Say it:**/**Sound tip:**/**Means:**/**Tip:** format).
+Be honest and warm, not generic. QUOTE what the user actually said — this makes it real, not cheerleading.
+```
+
+**Key changes:**
+1. **Structured format (1/2/3):** Gives the model a concrete template to follow instead of vague "what went well."
+2. **Quote requirement:** "QUOTE what the user actually said" forces the model to reference specific user production, not make generic observations.
+3. **Corrected form required:** Instead of just naming something to improve, the model must provide the correct version with pronunciation.
+4. **2 phrase cards:** The debrief now produces tangible reference material the user can save.
+5. **"Not generic" instead of "no cheerleading":** More actionable — the model knows what to avoid.
+
+**Why quoting matters:**
+Generic: "You did well with ordering!" — The user doesn't know what specifically they did right.
+Specific: "When you said 'cho toi mot to pho' — that was spot on." — The user knows exactly which phrase worked and can repeat it.
+
+**Files changed:**
+- `AI Language Companion App/src/app/components/ConversationScreen.tsx` (handleEndScenario debrief injection)
+
+**Validation:** Build passes, 104/104 tests pass.
+
+---
+
+## EXP-064: Auto-Suggest Scenarios Based on User Messages
+**Date:** 2026-04-16
+**Status:** IMPLEMENTED
+
+**Hypothesis:** Currently scenarios only start from the ScenarioLauncher UI. But if a user says "I'm at a restaurant right now," the agent should offer to enter scenario mode. This is a prompt-only change — the agent suggests, the user decides. Research on situated learning (Lave & Wenger, 1991) shows that learning is most effective when it happens in the context where it will be applied. Detecting real-world situations and offering practice mode creates the most natural learning opportunity.
+
+**What was done:**
+
+1. **Scenario detection from messages** — Added `detectScenarioFromMessage()` private method to `ConversationDirector`:
+   - Requires a **situational cue** (e.g., "I'm at", "I'm going to", "just arrived", "about to", "sitting in", "walking into") — this prevents false positives from general conversation about scenarios.
+   - Then checks for scenario keywords (restaurant, market, hospital, transit, hotel, nightlife).
+   - Returns null if no situational cue is present, even if keywords match.
+
+2. **Suggestion injection in preProcess()** — When a scenario type is detected AND no scenario is already active AND user is not in guide mode:
+   ```
+   SCENARIO SUGGESTION: The user seems to be in a restaurant situation. Offer to switch into practice mode naturally: "Want to practice restaurant? I can walk you through it." Don't force it — if the conversation is flowing, just help them with what they need.
+   ```
+
+**Why situational cues are required:**
+A user saying "I love restaurants" should NOT trigger a scenario suggestion. A user saying "I'm at a restaurant right now" SHOULD. The situational cue regex (`/\b(i'm at|i'm in|i'm going to|right now|about to|just arrived|heading to|sitting in|walking into)\b/i`) filters for messages that describe the user's CURRENT or IMMINENT situation, not abstract references.
+
+**What this is NOT:**
+- This does NOT auto-start scenarios. It only injects a suggestion into the prompt. The avatar offers, the user decides.
+- This does NOT override the existing `detectScenario()` in ConversationScreen.tsx (which auto-sets the scenario from keywords when no scenario is active).
+- This does NOT fire when a scenario is already active (guards: `!activeScenario`).
+
+**Interaction with existing scenario detection:**
+The `detectScenario()` function in ConversationScreen.tsx (EXP-052) already handles the case where no scenario is active and keywords are detected — it auto-sets the scenario. EXP-064's suggestion injection fires BEFORE the LLM call, so it's complementary: the director suggests, and if the user responds positively, the existing keyword detection can pick it up on the next message.
+
+**Files changed:**
+- `AI Language Companion App/src/agent/director/ConversationDirector.ts` (detectScenarioFromMessage method + suggestion injection in preProcess)
+
+**Validation:** Build passes, 104/104 tests pass.
+
+---
+
+## EXP-065: Track and Display Learning Progress
+**Date:** 2026-04-16
+**Status:** IMPLEMENTED
+
+**Hypothesis:** Users need to SEE their progress to stay motivated. Deci & Ryan's (1985) Self-Determination Theory identifies competence as one of three core psychological needs for intrinsic motivation. Dornyei's (2009) L2 Motivational Self System shows that framing progress as identity ("you're not a tourist anymore") rather than achievement ("you learned 25 words") creates stronger sustained motivation. The learner profile already tracks phrases, mastery, and stage, but this data was only surfaced through the existing `celebrate_progress` goal (every 25 interactions). Specific phrase count, mastery count, streak, and stage change milestones were tracked as relationship milestones but never injected into the conversation.
+
+**What was done:**
+
+1. **Enhanced `checkMilestones()` in ConversationDirector:**
+   - **Phrase count milestones (10/25/50/100/250/500):** Each now sets a `milestone_celebration` flag in WorkingMemory with an identity-framed instruction: "You've got 25 phrases now — you're not a tourist anymore."
+   - **Mastery milestones (1/5/10/25/50/100):** Added mastery-specific milestones (previously only tracked first mastery). Each uses identity framing: "You've mastered 10 phrases. That's not a student — that's someone who lives here."
+   - **First phrase learned:** Special message: "You just learned your first phrase — that's the hardest one. Everything after this is easier."
+   - **Streak milestones (7/14/30/60/100):** Each now sets celebration flag: "14 days in a row. You're building something real here."
+   - **Stage change detection:** Compares current learning stage to `last_milestone_stage` in WorkingMemory. When stage advances (e.g., survival → functional), injects celebration: "You've moved to functional — you can handle real situations now."
+
+2. **Celebration consumption in `preProcess()`:**
+   - After the existing `identity_reinforcement` block, checks for `milestone_celebration` flag in WorkingMemory.
+   - If present, injects the celebration instruction and removes the flag (consumed once).
+   - 5-minute TTL on the flag ensures it fires on the next turn, not days later.
+
+**Why identity framing instead of achievement framing:**
+- Achievement: "You learned 25 phrases! Great job!" — External validation, wears off quickly.
+- Identity: "You've got 25 phrases — you're not a tourist anymore." — Internal shift, the user starts seeing themselves as someone who belongs here.
+- Norton (2000) and Dornyei (2009) both show that identity investment predicts L2 success more strongly than instrumental motivation.
+
+**Interaction with existing systems:**
+- `celebrate_progress` goal fires every 25 interactions — this is relationship-based.
+- `identity_reinforcement` skill fires when celebrate_progress is active and learner is functional+ — this is stage-gated.
+- EXP-065's milestone celebrations fire on SPECIFIC phrase/mastery/streak/stage events — these are achievement-based.
+- All three can co-occur but serve different purposes. The milestone celebration is the most specific (it names the exact count and frames it as identity).
+
+**Files changed:**
+- `AI Language Companion App/src/agent/director/ConversationDirector.ts` (enhanced checkMilestones + milestone consumption in preProcess)
+
+**Validation:** Build passes, 104/104 tests pass.
+
+---
+
+## Build & Test Results (Post EXP-061 through EXP-065)
+
+```
+$ cd "AI Language Companion App" && npx vite build
+vite v6.3.5 building for production...
+✓ 2127 modules transformed.
+✓ built in 7.67s
+
+$ npx vitest run
+Test Files  8 passed (8)
+     Tests  104 passed (104)
+  Duration  3.52s
+```
+
+All experiments validated. No regressions.
