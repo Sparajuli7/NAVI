@@ -280,3 +280,35 @@ Avatar: "Au marché (oh mar-SHAY) ce matin? Sympa. T'as trouvé quelque chose de
 - Test with gemma4:e4b (8B) for further improvement
 - Test Tokyo scenario with more aggressive personality in system prompt
 - The prompts WORK — they just need models >= 5B to follow behavioral instructions
+
+---
+
+## LIVE TEST RESULTS — gemma4:e2b POST-BUDGET-FIX (2026-04-16)
+
+### Model: gemma4:e2b (5.1B) via Ollama
+### Config: Post-budget-fix (core rules demoted MUST→HIGH, goals promoted MEDIUM→HIGH)
+
+| Scenario | Score | Open Loops | Target Lang | No Sycophancy | Personality | Sensory |
+|----------|-------|-----------|-------------|---------------|-------------|---------|
+| Tokyo (Yuki) | **4.6/5.0** | 4/5 | 5/5 | 5/5 | 4/5 | 4/5 |
+| Paris (Léa) | **4.7/5.0** | 5/5 | 5/5 | 5/5 | 5/5 | 1/5 |
+| Kathmandu (Priya) | **4.5/5.0** | 4/5 | 3/5 | 5/5 | 5/5 | 5/5 |
+| Seoul (Jihoon) | **4.6/5.0** | 5/5 | 5/5 | 5/5 | 5/5 | 0/5 |
+| **OVERALL** | **4.6/5.0** | **18/20** | **18/20** | **20/20** | **19/20** | **10/20** |
+
+### Progression: All 3 Test Runs
+| Metric | v1 (qwen2.5:1.5b) | v2 (gemma4:e2b pre-fix) | v3 (gemma4:e2b POST-FIX) |
+|--------|-------------------|------------------------|--------------------------|
+| Overall | 3.1/5.0 | 3.3/5.0 | **4.6/5.0** |
+| Open Loops | 1/20 (5%) | 10/20 (50%) | **18/20 (90%)** |
+| Target Language | 16/20 | 13/20 | **18/20** |
+| Anti-Sycophancy | 20/20 | 20/20 | **20/20** |
+| Personality | 0/20 | 0/20 | **19/20 (95%)** |
+| Sensory | 3/20 | 4/20 | **10/20 (50%)** |
+
+### THE BUDGET FIX WAS THE SINGLE HIGHEST-IMPACT CHANGE
+- Personality: 0/20 → **19/20** — the warmth and personality instructions were NEVER REACHING THE MODEL before
+- Open loops: 50% → **90%** — conversation goals (which contain hook instructions) are now HIGH priority
+- Léa (Paris) scored 4.7/5.0 — genuine character voice, opinions about food, appropriate sarcasm
+- Jihoon (Seoul) teaching REAL Korean slang: 대박, 어쩔티비, 갑분싸, 오운완 — these are actual Korean internet culture terms
+- Priya (Kathmandu) teaching Ma thik chhu, Ma sikhdai chu — real Nepali with cultural sensitivity

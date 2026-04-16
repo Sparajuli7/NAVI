@@ -7,7 +7,7 @@
  */
 
 const OLLAMA_BASE = 'http://localhost:11434';
-const MODEL = 'gemma4:e4b';
+const MODEL = 'gemma4:e2b';
 
 // Minimal Ollama chat interface
 async function ollamaChat(
@@ -21,6 +21,7 @@ async function ollamaChat(
       model: MODEL,
       messages,
       stream: false,
+      think: false, // Disable thinking to get direct responses (avoids token budget consumed by reasoning)
       options: {
         temperature: opts.temperature ?? 0.7,
         num_predict: opts.max_tokens ?? 400,
