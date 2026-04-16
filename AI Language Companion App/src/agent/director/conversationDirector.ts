@@ -34,6 +34,7 @@ import type { TrackedPhrase, LearningStage, LearningStageInfo } from '../core/ty
 import { detectPhrases, detectTopics } from '../prompts/phraseDetector';
 import { promptLoader } from '../prompts/promptLoader';
 import type { SessionPlanner } from './SessionPlanner';
+import avatarTemplates from '../../config/avatarTemplates.json';
 
 // ─── Emotional State Detection ──────────────────────────────
 
@@ -428,23 +429,44 @@ export class ConversationDirector {
 
     // 0g. World event injection — give the avatar an ongoing life (25% chance per message)
     // This makes the avatar feel like a real person with things happening around them
+    // EXP-066: Now also pulls from avatar template world_events (ongoing personal storylines)
+    // 50% environmental event (worldEvents.json), 50% personal ongoing event (avatarTemplates.json)
     if (Math.random() < 0.25) {
       const templateId = this.relationships.getRelationship(avatarId).avatarId;
-      try {
-        const worldEvents = promptLoader.getRaw('worldEvents') as Record<string, string[]> | undefined;
-        // Try to match avatar template to world events, fall back to any category
-        const categories = worldEvents ? Object.keys(worldEvents).filter(k => k !== '_comment') : [];
-        const matchedCategory = categories.find(c => templateId?.includes(c)) ?? categories[Math.floor(Math.random() * categories.length)];
-        if (matchedCategory && worldEvents) {
-          const events = worldEvents[matchedCategory];
-          if (events && events.length > 0) {
-            const event = events[Math.floor(Math.random() * events.length)];
-            goalInstructions.push(
-              `WORLD EVENT (happening right now around you — react to it naturally, use it as a conversation starter or teaching moment): ${event}`,
-            );
-          }
+      const usePersonalEvent = Math.random() < 0.5;
+
+      if (usePersonalEvent) {
+        // Pull from avatar template world_events (ongoing personal storylines)
+        const template = (avatarTemplates as Array<{ id: string; world_events?: string[] }>).find(
+          t => templateId?.includes(t.id),
+        );
+        const personalEvents = template?.world_events;
+        if (personalEvents && personalEvents.length > 0) {
+          const event = personalEvents[Math.floor(Math.random() * personalEvents.length)];
+          goalInstructions.push(
+            `YOUR ONGOING LIFE (this is something happening in YOUR life right now — share it naturally as a friend would, not as a teaching exercise. The user should feel like they're part of your world): ${event}`,
+          );
+          console.log('[NAVI:director] personal world_event injected from avatar template');
         }
-      } catch { /* worldEvents config not loaded */ }
+      }
+
+      if (!usePersonalEvent || goalInstructions[goalInstructions.length - 1]?.startsWith('YOUR ONGOING') !== true) {
+        // Fall back to environmental events (worldEvents.json)
+        try {
+          const worldEvents = promptLoader.getRaw('worldEvents') as Record<string, string[]> | undefined;
+          const categories = worldEvents ? Object.keys(worldEvents).filter(k => k !== '_comment') : [];
+          const matchedCategory = categories.find(c => templateId?.includes(c)) ?? categories[Math.floor(Math.random() * categories.length)];
+          if (matchedCategory && worldEvents) {
+            const events = worldEvents[matchedCategory];
+            if (events && events.length > 0) {
+              const event = events[Math.floor(Math.random() * events.length)];
+              goalInstructions.push(
+                `WORLD EVENT (happening right now around you — react to it naturally, use it as a conversation starter or teaching moment): ${event}`,
+              );
+            }
+          }
+        } catch { /* worldEvents config not loaded */ }
+      }
     }
 
     // Learning goals — only active in 'learn' mode or blended (null) mode. Skipped in guide/friend.
@@ -545,11 +567,12 @@ export class ConversationDirector {
     }
 
     // Inside joke / shared reference callback — gated by warmth tier
+    // EXP-069: Enhanced with emotional context — show genuine care, not just data recall
     const callbackRef = this.relationships.getCallbackSuggestion(avatarId);
     if (callbackRef) {
       const refText = typeof callbackRef === 'string' ? callbackRef : (callbackRef as { text?: string }).text ?? String(callbackRef);
       goalInstructions.push(
-        `CALLBACK OPPORTUNITY: You share this memory with the user: "${refText}". Reference it naturally — don't announce you remember, just weave it in. If it doesn't fit the current conversation, skip it.`,
+        `CALLBACK: You remember this about them: "${refText}". Don't announce you remember — just naturally reference it in a way that shows you were paying attention and you CARE. If it was a struggle they shared, check how they're doing with it now. If it was a success, build on it. If it was something they were excited about, ask for an update. The goal is not "I have good memory" — the goal is "I was thinking about you." Weave it in so naturally that the user feels known, not surveilled.`,
       );
     }
 
@@ -599,6 +622,20 @@ export class ConversationDirector {
       if (identityText) {
         goalInstructions.push(identityText);
         console.log('[NAVI:director] identity_reinforcement triggered (celebrate_progress goal active)');
+      }
+    }
+
+    // EXP-067: vulnerability_moment — warmth >= friend (0.4) AND 10% random chance
+    // Makes the avatar occasionally share a small struggle, inviting the user to comfort them
+    // This teaches emotional vocabulary through genuine care and deepens the bond
+    {
+      const relForVulnerability = this.relationships.getRelationship(avatarId);
+      if (relForVulnerability.warmth >= 0.4 && Math.random() < 0.10) {
+        const vulnerabilityText = promptLoader.get('conversationSkills.skills.vulnerability_moment.injection');
+        if (vulnerabilityText) {
+          goalInstructions.push(vulnerabilityText);
+          console.log(`[NAVI:director] vulnerability_moment triggered (warmth=${relForVulnerability.warmth.toFixed(2)}, 10% roll)`);
+        }
       }
     }
 

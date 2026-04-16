@@ -333,7 +333,7 @@ export class RelationshipStore {
     // Callback suggestion — a specific shared reference to weave in this turn
     const callback = this.getCallbackSuggestion(avatarId);
     if (callback) {
-      sections.push(`CALLBACK: Naturally reference this shared experience: "${callback}". Don't force it — only use it if it fits the conversation flow.`);
+      sections.push(`CALLBACK: You remember this about them: "${callback}". Don't announce you remember — reference it in a way that shows you CARE. If it was a struggle, check on them. If a success, build on it. Show you were thinking about them.`);
     }
 
     // Shared references (general pool for the avatar to draw from)
