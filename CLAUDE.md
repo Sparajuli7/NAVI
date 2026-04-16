@@ -326,6 +326,11 @@ The agent framework is fully built. All UI screens still call legacy services di
 - **TBLT scenario cycle state machine not wired** — `systemLayers.json` has `tblt_pretask/tblt_task/tblt_posttask` templates but no code drives the 3-phase cycle. Scenarios still run as free conversation.
 - **Surprise competence detection not implemented** — Planned for Tier 3. Requires pattern matching against known phrase inventory.
 - **Variable reward scheduling not implemented** — Planned for Tier 3. Currently all rewards (praise, stories, cultural insights) are deterministic.
+- **No explicit open-loop instruction** — Prompts say "be proactive" but never say "end every message with something that makes the user want to respond." Identified in `TEST_BASELINE.md` as Priority 1 improvement.
+- **Character backstory seeds not generated** — `characterGen.json` produces personality descriptors but no specific opinions, anecdotes, preferences, or quirks. The warmth progression framework has nothing to progressively reveal. See `TEST_BASELINE.md` Priority 3.
+- **Emotional override missing** — CONFUSION OVERRIDE handles linguistic confusion, but no parallel override for emotional distress. Language rules ("lead in your language") conflict with emotional safety when the user is upset. See `TEST_BASELINE.md` Priority 2.
+- **chatBehavior bypasses token budget** — `chatTool.ts` appends the full chat.template outside `buildSystemPrompt()`'s budget enforcement. For Qwen3 1.7B, total system message may exceed effective attention window.
+- **No automated conversational quality regression suite** — `TEST_RUBRIC.md` defines 18 quality dimensions with scoring criteria; `TEST_BASELINE.md` provides estimated baseline scores and 10 test scenarios. No automated test runner yet.
 
 ### Resolved Feature Gaps (2026-03-30)
 - ~~**No multi-agent architecture**~~ — NaviAgent refactored into Orchestrator pattern with MemoryRetrievalAgent (graph traversal) and ResearchAgent (learning protocols) as sub-agents. Context Injection Protocol merges sub-agent outputs into avatar scaffold before every LLM call.

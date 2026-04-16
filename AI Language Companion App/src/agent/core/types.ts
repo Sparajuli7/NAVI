@@ -221,6 +221,51 @@ export interface AvatarContextOverride {
   additionalContext?: string;
 }
 
+// ─── Learning Stage Types ─────────────────────────────────────
+
+/**
+ * Learning stage progression — tracks where the user is on their journey.
+ * Stage is a computed property derived from interaction count, mastered phrases,
+ * comfort tier, and scenario completion. Never stored — always reflects current state.
+ *
+ * Stage 0: SURVIVAL   (0-50 interactions, 0-20 mastered phrases)
+ * Stage 1: FUNCTIONAL (50-200 interactions, 20-60 mastered phrases)
+ * Stage 2: CONVERSATIONAL (200-500 interactions, 60-150 mastered phrases)
+ * Stage 3: FLUENT     (500+ interactions, 150+ mastered phrases)
+ */
+export type LearningStage = 'survival' | 'functional' | 'conversational' | 'fluent';
+
+export interface LearningStageInfo {
+  /** The stage key */
+  stage: LearningStage;
+  /** Numeric index 0-3 */
+  index: number;
+  /** Target language density range (e.g. [0.1, 0.2] for 10-20%) */
+  targetLanguageDensity: [number, number];
+  /** Scenarios available at this stage */
+  availableScenarios: string[];
+  /** The raw composite score used for stage detection (0-3 continuous) */
+  compositeScore: number;
+}
+
+/** Scenario keys grouped by learning stage availability */
+export const STAGE_SCENARIO_ACCESS: Record<LearningStage, string[]> = {
+  survival: [],
+  functional: ['restaurant', 'market', 'directions', 'hotel'],
+  conversational: [
+    'restaurant', 'market', 'directions', 'hotel',
+    'social', 'government', 'transit', 'nightlife', 'hospital',
+    'office', 'school', 'customs', 'pharmacy', 'emergency',
+    'landlord', 'bank', 'taxi', 'temple', 'street_food', 'date',
+  ],
+  fluent: [
+    'restaurant', 'market', 'directions', 'hotel',
+    'social', 'government', 'transit', 'nightlife', 'hospital',
+    'office', 'school', 'customs', 'pharmacy', 'emergency',
+    'landlord', 'bank', 'taxi', 'temple', 'street_food', 'date',
+  ],
+};
+
 // ─── Learner Profile Types ─────────────────────────────────────
 
 export type PhraseMastery = 'new' | 'learning' | 'practiced' | 'mastered';

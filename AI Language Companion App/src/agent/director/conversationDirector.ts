@@ -30,7 +30,7 @@ import type { RelationshipStore } from '../memory/relationshipStore';
 import type { EpisodicMemoryStore } from '../memory/episodicMemory';
 import type { SituationAssessor } from '../memory/situationAssessor';
 import type { WorkingMemory } from '../memory/workingMemory';
-import type { TrackedPhrase } from '../core/types';
+import type { TrackedPhrase, LearningStage, LearningStageInfo } from '../core/types';
 import { detectPhrases, detectTopics } from '../prompts/phraseDetector';
 import { promptLoader } from '../prompts/promptLoader';
 import type { SessionPlanner } from './SessionPlanner';
@@ -132,6 +132,8 @@ export interface DirectorContext {
   warmthInstruction: string;
   /** Situation model context for the avatar */
   situationContext: string;
+  /** Current learning stage info (computed, never stored) */
+  learningStage: LearningStageInfo;
 }
 
 // ─── Assessment Question Queue ──────────────────────────────
@@ -197,7 +199,12 @@ export class ConversationDirector {
   preProcess(
     message: string,
     avatarId: string,
-    options?: { isSessionStart?: boolean; userMode?: 'learn' | 'guide' | 'friend' | null },
+    options?: {
+      isSessionStart?: boolean;
+      userMode?: 'learn' | 'guide' | 'friend' | null;
+      userNativeLanguage?: string;
+      completedScenarios?: number;
+    },
   ): DirectorContext {
     const goals: ConversationGoal[] = [];
     const goalInstructions: string[] = [];
@@ -238,6 +245,25 @@ export class ConversationDirector {
         sessionGoalInstruction = sessionGoal.instruction;
         console.log(
           `[NAVI:session] active goal: ${sessionGoal.type}${sessionGoal.target ? ` (${sessionGoal.target})` : ''}`,
+        );
+      }
+    }
+
+    // 0a-pre. Learning stage detection — HIGH priority, shapes the entire interaction
+    const interactionCount = this.relationships.getRelationship(avatarId).interactionCount;
+    const completedScenarios = options?.completedScenarios ?? 0;
+    const stageInfo = this.learner.getCurrentStage(interactionCount, completedScenarios);
+    const userNativeLang = options?.userNativeLanguage || 'English';
+
+    if (!isGuideMode) {
+      const stageInstruction = promptLoader.get(`systemLayers.learningStages.${stageInfo.stage}`, {
+        userNativeLanguage: userNativeLang,
+      });
+      if (stageInstruction) {
+        // Insert at the front — stage instruction shapes everything else
+        goalInstructions.unshift(stageInstruction);
+        console.log(
+          `[NAVI:director] learning stage: ${stageInfo.stage} (score=${stageInfo.compositeScore.toFixed(2)}, interactions=${interactionCount}, mastered=${this.learner.stats.masteredPhrases})`,
         );
       }
     }
@@ -406,6 +432,7 @@ export class ConversationDirector {
       learningContext,
       warmthInstruction,
       situationContext,
+      learningStage: stageInfo,
     };
   }
 

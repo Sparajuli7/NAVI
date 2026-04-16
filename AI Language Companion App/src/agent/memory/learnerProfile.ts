@@ -13,7 +13,10 @@ import type {
   LearnerProfile,
   PhraseAttempt,
   PhraseMastery,
+  LearningStage,
+  LearningStageInfo,
 } from '../core/types';
+import { STAGE_SCENARIO_ACCESS } from '../core/types';
 import { get, set } from 'idb-keyval';
 import { agentBus } from '../core/eventBus';
 
@@ -365,6 +368,94 @@ export class LearnerProfileStore {
     const summary = opener.trim().slice(0, 60);
     this.profile.recentOpeners = [summary, ...this.profile.recentOpeners].slice(0, 5);
     await this.save();
+  }
+
+  // ── Learning Stage Detection ─────────────────────────────────
+
+  /**
+   * Compute the current learning stage from learner metrics.
+   *
+   * Uses a composite score (0–3) derived from four signals:
+   *   1. Total interaction count (from relationship store, passed in)
+   *   2. Number of mastered phrases (mastery >= practiced, i.e. practiced + mastered)
+   *   3. Language comfort tier (0-4)
+   *   4. Scenario completion count (optional, passed in)
+   *
+   * A user who's had 100 interactions but only mastered 5 phrases stays
+   * at SURVIVAL — the composite score prevents gaming any single metric.
+   *
+   * This is always computed, never stored.
+   */
+  getCurrentStage(interactionCount: number, completedScenarios: number = 0): LearningStageInfo {
+    // Count phrases at 'practiced' or 'mastered' level as "functionally mastered"
+    const masteredCount = this.profile.phrases.filter(
+      (p) => p.mastery === 'practiced' || p.mastery === 'mastered',
+    ).length;
+
+    const comfortTier = this.profile.languageComfortTier; // 0-4
+
+    // Normalize each signal to 0–3 range (matching stage indices)
+    // Interaction score: 0-50→0, 50-200→1, 200-500→2, 500+→3
+    let interactionScore: number;
+    if (interactionCount >= 500) interactionScore = 3;
+    else if (interactionCount >= 200) interactionScore = 2 + (interactionCount - 200) / 300;
+    else if (interactionCount >= 50) interactionScore = 1 + (interactionCount - 50) / 150;
+    else interactionScore = interactionCount / 50;
+
+    // Phrase score: 0-20→0, 20-60→1, 60-150→2, 150+→3
+    let phraseScore: number;
+    if (masteredCount >= 150) phraseScore = 3;
+    else if (masteredCount >= 60) phraseScore = 2 + (masteredCount - 60) / 90;
+    else if (masteredCount >= 20) phraseScore = 1 + (masteredCount - 20) / 40;
+    else phraseScore = masteredCount / 20;
+
+    // Comfort tier score: 0→0, 1→0.75, 2→1.5, 3→2.25, 4→3
+    const comfortScore = comfortTier * 0.75;
+
+    // Scenario score (bonus): each completed scenario adds 0.15, capped at 1.5
+    const scenarioScore = Math.min(1.5, completedScenarios * 0.15);
+
+    // Composite: weighted average (interactions and phrases are primary signals)
+    // Weights: interactions=0.3, phrases=0.35, comfort=0.25, scenarios=0.1
+    const compositeScore = Math.min(3,
+      interactionScore * 0.3 +
+      phraseScore * 0.35 +
+      comfortScore * 0.25 +
+      scenarioScore * 0.1,
+    );
+
+    // Map composite to stage
+    let stage: LearningStage;
+    let stageIndex: number;
+    if (compositeScore >= 2.5) {
+      stage = 'fluent';
+      stageIndex = 3;
+    } else if (compositeScore >= 1.5) {
+      stage = 'conversational';
+      stageIndex = 2;
+    } else if (compositeScore >= 0.75) {
+      stage = 'functional';
+      stageIndex = 1;
+    } else {
+      stage = 'survival';
+      stageIndex = 0;
+    }
+
+    // Target language density ranges per stage
+    const densityRanges: Record<LearningStage, [number, number]> = {
+      survival: [0.1, 0.2],
+      functional: [0.3, 0.5],
+      conversational: [0.6, 0.8],
+      fluent: [0.85, 0.95],
+    };
+
+    return {
+      stage,
+      index: stageIndex,
+      targetLanguageDensity: densityRanges[stage],
+      availableScenarios: STAGE_SCENARIO_ACCESS[stage],
+      compositeScore,
+    };
   }
 
   // ── Accessors ────────────────────────────────────────────────
