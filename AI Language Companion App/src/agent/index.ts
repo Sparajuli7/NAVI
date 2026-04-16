@@ -16,6 +16,7 @@
 export { agentBus } from './core/eventBus';
 export { toolRegistry } from './core/toolRegistry';
 export { routeIntent, handleUserInput } from './core/router';
+export { STAGE_SCENARIO_ACCESS } from './core/types';
 export { executeTool, executeChain, createExecutionContext } from './core/executionEngine';
 export type {
   ToolName,
@@ -42,6 +43,9 @@ export type {
   LearnerProfile,
   SharedMilestone,
   RelationshipState,
+  // Learning stage types
+  LearningStage,
+  LearningStageInfo,
   // Situation model types
   SituationModel,
   Urgency,
