@@ -160,6 +160,48 @@ export class RelationshipStore {
     await this.save();
   }
 
+  // ── Shared References Callback System ────────────────────────
+
+  /**
+   * Returns a shared reference to weave into conversation, gated by warmth tier.
+   * Frequency: stranger=never, acquaintance=rare(10%), friend=sometimes(30%),
+   * close_friend=often(50%), family=natural(70%).
+   * Returns null if no callback should happen this turn.
+   */
+  getCallbackSuggestion(avatarId: string): string | null {
+    const rel = this.getRelationship(avatarId);
+    if (rel.sharedReferences.length === 0) return null;
+
+    const label = this.getWarmthLabel(rel.warmth);
+    const frequencies: Record<string, number> = {
+      stranger: 0,
+      acquaintance: 0.1,
+      friend: 0.3,
+      close_friend: 0.5,
+      family: 0.7,
+    };
+    const freq = frequencies[label] ?? 0;
+    if (Math.random() > freq) return null;
+
+    // Pick a random shared reference (prefer recent ones)
+    const refs = rel.sharedReferences;
+    const recentBias = Math.random() < 0.7; // 70% chance to pick from recent half
+    const pool = recentBias ? refs.slice(-Math.ceil(refs.length / 2)) : refs;
+    const picked = pool[Math.floor(Math.random() * pool.length)];
+    return picked ?? null;
+  }
+
+  // ── Backstory Tier ─────────────────────────────────────────────
+
+  /**
+   * Get the current backstory disclosure tier (0-4) for an avatar.
+   * Tier advances every ~50 interactions, capped at 4.
+   */
+  getBackstoryTier(avatarId: string): number {
+    const rel = this.getRelationship(avatarId);
+    return Math.min(4, Math.floor(rel.interactionCount / 50));
+  }
+
   // ── Warmth & Prompt Integration ──────────────────────────────
 
   /** Get the warmth tier instruction for this avatar */
@@ -185,7 +227,22 @@ export class RelationshipStore {
     // Warmth instruction
     sections.push(this.getWarmthInstruction(avatarId));
 
-    // Shared references
+    // Backstory disclosure tier instruction
+    const backstoryTier = this.getBackstoryTier(avatarId);
+    try {
+      const backstoryInstruction = promptLoader.get(`systemLayers.backstoryDisclosure.tier_${backstoryTier}`) as string;
+      if (backstoryInstruction) sections.push(backstoryInstruction);
+    } catch {
+      // backstoryDisclosure config not yet loaded — skip silently
+    }
+
+    // Callback suggestion — a specific shared reference to weave in this turn
+    const callback = this.getCallbackSuggestion(avatarId);
+    if (callback) {
+      sections.push(`CALLBACK: Naturally reference this shared experience: "${callback}". Don't force it — only use it if it fits the conversation flow.`);
+    }
+
+    // Shared references (general pool for the avatar to draw from)
     if (rel.sharedReferences.length > 0) {
       const refs = rel.sharedReferences.slice(-5).join('; ');
       sections.push(`Shared memories you can reference: ${refs}`);

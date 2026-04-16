@@ -1,6 +1,8 @@
 # NAVI Codebase Audit
 
-**Last updated: 2026-04-16** (code quality cleanup: removed 13 dead files -1977 LOC; extracted 3 shared utilities (locationHelpers, avatarProfileHelpers, GeneratedCharacter/mapCharacterToUI); consolidated duplicate types across 6 files; removed 5 error-hiding try-catches; fixed last `any` type; build passes, 104/104 tests pass)
+**Last updated: 2026-04-16b** (prompt engineering research: `RESEARCH_FINDINGS.md` created with 30+ specific prompt improvements across all 7 config files — recasting protocol, open-loop hooks, response variance, sensory grounding, emotional mirroring, TBLT cycle, progressive backstory, variable rewards, warmth-tier code-switching, 5 new learning protocols, micro-missions, session pacing, curiosity gaps in character gen, contextual vocab in document prompts; all written as exact copy-paste text ready for implementation)
+
+**Previously: 2026-04-16** (code quality cleanup: removed 13 dead files -1977 LOC; extracted 3 shared utilities (locationHelpers, avatarProfileHelpers, GeneratedCharacter/mapCharacterToUI); consolidated duplicate types across 6 files; removed 5 error-hiding try-catches; fixed last `any` type; build passes, 104/104 tests pass)
 
 **Previously: 2026-04-14** (pronunciation grounding: `pronunciationLookup.ts` — Free Dictionary API + IndexedDB cache for real IPA data; `pronounceTool` pre-injects IPA reference; both pronounce/phrase tools post-process via `enrichPronunciations()` to replace hallucinated pronunciations; prompt templates hardened with syllable-mapping rules + skip-native-language guard)
 

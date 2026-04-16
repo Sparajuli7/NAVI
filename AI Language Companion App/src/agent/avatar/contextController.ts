@@ -259,7 +259,11 @@ export class AvatarContextController {
       }
     }
 
-    // L11.7: Conversation naturalness (MEDIUM)
+    // L11.7: Emotional mirroring (MEDIUM)
+    const mirroringLayer = promptLoader.get('systemLayers.emotionalMirroring') as string;
+    if (mirroringLayer) layerDefs.push([mirroringLayer, 2]);
+
+    // L11.8: Conversation naturalness (MEDIUM)
     const naturalnessLayer = promptLoader.get('systemLayers.conversationNaturalness') as string;
     if (naturalnessLayer) layerDefs.push([naturalnessLayer, 2]);
 

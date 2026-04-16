@@ -35,6 +35,76 @@ import { detectPhrases, detectTopics } from '../prompts/phraseDetector';
 import { promptLoader } from '../prompts/promptLoader';
 import type { SessionPlanner } from './SessionPlanner';
 
+// ─── Emotional State Detection ──────────────────────────────
+
+export type EmotionalState = 'excited' | 'frustrated' | 'anxious' | 'proud' | 'neutral' | 'confused';
+
+/**
+ * Lightweight heuristic to detect user emotional state from message signals.
+ * No LLM call — uses punctuation density, message length, caps ratio, emoji
+ * presence, and language mix patterns.
+ */
+function detectEmotionalState(message: string): EmotionalState {
+  if (!message || message.trim().length === 0) return 'neutral';
+
+  const trimmed = message.trim();
+  const len = trimmed.length;
+
+  // Confusion signals (highest priority — drives confusion override)
+  const confusionPatterns = [
+    /\bwhat\b\s*\?/i, /\bhuh\b/i, /\bdon'?t understand/i,
+    /\bwhat does that mean/i, /\bi'?m lost/i, /\bconfused/i,
+    /^\?+$/, /^\.{2,}$/,
+  ];
+  if (confusionPatterns.some(p => p.test(trimmed))) return 'confused';
+
+  // Frustration signals
+  const capsRatio = len > 3 ? (trimmed.match(/[A-Z]/g) ?? []).length / len : 0;
+  const hasFrustrationWords = /\bugh\b|\bwhy\b|\bstupid\b|\bcan'?t\b|\bhate\b|\bgave up\b|\bfailed\b|\bwrong\b/i.test(trimmed);
+  const isShortTerse = len < 15 && !/[!?😊🎉👏]/.test(trimmed) && /[.…]$/.test(trimmed);
+  if (capsRatio > 0.6 && len > 5) return 'frustrated';
+  if (hasFrustrationWords && len < 60) return 'frustrated';
+  if (isShortTerse && hasFrustrationWords) return 'frustrated';
+
+  // Anxiety signals
+  const anxietyPatterns = /\bnervous\b|\bscared\b|\bworried\b|\bafraid\b|\bwhat if\b|\bis it okay\b|\bam i\b.*\bwrong\b|\bdo i look\b|\bwill they\b/i;
+  const hasHedging = /\bmaybe\b|\bI think\b|\bI guess\b|\bnot sure\b|\bsorry\b/i.test(trimmed);
+  if (anxietyPatterns.test(trimmed)) return 'anxious';
+  if (hasHedging && trimmed.includes('?') && len < 80) return 'anxious';
+
+  // Pride signals
+  const pridePatterns = /\bi did it\b|\bi said\b|\bthey understood\b|\bit worked\b|\bnailed\b|\bgot it right\b|\bfinally\b/i;
+  const hasPositiveEmoji = /[🎉🔥💪😊👏✨🥳]/.test(trimmed);
+  if (pridePatterns.test(trimmed)) return 'proud';
+
+  // Excitement signals
+  const exclamationCount = (trimmed.match(/!/g) ?? []).length;
+  const hasExcitedWords = /\bamazing\b|\bwow\b|\boh my\b|\bso cool\b|\blove\b|\bincredible\b|\bawesome\b/i.test(trimmed);
+  if (exclamationCount >= 2 || (hasExcitedWords && hasPositiveEmoji)) return 'excited';
+  if (len > 100 && exclamationCount >= 1) return 'excited';
+  if (hasPositiveEmoji && len > 30) return 'excited';
+
+  return 'neutral';
+}
+
+/** Map emotional state to a compact calibration instruction */
+function emotionalCalibrationInstruction(state: EmotionalState): string | null {
+  switch (state) {
+    case 'excited':
+      return 'USER ENERGY: High — match their excitement. Be enthusiastic back. This is a good moment to push them further.';
+    case 'frustrated':
+      return 'USER ENERGY: Frustrated — acknowledge it before anything else. Simplify. Give them one easy win. Do NOT pile on new content.';
+    case 'anxious':
+      return 'USER ENERGY: Anxious — be calm and steady. Give them the ONE phrase they need. Reassure without being patronizing. No challenges right now.';
+    case 'proud':
+      return 'USER ENERGY: Proud — celebrate what they did specifically. Name the thing they got right. Then channel that confidence into something slightly harder.';
+    case 'confused':
+      return 'USER ENERGY: Confused — switch to their native language to explain. Then re-anchor with one simple phrase. Do not add new content until they signal understanding.';
+    case 'neutral':
+      return null;
+  }
+}
+
 // ─── Types ───────────────────────────────────────────────────
 
 export type ConversationGoal =
@@ -131,6 +201,16 @@ export class ConversationDirector {
   ): DirectorContext {
     const goals: ConversationGoal[] = [];
     const goalInstructions: string[] = [];
+
+    // 0-pre. Emotional state detection — inject calibration context
+    const emotionalState = detectEmotionalState(message);
+    if (emotionalState !== 'neutral') {
+      const calibration = emotionalCalibrationInstruction(emotionalState);
+      if (calibration) {
+        goalInstructions.push(calibration);
+        console.log(`[NAVI:director] emotional state: ${emotionalState}`);
+      }
+    }
 
     // 0. Extract situation signals from the current message BEFORE building context
     // This ensures urgent messages like "I'm at a restaurant right now" get

@@ -730,7 +730,11 @@ export class NaviAgent {
    * or null if no proactive message is needed (user is in a normal session cadence).
    */
   getProactiveMessage(): string | null {
-    return this.proactiveEngine.getProactiveMessage();
+    const avatarId = this.avatar.getActiveProfile()?.id;
+    const backstoryTier = avatarId
+      ? this.memoryManager.relationships.getBackstoryTier(avatarId)
+      : 0;
+    return this.proactiveEngine.getProactiveMessage(backstoryTier);
   }
 
   /** Get the current Ollama model name (if using Ollama backend) */

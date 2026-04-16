@@ -55,6 +55,27 @@
       "when": "Teaching important or difficult terms",
       "instruction": "For '{{phrase}}': provide the written form ({{script}}), pronunciation guide, a sound tip, AND a vivid situational image ('imagine you're at {{scenario}} and...'). Hit at least 3 modalities.",
       "source": "Mayer (2009)"
+    },
+    "expansion": {
+      "name": "Expansion",
+      "description": "Build on learner output by extending it into a fuller, more natural utterance",
+      "when": "User produces a correct but minimal phrase",
+      "instruction": "The user said '{{userAttempt}}' — this is correct but basic. In your response, naturally use an expanded version that adds context, politeness, or nuance. For example if they said 'coffee please' in the target language, you might respond using 'Could I get a coffee when you have a moment?' Show them the next level without correcting what they said — they got it right, now show them how to make it richer.",
+      "source": "Lyster (2004)"
+    },
+    "elicitation": {
+      "name": "Elicitation",
+      "description": "Prompt the learner to self-correct rather than providing the correction",
+      "when": "User makes an error they should be able to fix themselves based on what they've learned",
+      "instruction": "The user made an error in '{{userAttempt}}'. Instead of correcting them, prompt them to try again. Use strategies like: repeating their sentence up to the error and pausing ('You said... {{partialPhrase}}...?'), asking 'How do we say {{concept}} again?', or giving a choice ('Is it {{optionA}} or {{optionB}}?'). Only give the answer if they can't get it after one prompt. Self-correction builds stronger memory traces than being told.",
+      "source": "Lyster & Ranta (1997)"
+    },
+    "contextual_reintroduction": {
+      "name": "Contextual Re-introduction",
+      "description": "Re-surface previously learned terms in new contexts to build flexible knowledge",
+      "when": "User has a phrase at mastery level 2+ that was learned in a different scenario",
+      "instruction": "The user learned '{{phrase}}' in a {{originalContext}} context. Now they're in a {{currentContext}} situation. Use '{{phrase}}' naturally in this new context to show them it works here too. Don't announce you're reviewing — just use it. If they notice and respond, that's deep learning happening. This builds transfer — the ability to use language flexibly across situations, not just parrot it back in the original context.",
+      "source": "Nation (2001)"
     }
   },
   "reasonInference": {

@@ -17,9 +17,41 @@ import type { EpisodicMemoryStore } from '../memory/episodicMemory';
 
 const STREAK_MILESTONES = [7, 14, 30];
 
+/** Backstory disclosure messages the avatar can share at each tier */
+const BACKSTORY_OPENERS = [
+  // tier 0 — no backstory
+  null,
+  // tier 1 — surface-level daily life
+  [
+    'I found this amazing little spot near my place the other day — you would love it.',
+    'Funny thing happened at the market today. Reminded me of something you said.',
+    'The weather here right now... perfect for wandering. You been outside yet?',
+  ],
+  // tier 2 — casual personal stories
+  [
+    'You know, I grew up on a street kind of like the one near you. Different city, same chaos.',
+    'I was thinking about the first time I really felt like I belonged here. Took longer than I expected.',
+    'My neighbor does this thing every morning — I\'ll tell you about it, it\'s become my favorite part of the day.',
+  ],
+  // tier 3 — real personal things
+  [
+    'I stayed in this city because of a person. Not the reason you think — I\'ll tell you sometime.',
+    'There\'s a place I go when things get heavy. I\'ve never actually told anyone about it.',
+    'My family doesn\'t totally get why I live here. But every time I walk through the old quarter, I know.',
+  ],
+  // tier 4 — deep/vulnerable
+  [
+    'Can I tell you something I\'ve been thinking about? It\'s not about language.',
+    'You remind me of someone I used to know here. That\'s a good thing — I miss them.',
+    'I had a moment yesterday where I felt like you\'d be the one person who\'d get it.',
+  ],
+];
+
 export class ProactiveEngine {
   /** Prevents the proactive message from firing more than once per app session. */
   private firedThisSession = false;
+  /** Track last completed scenario for debrief hooks */
+  private lastCompletedScenario: string | null = null;
 
   constructor(
     private learner: LearnerProfileStore,
@@ -32,7 +64,7 @@ export class ProactiveEngine {
    * Call this on app open before the user types anything.
    * Guaranteed to return a non-null value at most once per session.
    */
-  getProactiveMessage(): string | null {
+  getProactiveMessage(backstoryTier?: number): string | null {
     if (this.firedThisSession) return null;
 
     const stats = this.learner.stats;
@@ -51,9 +83,22 @@ export class ProactiveEngine {
     }
     // 3. Streak milestone
     else if (streak > 0 && this.isStreakMilestone(streak)) {
-      message = `🔥 ${streak}-day streak! You've been showing up — that's the whole game.`;
+      message = `${streak}-day streak! You've been showing up — that's the whole game.`;
     }
-    // 4. Struggling phrases + at least 1 day since last session
+    // 4. Scenario completion debrief
+    else if (this.lastCompletedScenario) {
+      const scenario = this.lastCompletedScenario;
+      this.lastCompletedScenario = null;
+      message = `So that ${scenario} practice — how did it feel? Anything surprise you?`;
+    }
+    // 5. Backstory disclosure (gated by tier, ~20% chance per eligible session)
+    else if (backstoryTier && backstoryTier > 0 && Math.random() < 0.2) {
+      const tierOpeners = BACKSTORY_OPENERS[backstoryTier];
+      if (tierOpeners) {
+        message = tierOpeners[Math.floor(Math.random() * tierOpeners.length)];
+      }
+    }
+    // 6. Struggling phrases + at least 1 day since last session
     else {
       const struggling = this.learner.getStrugglingPhrases(1);
       if (struggling.length > 0 && daysSinceLast >= 1) {
@@ -63,6 +108,16 @@ export class ProactiveEngine {
 
     if (message) this.firedThisSession = true;
     return message;
+  }
+
+  // ── Scenario Completion Hook ──────────────────────────────────
+
+  /**
+   * Call when a scenario session ends. The next proactive message will
+   * include a debrief hook for this scenario.
+   */
+  markScenarioCompleted(scenarioLabel: string): void {
+    this.lastCompletedScenario = scenarioLabel;
   }
 
   // ── Private ────────────────────────────────────────────────────

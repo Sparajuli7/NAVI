@@ -312,6 +312,7 @@ The agent framework is fully built. All UI screens still call legacy services di
 - **Knowledge Graph migration from flat stores not yet triggered** — Existing data not auto-migrated to graph nodes.
 - **ResearchAgent web lookup not implemented** — Protocols are config-driven and sufficient for now.
 - **ExpandedPhraseCard TTS/STT still uses legacy services** — Not yet wired to agent TTS/STT tools.
+- **Prompt configs lack conversational psychology and advanced SLA techniques** — Research findings documented in `AI Language Companion App/RESEARCH_FINDINGS.md` (2026-04-16). Covers 30+ specific prompt improvements across all 7 config files: recasting protocol, open-loop hooks, response variance, sensory grounding, self-disclosure, speech imperfection, emotional mirroring, TBLT cycle, progressive backstory, variable rewards, warmth-tier code-switching, expansion protocol, negotiation of meaning, sociolinguistic competence, language play, desirable difficulty, micro-missions, session pacing, curiosity gaps in character gen, and contextual vocabulary in document prompts. All improvements are written as exact copy-paste text ready for implementation.
 
 ### Resolved Feature Gaps (2026-03-30)
 - ~~**No multi-agent architecture**~~ — NaviAgent refactored into Orchestrator pattern with MemoryRetrievalAgent (graph traversal) and ResearchAgent (learning protocols) as sub-agents. Context Injection Protocol merges sub-agent outputs into avatar scaffold before every LLM call.
