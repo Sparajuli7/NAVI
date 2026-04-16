@@ -88,7 +88,10 @@ export function ConversationScreen({
 }: ConversationScreenProps) {
   const [inputValue, setInputValue]   = useState('');
   const [showQuickActions, setShowQuickActions] = useState(true);
-  const [expandedPhrase, setExpandedPhrase]     = useState<any>(null);
+  const [expandedPhrase, setExpandedPhrase]     = useState<{
+    foreign: string; phonetic: string; literal: string; natural: string;
+    formality: 'casual' | 'neutral' | 'formal'; characterTip: string; alternatives?: string[];
+  } | null>(null);
   const [showSettings, setShowSettings]         = useState(false);
   const [showFlashcards, setShowFlashcards]     = useState(false);
   const [showKnowledgeGraph, setShowKnowledgeGraph] = useState(false);
