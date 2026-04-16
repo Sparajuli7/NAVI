@@ -223,8 +223,11 @@ export class ConversationDirector {
   ): DirectorContext {
     const goals: ConversationGoal[] = [];
     const goalInstructions: string[] = [];
-    // EXP-053: Current language for scoping phrase queries
+    // Extract options early to avoid TDZ errors from blocks using them before declaration
     const currentLanguage = options?.language;
+    const activeScenario = options?.activeScenario;
+    const userMode = options?.userMode ?? null;
+    const isGuideMode = userMode === 'guide';
 
     // 0-pre. Emotional state detection — inject calibration context
     const emotionalState = detectEmotionalState(message);
@@ -311,8 +314,6 @@ export class ConversationDirector {
     }
 
     // If mode is 'guide', skip all learning goals — user just needs navigation/translation
-    const userMode = options?.userMode ?? null;
-    const isGuideMode = userMode === 'guide';
 
     // SESSION GOAL — use persistent session-level intent if available
     let sessionGoalInstruction: string | null = null;
@@ -661,7 +662,6 @@ export class ConversationDirector {
     }
 
     // register_awareness — when a scenario is active, once per scenario session
-    const activeScenario = options?.activeScenario;
     if (activeScenario && this.working) {
       const scenarioSkillKey = `register_awareness_${activeScenario}`;
       if (!this.working.has(scenarioSkillKey)) {
