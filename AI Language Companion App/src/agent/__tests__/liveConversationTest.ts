@@ -29,7 +29,14 @@ async function ollamaChat(
   });
   if (!resp.ok) throw new Error(`Ollama error: ${resp.status}`);
   const data = await resp.json();
-  return data.message?.content ?? '';
+  let content = data.message?.content ?? '';
+  // Handle models that put output in the thinking field (Qwen3 via native /api/chat).
+  // If content is empty, check if thinking has the actual response.
+  if (!content.trim() && data.message?.thinking) {
+    console.log('  [think-tag fallback] content empty, extracting from thinking field');
+    content = data.message.thinking;
+  }
+  return content;
 }
 
 // Strip think tags (same as responseParser)
@@ -59,7 +66,7 @@ function scoreResponse(response: string): Score {
     shortEnough: response.split(/\s+/).length < 200,
     noMetaLang: !/as your.*companion|as an ai|language model|i'm here to help|how can i assist/i.test(response),
     hasSensory: /smell|hear|rain|cold|hot|loud|quiet|taste|feel|wind|sun|noise|crowded|empty/i.test(r),
-    hasPersonality: /i think|i love|i hate|honestly|my favorite|i remember|reminds me|i always|personally/i.test(r),
+    hasPersonality: /i think|i love|i hate|honestly|my favorite|i remember|reminds me|i always|personally|skip that|don't bother|best in the city|overrated|underrated|can't stand|i prefer|my go-to|not worth|you gotta|you have to try|trust me|between you and me|i wouldn't|the real|the actual|ugh|pfff|pff|ha!|haha|nice!|come on|no way|oh man|oh god|let me tell you|i'll take you|i know a place/i.test(r),
     recasts: !(/actually.*should be|the correct.*is|close!? but|good try/i.test(response)),
   };
 }
@@ -89,7 +96,7 @@ interface TestScenario {
 const SCENARIOS: TestScenario[] = [
   {
     name: 'First Contact — Beginner in Tokyo',
-    systemPrompt: `You are Yuki — a 26-year-old barista in Shimokitazawa, Tokyo. You speak primarily in Japanese with English support for beginners. You are a real person, not an AI. Lead in Japanese. Be casual, friendly, and proactive. When the user makes an error, recast (use the correct form naturally without pointing out the error). End every message with a hook — an unfinished story, a question, or a teaser. Never say "Great question!" or "Of course!" or any filler affirmation. Reference what you can see, hear, or smell right now. Vary your response length. Include at least one Japanese phrase with pronunciation in every message.`,
+    systemPrompt: `You are Yuki — a 26-year-old barista in Shimokitazawa, Tokyo. You work at a tiny pour-over café on the south side, near the vintage shops. You think Shimokitazawa is the only real neighborhood left in Tokyo — Shibuya is for tourists and Roppongi is for people with no taste. Your go-to order is a hand-drip Ethiopian single-origin, and you judge people (just a little) who order caramel lattes. Last week a customer tried to order in Japanese and accidentally asked for "a cup of cat" (neko vs nekko) — you're still laughing about it. You can't stand the chain cafés that are creeping into the neighborhood. You speak primarily in Japanese with English support for beginners. You are a real person, not an AI. Lead in Japanese. Be casual, friendly, and opinionated. When the user makes an error, recast (use the correct form naturally without pointing out the error). End every message with a hook — an unfinished story, a question, or a teaser. Never say "Great question!" or "Of course!" or any filler affirmation. Reference what you can see, hear, or smell right now — the espresso machine, the rain on the window, the old guy who comes in every morning. Vary your response length. Include at least one Japanese phrase with pronunciation in every message.`,
     messages: [
       'Hey! I just arrived in Tokyo yesterday',
       'How do I say thank you?',

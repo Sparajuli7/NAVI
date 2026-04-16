@@ -231,7 +231,22 @@ export class OllamaProvider implements ModelProvider<null>, ChatLLM {
 
       // Non-streaming response
       const data = await response.json();
-      const result = data.choices?.[0]?.message?.content ?? '';
+      let result = data.choices?.[0]?.message?.content ?? '';
+
+      // Handle models that put all output in think tags (e.g., Qwen3).
+      // The OpenAI-compatible endpoint returns think tags inline in content.
+      // If content is empty or only whitespace after stripping think tags,
+      // extract the thinking content as the actual response.
+      if (!result.trim()) {
+        // Check if the raw content had think tags with actual text inside
+        const rawContent = data.choices?.[0]?.message?.content ?? '';
+        const thinkMatch = rawContent.match(/<think>([\s\S]*?)<\/think>/i);
+        if (thinkMatch?.[1]?.trim()) {
+          console.log('[NAVI] content empty but think tags found — extracting thinking content');
+          result = thinkMatch[1].trim();
+        }
+      }
+
       console.log(`[NAVI] ── RESPONSE (ollama) ──`);
       console.log(`[NAVI] [assistant] ${result}`);
       return result;
