@@ -732,7 +732,7 @@ export class NaviAgent {
   getProactiveMessage(): string | null {
     const avatarId = this.avatar.getActiveProfile()?.id;
     const backstoryTier = avatarId
-      ? this.memoryManager.relationships.getBackstoryTier(avatarId)
+      ? this.memory.relationships.getBackstoryTier(avatarId)
       : 0;
     return this.proactiveEngine.getProactiveMessage(backstoryTier);
   }
