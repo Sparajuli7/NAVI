@@ -225,7 +225,7 @@ export default function App() {
   };
 
   // Called when the user picks an avatar template — creates character from template defaults
-  const handleAvatarSelected = async (template: AvatarTemplate, locationCtx: LocationContext | null) => {
+  const handleAvatarSelected = async (template: AvatarTemplate, locationCtx: LocationContext | null, languageCode?: string) => {
     const city = locationCtx?.city ?? 'Ho Chi Minh City';
     const country = locationCtx?.country ?? 'Vietnam';
     const dialectKey = locationCtx?.dialectKey ?? '';
