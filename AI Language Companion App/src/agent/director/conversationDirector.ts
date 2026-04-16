@@ -458,6 +458,34 @@ export class ConversationDirector {
       }
     }
 
+    // 0f-iv. EXP-072: Relationship language stages — HOW the avatar talks evolves with warmth
+    // Maps warmth to 5 language stages: new (0-0.2), warming up (0.2-0.4), personal (0.4-0.6),
+    // close (0.6-0.8), bonded (0.8+). Injected on every message to shape language style.
+    {
+      const relForLanguage = this.relationships.getRelationship(avatarId);
+      const w = relForLanguage.warmth;
+      const langStage = w >= 0.8 ? 'stage_5' : w >= 0.6 ? 'stage_4' : w >= 0.4 ? 'stage_3' : w >= 0.2 ? 'stage_2' : 'stage_1';
+      const langStageText = promptLoader.get(`systemLayers.relationshipLanguage.${langStage}`);
+      if (langStageText) {
+        goalInstructions.push(langStageText);
+        console.log(`[NAVI:director] EXP-072 relationship language: ${langStage} (warmth=${w.toFixed(2)})`);
+      }
+    }
+
+    // 0f-v. EXP-073: Character arc — WHAT the avatar talks about evolves with warmth
+    // Separate from relationship language: arc controls content/topics, language controls style.
+    // Maps warmth to 4 arc stages: early (0-0.3), developing (0.3-0.55), deep (0.55-0.8), bonded (0.8+).
+    {
+      const relForArc = this.relationships.getRelationship(avatarId);
+      const w = relForArc.warmth;
+      const arcStage = w >= 0.8 ? 'bonded' : w >= 0.55 ? 'deep' : w >= 0.3 ? 'developing' : 'early';
+      const arcText = promptLoader.get(`systemLayers.characterArc.${arcStage}`);
+      if (arcText) {
+        goalInstructions.push(arcText);
+        console.log(`[NAVI:director] EXP-073 character arc: ${arcStage} (warmth=${w.toFixed(2)})`);
+      }
+    }
+
     // 0g. World event injection — give the avatar an ongoing life (25% chance per message)
     // This makes the avatar feel like a real person with things happening around them
     // EXP-066: Now also pulls from avatar template world_events (ongoing personal storylines)

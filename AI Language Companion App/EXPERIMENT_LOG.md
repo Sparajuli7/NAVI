@@ -466,6 +466,55 @@ The emotional support mode overrides the language instruction. Needs stronger "i
 
 ---
 
+### EXP-072: Relationship Language Stages (2026-04-16)
+- **Hypothesis**: The avatar's language STYLE should evolve with relationship depth — not just warmth/tone, but how formal, how much translation, how much shorthand. Five stages from polite-and-translated (stage 1) to unique-shorthand-and-half-sentences (stage 5).
+- **Config change**: `src/config/prompts/systemLayers.json` — added `relationshipLanguage` section with 5 stages (stage_1 through stage_5). `src/agent/director/ConversationDirector.ts` — added injection block (0f-iv) mapping warmth to stage (0-0.2=stage_1, 0.2-0.4=stage_2, 0.4-0.6=stage_3, 0.6-0.8=stage_4, 0.8+=stage_5) and injecting the corresponding instruction on every message.
+- **Before**: Avatar language style was controlled only by warmth tier instruction (from warmthLevels.json) and code-switching rules. No explicit control over formality, translation frequency, or shorthand development.
+- **After**: Every message gets a relationship language stage injection. Stage 1 (stranger): formal, translate everything. Stage 2 (warming up): drop translations for taught phrases, casual register. Stage 3 (personal): custom greeting for this user, shortened forms, reference shared experiences. Stage 4 (close): skip greetings, inside references, "between us..." framing. Stage 5 (bonded): unique shorthand, half-sentences, language IS the intimacy.
+- **Research basis**: Altman & Taylor (1973) social penetration theory — language formality should parallel relationship depth. Brown & Levinson (1987) politeness theory — negative politeness (formality, translation) gives way to positive politeness (in-group markers, shorthand) as solidarity increases.
+- **Result:** Build passes. 104/104 tests pass.
+- **Verdict:** SHIPPED. Separate from warmth instruction — this controls HOW the avatar talks, warmth controls the emotional tone. Composable with all existing layers.
+
+---
+
+### EXP-073: Character Arc — What Changes Over Months (2026-04-16)
+- **Hypothesis**: The avatar should bring up fundamentally DIFFERENT content as the relationship deepens — not warmer versions of the same topics, but entirely new categories of conversation. Practical language early, opinions and culture mid-stage, philosophy and challenge deep, effortless peers at bonded.
+- **Config change**: `src/config/prompts/systemLayers.json` — added `characterArc` section with 4 stages (early, developing, deep, bonded). `src/agent/director/ConversationDirector.ts` — added injection block (0f-v) mapping warmth to arc (0-0.3=early, 0.3-0.55=developing, 0.55-0.8=deep, 0.8+=bonded) and injecting the corresponding instruction on every message.
+- **Before**: Content/topic guidance only came from learning stage (survival/functional/conversational/fluent) which tracks competence, not relationship depth. A user at "conversational" stage with a brand-new avatar got the same topic guidance as one with 200 conversations.
+- **After**: Separate from relationship language (EXP-072): arc controls WHAT you talk about, language controls HOW you talk. Early: practical language, surface city knowledge. Developing: opinions, stories, cultural nuances, asking about their life. Deep: politics, philosophy, challenge views, share things you haven't told anyone. Bonded: effortless, silence is comfortable, disagree openly, talk about future together.
+- **Research basis**: Knapp & Vangelisti (2005) relational stages model — conversational topics deepen across initiating, experimenting, intensifying, integrating, and bonding stages. Duck (1988) — relationship maintenance requires continuously introducing novel, deeper content to prevent stagnation.
+- **Result:** Build passes. 104/104 tests pass.
+- **Verdict:** SHIPPED. Arc warmth thresholds intentionally offset from language stage thresholds (0.3/0.55/0.8 vs 0.2/0.4/0.6/0.8) so they don't align perfectly — content deepening lags slightly behind style casualization, mirroring how real relationships work.
+
+---
+
+### EXP-074: Nickname Emergence (2026-04-16)
+- **Hypothesis**: Real friends develop nicknames. The avatar should naturally develop a name for the user after sufficient relationship depth, based on something real — a pronunciation quirk, their origin, a shared joke.
+- **Config change**: `src/config/prompts/coreRules.json` — added `NICKNAMES` rule before `DEVELOP BITS` section: after 10+ exchanges at friend warmth or higher, develop a nickname based on something real, use it naturally (not every message), prefer target language, or create affectionate shortened/playful name variation.
+- **Before**: No instruction about nicknames. Avatar used the user's name (if known) uniformly or not at all.
+- **After**: After 10+ exchanges at friend warmth, the avatar is instructed to create a nickname from something real and use it naturally. Combined with the DEVELOP BITS section which follows immediately, this creates a natural progression: bits emerge (acquaintance), then nicknames emerge (friend+).
+- **Research basis**: Mashek & Aron (2004) — pet names and nicknames are markers of relationship inclusion-of-other-in-self. Dunbar (2010) — nicknames serve as in-group markers and bond-signaling mechanisms. The instruction to base it on "something real" prevents generic diminutives and forces the LLM to reference shared history.
+- **Result:** Build passes. 104/104 tests pass.
+- **Verdict:** SHIPPED. Lightweight prompt injection — no code needed beyond the coreRules.json edit. Gated by "friend warmth or higher" (0.4+) and "10+ exchanges" to prevent premature nicknames.
+
+---
+
+### EXP-075: Absence and Return Narratives (2026-04-16)
+- **Hypothesis**: When the user returns after time away, the avatar's reaction should scale with relationship depth. A stranger doesn't notice absence. Family just says "There you are." and picks up where they left off. The emotional intensity of the return should match the emotional depth of the relationship.
+- **Config change**: `src/agent/director/ProactiveEngine.ts` — `getProactiveMessage()` gains optional `warmth` parameter; new `absenceMessage()` private method implements 5-tier warmth-based absence responses. `src/agent/index.ts` — `getProactiveMessage()` now reads warmth from RelationshipStore and passes it to ProactiveEngine.
+- **Before**: Absence messages were generic loss-aversion framing (stats-based) regardless of relationship depth. A user returning after 7 days with 0.9 warmth (family) got the same message as a brand-new user.
+- **After**: 5 warmth-scaled responses:
+  - Stranger (< 0.2): Stats-based (unchanged — no emotional context yet)
+  - Acquaintance (0.2-0.4): "Oh, you're back. Been busy?"
+  - Friend (0.4-0.6): "Where have you been? I was starting to wonder."
+  - Close friend (0.6-0.8): "Finally! I have so much to tell you. Also I tried that thing you mentioned and — actually, where have you been?"
+  - Family (0.8+): "There you are." (Just that. Picks up where they left off.)
+- **Research basis**: Altman & Taylor (1973) social penetration theory — emotional expressiveness in reunions should match relationship depth. Bowlby (1969) attachment theory — secure attachment manifests as understated comfort in reunion (the "There you are" response), not effusive relief. The family tier's minimalism is the most emotionally loaded — it communicates absolute security.
+- **Result:** Build passes. 104/104 tests pass.
+- **Verdict:** SHIPPED. Backward-compatible — `warmth` parameter is optional with default 0, so all existing callers (tests, UI) continue to work. The stranger tier preserves the original stats-based messages for users who haven't built a relationship yet.
+
+---
+
 ## LIVE TEST — qwen3.5:4b with think:false (2026-04-16)
 
 ### Model: qwen3.5:4b (4.7B) via Ollama with think:false

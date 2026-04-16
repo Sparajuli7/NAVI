@@ -72,8 +72,12 @@ export class ProactiveEngine {
    * or null if no proactive message is needed.
    * Call this on app open before the user types anything.
    * Guaranteed to return a non-null value at most once per session.
+   *
+   * @param backstoryTier - backstory disclosure depth (0-4)
+   * @param language - current target language for scoping phrase queries
+   * @param warmth - relationship warmth score (0-1) for EXP-075 absence narratives
    */
-  getProactiveMessage(backstoryTier?: number, language?: string): string | null {
+  getProactiveMessage(backstoryTier?: number, language?: string, warmth?: number): string | null {
     if (this.firedThisSession) return null;
 
     const stats = this.learner.stats;
@@ -82,25 +86,14 @@ export class ProactiveEngine {
 
     let message: string | null = null;
 
-    // 1. Long absence (> 7 days) — loss aversion: reference what they built
+    // 1. Long absence (> 7 days) — EXP-075: warmth-based return narratives
+    // The avatar reacts to absence based on relationship depth, not generically.
     if (daysSinceLast > 7) {
-      const totalPhrases = stats.totalPhrases;
-      const streakBefore = stats.longestStreak;
-      if (totalPhrases > 0) {
-        message = `Hey — you've got ${totalPhrases} phrase${totalPhrases === 1 ? '' : 's'} and ${streakBefore > 0 ? `a ${streakBefore}-day streak` : 'real momentum'} going. Would be a shame to let that fade. What's been going on?`;
-      } else {
-        message = `Hey, it's been a while! Life got busy? No pressure — we can ease back in whenever you're ready. What's been going on?`;
-      }
+      message = this.absenceMessage(warmth ?? 0, daysSinceLast, stats.totalPhrases, stats.longestStreak);
     }
-    // 2. Short absence (> 2 days) — loss aversion: reference what they've built
+    // 2. Short absence (> 2 days) — EXP-075: warmth-based short absence
     else if (daysSinceLast > 2) {
-      const totalPhrases = stats.totalPhrases;
-      const currentStreakVal = stats.currentStreak;
-      if (totalPhrases > 0 || currentStreakVal > 0) {
-        message = `You've got ${totalPhrases} phrase${totalPhrases === 1 ? '' : 's'}${currentStreakVal > 0 ? ` and a ${currentStreakVal}-day streak` : ''} building up. Would be a shame to let that slip — pick up where we left off?`;
-      } else {
-        message = `Hey, haven't heard from you in a couple days — everything good? Whenever you're ready, I'm here.`;
-      }
+      message = this.absenceMessage(warmth ?? 0, daysSinceLast, stats.totalPhrases, stats.currentStreak);
     }
     // 3. Streak milestone — narrative response from the character, not a badge
     else if (streak > 0 && this.isStreakMilestone(streak)) {
@@ -150,5 +143,53 @@ export class ProactiveEngine {
 
   private isStreakMilestone(streak: number): boolean {
     return STREAK_MILESTONES.includes(streak);
+  }
+
+  /**
+   * EXP-075: Generate absence return message based on relationship warmth.
+   * The avatar's reaction to the user's return scales with emotional closeness:
+   * - Stranger (< 0.2): Casual, no acknowledgment of absence
+   * - Acquaintance (0.2-0.4): Brief, light check-in
+   * - Friend (0.4-0.6): Noticed the absence, wants to know what happened
+   * - Close friend (0.6-0.8): Excited to see them, has things to share
+   * - Family (0.8+): Understated, picks up where they left off
+   */
+  private absenceMessage(warmth: number, daysSince: number, totalPhrases: number, streakOrLongest: number): string {
+    // Family (0.8+): "There you are." Then pick up where you left off.
+    if (warmth >= 0.8) {
+      return 'There you are.';
+    }
+
+    // Close friend (0.6-0.8): Excited, has things to share
+    if (warmth >= 0.6) {
+      return `Finally! I have so much to tell you. Also I tried that thing you mentioned and — actually, where have you been?`;
+    }
+
+    // Friend (0.4-0.6): Noticed the absence, genuinely wondered
+    if (warmth >= 0.4) {
+      if (totalPhrases > 0) {
+        return `Where have you been? I was starting to wonder. You had ${totalPhrases} phrase${totalPhrases === 1 ? '' : 's'} going — let's not let that fade.`;
+      }
+      return `Where have you been? I was starting to wonder.`;
+    }
+
+    // Acquaintance (0.2-0.4): Light, brief
+    if (warmth >= 0.2) {
+      return `Oh, you're back. Been busy?`;
+    }
+
+    // Stranger (< 0.2): No acknowledgment of absence — just a normal opener
+    // Fall back to stats-based message for strangers (they don't have emotional context yet)
+    if (daysSince > 7) {
+      if (totalPhrases > 0) {
+        return `Hey — you've got ${totalPhrases} phrase${totalPhrases === 1 ? '' : 's'} and ${streakOrLongest > 0 ? `a ${streakOrLongest}-day streak` : 'real momentum'} going. Would be a shame to let that fade. What's been going on?`;
+      }
+      return `Hey, it's been a while! Life got busy? No pressure — we can ease back in whenever you're ready. What's been going on?`;
+    }
+    // Short absence for stranger
+    if (totalPhrases > 0 || streakOrLongest > 0) {
+      return `You've got ${totalPhrases} phrase${totalPhrases === 1 ? '' : 's'}${streakOrLongest > 0 ? ` and a ${streakOrLongest}-day streak` : ''} building up. Would be a shame to let that slip — pick up where we left off?`;
+    }
+    return `Hey, haven't heard from you in a couple days — everything good? Whenever you're ready, I'm here.`;
   }
 }

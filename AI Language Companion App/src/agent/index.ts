@@ -765,7 +765,11 @@ export class NaviAgent {
       : 0;
     // EXP-053: Scope to current language
     const currentLanguage = this.location.getPrimaryLanguage() || undefined;
-    return this.proactiveEngine.getProactiveMessage(backstoryTier, currentLanguage);
+    // EXP-075: Pass warmth for relationship-depth-aware absence narratives
+    const warmth = avatarId
+      ? this.memory.relationships.getRelationship(avatarId).warmth
+      : 0;
+    return this.proactiveEngine.getProactiveMessage(backstoryTier, currentLanguage, warmth);
   }
 
   /** Get the current Ollama model name (if using Ollama backend) */
