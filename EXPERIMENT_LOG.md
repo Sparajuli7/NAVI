@@ -1728,3 +1728,69 @@ All EXP-041 through EXP-045 experiments validated. No regressions.
 3. **1.5B model variance is too high for reliable results.** EXP-039 scored 3.8, EXP-044 scored 3.0 with identical prompts. Few-shot echo and character collapse make qwen2.5:1.5b unreliable for persona conversation.
 4. **personality_details schema works.** The structured approach from R4 produces richer characters than the flat "detailed" field + BACKSTORY SEEDS approach. Ready for production.
 5. **Session pacing at 8-10 turns is validated across two independent runs.** Quality degrades predictably after turn 8, with hooks and sensory grounding collapsing first.
+
+---
+
+## EXP-046: Production Gap Closure (Personality + Skills + Sparse Bootstrap)
+**Date:** 2026-04-16
+**Status:** IMPLEMENTED
+
+**Hypothesis:** Three gaps exist between test results (4.6/5.0) and production quality: (1) generic avatar template personalities produce flat characters, (2) 18 of 20 conversation skills are defined but never triggered, (3) custom characters with brief descriptions have no personality development mechanism. Closing all three should produce richer conversations with more dynamic pedagogical behavior.
+
+### Gap 1: Avatar Template Personalities
+**Problem:** `avatarTemplates.json` had generic `base_personality` fields like "Enthusiastic about local food." Test EXP-034 proved that specific personality details score 10x higher than generic ones.
+
+**Change:** Rewrote all 8 templates with rich personality details. Each now includes:
+- A specific opinion they hold strongly (e.g., "the stall by the bridge has the best pho")
+- A pet peeve about their domain (e.g., "tourists who photograph food without buying anything")
+- A funny anecdote or recurring situation (e.g., "watched a guy haggle for a 20-cent spring roll")
+- A sensory anchor for their location (e.g., "always smells like lemongrass and chili oil")
+- A recurring character in their life (e.g., "the old woman at the dumpling stall next door")
+
+**Files changed:** `AI Language Companion App/src/config/avatarTemplates.json`
+
+### Gap 2: Conversation Skills Wiring
+**Problem:** Only `variable_reward` and `surprise_competence` were wired into `preProcess()`. The other 18 skills in `conversationSkills.json` had triggers defined but no activation code.
+
+**Change:** Wired 8 high-impact skills with appropriate triggers:
+
+| Skill | Trigger | Condition |
+|---|---|---|
+| `emotional_mirror` | Non-neutral emotional state | Injected alongside calibration instruction with `{{emotion}}` interpolated |
+| `negotiation_of_meaning` | Confusion detected | Injected BEFORE confusion calibration override (negotiation first, native language fallback second) |
+| `social_proof` | Frustrated or anxious | Injected alongside emotional calibration to normalize struggle |
+| `language_play` | Functional+ stage, neutral/excited state | 15% random chance per message |
+| `productive_failure` | Functional+ stage, no struggling phrases, not frustrated | 10% random chance per message |
+| `register_awareness` | Active scenario | Once per scenario session (tracked via WorkingMemory) |
+| `identity_reinforcement` | `celebrate_progress` goal active AND functional+ | Explicit identity-framing injection |
+| `session_pacing` | Session message count > 8 | Tracked via WorkingMemory with 2h TTL |
+
+**Implementation details:**
+- `preProcess()` options interface expanded with `activeScenario?: string`
+- `NaviAgent.handleMessage()` computes `currentScenario` before calling `preProcess()` and passes it
+- Session message count tracked in WorkingMemory with key `session_message_count` (2h TTL)
+- `register_awareness` uses per-scenario WM keys (`register_awareness_{scenario}`) so it fires once per scenario, not once per session
+
+**Files changed:**
+- `AI Language Companion App/src/agent/director/conversationDirector.ts` — 8 skill triggers + session counter + expanded options
+- `AI Language Companion App/src/agent/index.ts` — moved `profile`/`currentScenario` computation before `preProcess()` call; passes `activeScenario`
+
+### Gap 3: Sparse Character Bootstrap
+**Problem:** Custom characters ("Create your own") get the user's brief description as `summary`, often < 100 chars. No mechanism for the LLM to develop a richer personality over the first few exchanges.
+
+**Change:**
+1. Added `sparseCharacterBootstrap` key to `systemLayers.json` with instruction for the LLM to organically develop personality details (opinions, neighbors, sensory details, funny stories) over 3-5 exchanges.
+2. Wired into `contextController.buildSystemPrompt()` as L12.5 (MEDIUM priority): checks if `profile.personality.length < 100` and injects the bootstrap layer.
+
+**Files changed:**
+- `AI Language Companion App/src/config/prompts/systemLayers.json` — added `sparseCharacterBootstrap`
+- `AI Language Companion App/src/agent/avatar/contextController.ts` — added L12.5 bootstrap layer
+
+### Validation
+Build passes. 104/104 tests pass. No regressions.
+
+### Design Decisions
+1. **negotiation_of_meaning injected before confusion override** — The interaction hypothesis (Long, 1996) says negotiation of meaning is the primary driver of SLA. By injecting it first, the model tries rephrasing in simpler target language before falling back to native language. The confusion override still applies as a safety net.
+2. **15% and 10% random gates for play/failure** — Higher than variable_reward's 20% would be too aggressive. These skills are more disruptive (play changes the tone, failure creates deliberate gaps), so lower probability ensures they feel organic, not formulaic.
+3. **register_awareness once per scenario** — Formality differences only need to be pointed out once. Repeating "with friends you'd say X, but here..." every message would be exhausting. The WM key ensures one injection per scenario activation.
+4. **Sparse bootstrap at < 100 chars** — The enriched template personalities are 400-600 chars. Custom characters with user descriptions like "a friendly guide" (~15 chars) need the bootstrap. Anything >= 100 chars has enough for the LLM to work with.

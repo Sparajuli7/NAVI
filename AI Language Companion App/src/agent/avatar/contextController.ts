@@ -271,6 +271,14 @@ export class AvatarContextController {
     const fewShot = promptLoader.get('coreRules.fewShotExamples') as string;
     if (fewShot) layerDefs.push([fewShot, 3]);
 
+    // L12.5: Sparse character bootstrap (MEDIUM) — EXP-046
+    // When a custom character has a brief personality (<100 chars), inject an instruction
+    // for the LLM to organically develop personality over the first few exchanges.
+    if (profile.personality && profile.personality.length < 100) {
+      const bootstrapLayer = promptLoader.get('systemLayers.sparseCharacterBootstrap') as string;
+      if (bootstrapLayer) layerDefs.push([bootstrapLayer, 2]);
+    }
+
     // L13: Core rules (HIGH — demoted from MUST to allow warmth/goals/memory to fit)
     layerDefs.push([this.buildCoreRules(userLang), 1]);
 

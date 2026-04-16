@@ -514,15 +514,21 @@ export class NaviAgent {
     const currentMode = this.modeClassifier.getCurrentMode()
       ?? (this.memory.profile.getUserMode() ?? null);
 
-    const directorCtx = this.director.preProcess(message, avatarId, { isSessionStart, userMode: currentMode });
+    // Compute scenario before director.preProcess so skills can use it
+    const profile = this.avatar.getActiveProfile();
+    const currentScenario = profile?.scenario || '';
+
+    const directorCtx = this.director.preProcess(message, avatarId, {
+      isSessionStart,
+      userMode: currentMode,
+      activeScenario: currentScenario || undefined,
+    });
     agentBus.emit('director:goals_set', { goals: directorCtx.goals });
 
     // 1b. Sub-agent context gathering (runs in parallel with director)
-    const profile = this.avatar.getActiveProfile();
     const locationCtx = this.location.getLocation();
     const currentLanguage = this.location.getPrimaryLanguage();
     const currentDialect = profile?.dialect || '';
-    const currentScenario = profile?.scenario || '';
 
     // Memory Retrieval Agent — get graph-based context
     const memoryContext: ContextPacket = this.memoryRetrieval.retrieve({

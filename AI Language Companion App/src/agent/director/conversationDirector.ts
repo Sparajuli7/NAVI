@@ -214,6 +214,7 @@ export class ConversationDirector {
       userMode?: 'learn' | 'guide' | 'friend' | null;
       userNativeLanguage?: string;
       completedScenarios?: number;
+      activeScenario?: string;
     },
   ): DirectorContext {
     const goals: ConversationGoal[] = [];
@@ -221,12 +222,48 @@ export class ConversationDirector {
 
     // 0-pre. Emotional state detection — inject calibration context
     const emotionalState = detectEmotionalState(message);
+
+    // EXP-046: negotiation_of_meaning — inject BEFORE confusion calibration
+    // so the model tries negotiation of meaning first (rephrasing, simpler words)
+    // before falling back to native language via the confusion override
+    if (emotionalState === 'confused') {
+      const negotiationText = promptLoader.get('conversationSkills.skills.negotiation_of_meaning.injection');
+      if (negotiationText) {
+        goalInstructions.push(negotiationText);
+        console.log('[NAVI:director] negotiation_of_meaning triggered (confusion detected)');
+      }
+    }
+
     if (emotionalState !== 'neutral') {
       const calibration = emotionalCalibrationInstruction(emotionalState);
       if (calibration) {
         goalInstructions.push(calibration);
         console.log(`[NAVI:director] emotional state: ${emotionalState}`);
       }
+
+      // EXP-046: emotional_mirror — inject alongside calibration for all non-neutral states
+      const emotionalMirrorText = promptLoader.get('conversationSkills.skills.emotional_mirror.injection', {
+        emotion: emotionalState,
+      });
+      if (emotionalMirrorText) {
+        goalInstructions.push(emotionalMirrorText);
+        console.log(`[NAVI:director] emotional_mirror triggered (${emotionalState})`);
+      }
+
+      // EXP-046: social_proof — inject when frustrated or anxious to normalize struggle
+      if (emotionalState === 'frustrated' || emotionalState === 'anxious') {
+        const socialProofText = promptLoader.get('conversationSkills.skills.social_proof.injection');
+        if (socialProofText) {
+          goalInstructions.push(socialProofText);
+          console.log(`[NAVI:director] social_proof triggered (${emotionalState})`);
+        }
+      }
+    }
+
+    // EXP-046: session_pacing — track message count in WorkingMemory
+    if (this.working) {
+      const currentCount = (this.working.get('session_message_count') as number) ?? 0;
+      this.working.set('session_message_count', currentCount + 1, 2 * 60 * 60 * 1000); // 2h TTL
     }
 
     // 0. Extract situation signals from the current message BEFORE building context
@@ -457,6 +494,69 @@ export class ConversationDirector {
       goalInstructions.push(
         `CALLBACK OPPORTUNITY: You share this memory with the user: "${refText}". Reference it naturally — don't announce you remember, just weave it in. If it doesn't fit the current conversation, skip it.`,
       );
+    }
+
+    // ── EXP-046: Conversation Skills Activation ─────────────────
+
+    const isFunctionalOrHigher = stageInfo.stage === 'functional'
+      || stageInfo.stage === 'conversational'
+      || stageInfo.stage === 'fluent';
+
+    // language_play — functional+ AND neutral/excited AND 15% random
+    if (isFunctionalOrHigher && (emotionalState === 'neutral' || emotionalState === 'excited') && Math.random() < 0.15) {
+      const languagePlayText = promptLoader.get('conversationSkills.skills.language_play.injection');
+      if (languagePlayText) {
+        goalInstructions.push(languagePlayText);
+        console.log('[NAVI:director] language_play triggered (functional+, positive energy, 15% roll)');
+      }
+    }
+
+    // productive_failure — functional+ AND no struggling phrases AND not frustrated AND 10% random
+    const struggling = goals.includes('revisit_struggling');
+    if (isFunctionalOrHigher && !struggling && emotionalState !== 'frustrated' && Math.random() < 0.10) {
+      const productiveFailureText = promptLoader.get('conversationSkills.skills.productive_failure.injection');
+      if (productiveFailureText) {
+        goalInstructions.push(productiveFailureText);
+        console.log('[NAVI:director] productive_failure triggered (functional+, no struggle, 10% roll)');
+      }
+    }
+
+    // register_awareness — when a scenario is active, once per scenario session
+    const activeScenario = options?.activeScenario;
+    if (activeScenario && this.working) {
+      const scenarioSkillKey = `register_awareness_${activeScenario}`;
+      if (!this.working.has(scenarioSkillKey)) {
+        const registerText = promptLoader.get('conversationSkills.skills.register_awareness.injection');
+        if (registerText) {
+          goalInstructions.push(registerText);
+          // Mark as injected for this scenario session (2h TTL — covers one session)
+          this.working.set(scenarioSkillKey, true, 2 * 60 * 60 * 1000);
+          console.log(`[NAVI:director] register_awareness triggered (scenario: ${activeScenario})`);
+        }
+      }
+    }
+
+    // identity_reinforcement — when celebrating progress or milestone detected
+    if (goals.includes('celebrate_progress') && isFunctionalOrHigher) {
+      const identityText = promptLoader.get('conversationSkills.skills.identity_reinforcement.injection');
+      if (identityText) {
+        goalInstructions.push(identityText);
+        console.log('[NAVI:director] identity_reinforcement triggered (celebrate_progress goal active)');
+      }
+    }
+
+    // session_pacing — when session message count exceeds 8
+    if (this.working) {
+      const sessionMsgCount = (this.working.get('session_message_count') as number) ?? 0;
+      if (sessionMsgCount > 8) {
+        const sessionPacingText = promptLoader.get('conversationSkills.skills.inside_joke_plant.injection');
+        // Use a dedicated pacing instruction — session_pacing skill doesn't have an injection
+        // field in conversationSkills.json, so we use a compact inline instruction.
+        goalInstructions.push(
+          'SESSION PACING: This conversation has been going for a while (8+ exchanges). Start wrapping up naturally — plant a seed for the next session (a story to continue, a challenge to report back on, something to try before next time). Do NOT announce you are wrapping up. Just let the energy wind down naturally. If the user is still highly engaged, override this and keep going.',
+        );
+        console.log(`[NAVI:director] session_pacing triggered (${sessionMsgCount} messages in session)`);
+      }
     }
 
     // Build context strings
