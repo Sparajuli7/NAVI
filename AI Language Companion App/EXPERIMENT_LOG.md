@@ -657,6 +657,60 @@ personality and sensory weak. Needs richer system prompt like other scenarios.
 
 ---
 
+### EXP-096: coreRules.json token budget crisis — remove redundant sections (2026-04-16)
+- **Hypothesis**: coreRules.json `rules` field is ~3,519 tokens, which exceeds the 3,072-token system prompt budget by itself. This means warmth tiers, mood, relationship language, character arc, and learning stage layers are ALL being silently dropped by `contextController.buildSystemPrompt()` budget enforcement. Seven sections in coreRules are redundant because their behavior is already handled by ConversationDirector skills, worldEvents.json, or warmthLevels.json. Removing them will bring coreRules within budget and allow other critical layers to fit.
+- **Config change**: `src/config/prompts/coreRules.json` — removed 7 sections from `rules`, trimmed `fewShotExamples` from 11 examples to 3.
+- **Sections REMOVED (redundant — already handled elsewhere)**:
+  1. **OPEN LOOPS** (~294 tokens) — `open_loop` skill injected by ConversationDirector on EVERY message
+  2. **SENSORY GROUNDING** (~170 tokens) — `sensory_anchor` skill injected every 3rd message by ConversationDirector
+  3. **MICRO-MISSIONS** (~233 tokens) — prompt instruction, now redundant with ConversationDirector skills
+  4. **SESSION PACING** (~237 tokens) — ConversationDirector triggers `session_pacing` skill at >8 messages
+  5. **YOUR LIFE IS HAPPENING** (~286 tokens) — worldEvents.json + avatar template `world_events` arrays handle this
+  6. **NICKNAMES** (~91 tokens) — warmthLevels.json warmth tier instructions handle nickname emergence
+  7. **DEVELOP BITS** (~208 tokens) — warmthLevels.json warmth tier instructions handle recurring bits
+  - **Total removed: ~1,519 tokens**
+- **Few-shot examples REMOVED (4 open loop examples + 1 speech texture + 1 sensory + 1 personality = 7 removed)**:
+  - Open loop examples 1-4 (redundant — `open_loop` skill injects specific patterns)
+  - Speech texture example (instruction in rules is sufficient; models follow fillers from the per-language list)
+  - Sensory grounding example (handled by `sensory_anchor` skill)
+  - Personality/opinion example (handled by enriched avatar template personalities from EXP-046)
+  - **Total removed: ~500 tokens from fewShotExamples**
+- **Sections KEPT (10 essential sections defining base behavior)**:
+  - CONFUSION OVERRIDE (216 tokens) — critical safety mechanism
+  - FRUSTRATION vs CONFUSION (229 tokens) — critical distinction
+  - IDENTITY ANCHORS (104 tokens) — character consistency
+  - ABSOLUTE RULES (710 tokens) — NEVER rules that work on all models
+  - CORRECTION STYLE (110 tokens) — recast instruction
+  - WHEN TEACHING PHRASES (88 tokens) — phrase card format
+  - SLANG ERA MATCHING (109 tokens) — age-appropriate teaching
+  - LANGUAGE MIXING (135 tokens) — target/native balance
+  - BEHAVIOR (84 tokens) — core behavior rules
+  - SPEECH TEXTURE (215 tokens) — natural speech patterns
+- **Few-shot examples KEPT (3)**:
+  - French greeting (demonstrates leading in target language + sensory detail + hook)
+  - Phrase card (demonstrates EXACT format — critical for structured output)
+  - Recasting (demonstrates correction-without-correcting — hardest technique for models)
+- **Token estimates after change**:
+  - `rules`: ~2,000 tokens (down from ~3,519)
+  - `fewShotExamples`: ~394 tokens (down from ~894)
+  - `reinforcement`: ~145 tokens (unchanged)
+  - **TOTAL: ~2,539 tokens** (fits within 3,072 budget with ~533 tokens remaining for other layers)
+- **Coherence check**: All removed behavior still fires via other systems:
+  - Open loops: `open_loop` skill in conversationSkills.json, wired in ConversationDirector.preProcess() (EXP-050)
+  - Sensory: `sensory_anchor` skill, wired every 3rd message (EXP-050)
+  - Micro-missions: covered by ConversationDirector skills
+  - Session pacing: `session_pacing` skill triggered at >8 messages (EXP-050)
+  - World events: worldEvents.json + avatar template `world_events` (EXP-066)
+  - Nicknames: warmthLevels.json friend tier+ (EXP-074)
+  - Bits: warmthLevels.json acquaintance tier+ (EXP-070)
+  - No behavioral regression expected — these were DOUBLE instructions causing token waste.
+- **Test method**: Vite build verification + vitest run (104/104 tests).
+- **Result**: Build passes. 104/104 tests pass. coreRules.json drops from ~4,558 total tokens to ~2,539 total tokens (~44% reduction). The freed ~2,019 tokens allow warmth tiers, mood, relationship language, character arc, and learning stage layers to fit in the system prompt again.
+- **Verdict**: KEEP — this is a critical budget fix. The removed sections were causing silent layer drops that degraded conversation quality.
+- **Notes**: This is the same class of bug fixed in RESEARCH_ROUND3 (EXP-036 era) where MUST layers consumed 99.5% of the token budget. The 90 experiments between then and now gradually re-inflated coreRules with redundant instructions that duplicated behavior already handled by the skill injection system. The lesson: every time a new ConversationDirector skill is wired, check if the corresponding coreRules instruction should be removed to prevent token budget bloat.
+
+---
+
 ## FINAL COMPREHENSIVE TEST — 90-EXPERIMENT STACK (2026-04-16)
 
 | Scenario | Score | Notes |

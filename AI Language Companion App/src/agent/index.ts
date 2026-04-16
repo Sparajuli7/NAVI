@@ -303,10 +303,16 @@ export class NaviAgent {
     const savedORTier = (_ls?.getItem('navi_openrouter_tier') ?? 'free') as OpenRouterTier;
     const savedWebllmPreset = _ls?.getItem('navi_webllm_preset');
 
-    if (savedBackendPref === 'webllm' || savedBackendPref === 'openrouter') {
-      config = { ...config, backend: savedBackendPref };
+    if (savedBackendPref === 'webllm' || savedBackendPref === 'openrouter' || savedBackendPref === 'ollama') {
+      config = { ...config, backend: savedBackendPref as LLMBackend };
       if (savedBackendPref === 'webllm' && savedWebllmPreset && savedWebllmPreset in LLM_PRESETS) {
         config = { ...config, llmPreset: savedWebllmPreset as keyof typeof LLM_PRESETS };
+      }
+      if (savedBackendPref === 'ollama') {
+        const savedOllamaModel = _ls?.getItem('navi_ollama_model');
+        if (savedOllamaModel) {
+          config = { ...config, ollamaModel: savedOllamaModel };
+        }
       }
     }
     if (savedWebllmPreset && savedWebllmPreset in LLM_PRESETS) {
@@ -821,6 +827,11 @@ export class NaviAgent {
     // Switch the active LLM to Ollama
     this.llm = this.ollamaProvider;
     this.llmBackend = 'ollama';
+
+    // Persist Ollama selection + model name for next session
+    const _ls = typeof localStorage !== 'undefined' ? localStorage : null;
+    _ls?.setItem('navi_backend_pref', 'ollama');
+    _ls?.setItem('navi_ollama_model', model);
 
     // Re-register tools with the new LLM provider
     registerAllTools({
