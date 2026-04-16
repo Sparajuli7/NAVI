@@ -736,3 +736,103 @@ sensory grounding, open loops, zero sycophancy.
 | Personality | 0% | **90%+** | from zero |
 | Open loops | 5% | **85%+** | +1600% |
 | Sensory | 15% | **70%+** | +367% |
+
+---
+
+### EXP-091: Diagnose and Fix Paris Open Loop Variance (2026-04-16)
+- **Hypothesis**: Paris (Lea) dropped from 4.9 to 4.3 with open loops at 1/5. The character's sarcastic personality produces dismissive closers like "Alors, on fait quoi?" which IS a question but reads as a closer, not a curiosity-inducing hook. The personality fights the hook instruction.
+- **Config change**: Added personality-amplification guidance to TWO locations (since coreRules OPEN LOOPS was removed by EXP-096):
+  1. `src/config/prompts/conversationSkills.json` — `open_loop.injection`: added "Your character's personality should AMPLIFY hooks, not fight them. A sarcastic character teases about what comes next. A stern character challenges. A warm character wonders."
+  2. `src/config/prompts/toolPrompts.json` — `chat.template` OPEN LOOPS section: added same personality-amplification guidance.
+- **Before**: Open loop instructions said "leave a thread unresolved" but gave no guidance on how personality should interact with hooks.
+- **After**: Both injection paths now tell the model that personality should amplify hooks. Sarcastic characters tease, stern characters challenge, warm characters wonder.
+- **NOTE**: EXP-096 (by another agent) removed the OPEN LOOPS section from coreRules.json entirely, making the original EXP-091 edit location invalid. The fix was redirected to conversationSkills.json and toolPrompts.json, which are the two paths that actually deliver open loop instructions to the model (bypassing the buildSystemPrompt token budget).
+- **Test method**: Build verification (passed). 104/104 tests pass. Coherence audit across all 3 open-loop instruction locations.
+- **Result**: Config updated in both delivery paths.
+- **Verdict**: KEEP — the instruction is in the right places now (skills + chat template, not coreRules which was budget-dropped anyway).
+
+---
+
+### EXP-092: Rome Dialect Test (2026-04-16)
+- **Hypothesis**: With Rome in dialectMap.json (IT/Rome, Roman Italian, "daje"/"ammazza"), a trattoria owner in Trastevere should produce authentic Roman Italian.
+- **Test file**: `src/agent/__tests__/romeDialectTest.ts` (independent from liveConversationTest.ts)
+- **Avatar**: Marco, 45yo trattoria owner in Trastevere. Opinionated about carbonara (NO cream). Uses Roman dialect.
+- **Messages**: 3 (greeting, ordering pasta, asking about customs)
+- **Scoring**: 6 markers: Italian, Roman dialect (daje/ammazza/anvedi/aho/boh), personality, sensory, open loops, no sycophancy. Plus carbonara opinion on ordering.
+- **dialectMap verified**: `IT/Rome` has language=Italian, dialect="Roman Italian", slang_era with daje/fico/ammazza.
+- **Run**: `NAVI_TEST_MODEL=gemma4:e2b npx tsx src/agent/__tests__/romeDialectTest.ts`
+- **Status**: Test script created and compiles. Requires Ollama with gemma4:e2b to execute.
+- **Result**: Build passes. 104/104 tests pass.
+- **Verdict**: READY TO RUN.
+
+---
+
+### EXP-093: Berlin Dialect Test (2026-04-16)
+- **Hypothesis**: With Berlin in dialectMap.json (DE/Berlin, Berlin German, "ick"/"Digga"), a DJ in Kreuzberg should produce authentic Berlin German.
+- **Test file**: `src/agent/__tests__/berlinDialectTest.ts` (independent from liveConversationTest.ts)
+- **Avatar**: Kai, 28yo DJ/music producer in Kreuzberg. Direct, dry humor. Uses "Digga", "ick".
+- **Messages**: 3 (greeting, nightlife, Berlin slang)
+- **Scoring**: 6 markers: German, Berlin dialect (Digga/ick/krass/Alter/geil), personality, sensory, open loops, no sycophancy. Plus nightlife references.
+- **dialectMap verified**: `DE/Berlin` has language=German, dialect="Berlin German", slang_era with digga/krass/geil.
+- **Run**: `NAVI_TEST_MODEL=gemma4:e2b npx tsx src/agent/__tests__/berlinDialectTest.ts`
+- **Status**: Test script created and compiles. Requires Ollama with gemma4:e2b to execute.
+- **Result**: Build passes. 104/104 tests pass.
+- **Verdict**: READY TO RUN.
+
+---
+
+### EXP-094: Token Budget Audit Post-90-Experiments (2026-04-16)
+
+**Hypothesis:** After 90 experiments adding prompt layers, the 3072-token budget may be exceeded.
+
+**METHOD:** Simulated the greedy budget algorithm from `contextController.buildSystemPrompt()` with a typical Paris scenario.
+
+**FINDING — CRITICAL (pre-EXP-096):**
+
+Core Rules was ~4,140 tokens (HIGH priority). The greedy algorithm:
+1. MUST layers: Identity (176) + Location (739) + Enforcement (80) = 995 tokens
+2. HIGH layers added in order: Scenario (50), Warmth (37), Goals (180) fit. Core Rules (4,140) would push total to 5,402 — SKIPPED. Reinforcement (160) fits.
+3. MEDIUM + LOW layers fill remaining space.
+
+**Result: Core Rules was being silently dropped every time.** All open loop patterns, phrase card format, response length rules, correction style, language mixing rules, etc. were NOT reaching the model via buildSystemPrompt.
+
+**Why things still worked:** The `toolPrompts.chat.template` (injected by chatTool directly, bypassing buildSystemPrompt) contains its own copies of open loops, correction, response rhythm, and teaching style instructions. The `conversationSkills.json` skills (injected by ConversationDirector) provide open loops, sensory, etc.
+
+**POST-EXP-096 status:** Another agent independently discovered this same issue and implemented EXP-096, removing 7 redundant sections from coreRules (~1,519 tokens) and trimming few-shot examples (~500 tokens). New coreRules is ~2,000 tokens, which fits within budget alongside other HIGH layers.
+
+**Post-EXP-096 budget simulation:**
+- MUST: 995 tokens (Identity + Location + Enforcement)
+- HIGH: 995 + 50 (Scenario) + 37 (Warmth) + 180 (Goals) + ~2,000 (Core Rules) + 160 (Reinforcement) = ~3,422
+- This is still ~350 tokens over budget, meaning the last HIGH layer (Reinforcement at 160 tokens) may be dropped, or Core Rules may still be dropped if it's processed last in the greedy order.
+
+**Recommendation:** The budget is tight. Consider raising to 4096 for models with 8K+ context (gemma4, OpenRouter models), or making the budget configurable per model size.
+
+- **Result**: Audit complete. No code changes (EXP-096 already addressed the worst of it).
+- **Verdict**: KNOWN ISSUE — budget is marginally over. Monitor in future experiments.
+
+---
+
+### EXP-095: Model Switching Bug — Ollama Backend Not Restored on Restart (2026-04-16)
+
+**Hypothesis:** Users report "let me try that again" errors when switching to local Ollama models.
+
+**BUG FOUND — TWO ISSUES in `src/agent/index.ts`:**
+
+**Bug 1 — Ollama backend not restored on app restart:**
+Constructor line 306:
+```typescript
+if (savedBackendPref === 'webllm' || savedBackendPref === 'openrouter') {
+```
+This condition excludes `'ollama'`. When a user selects Ollama, `navi_backend_pref` is set to `'ollama'` in localStorage, but on next launch the constructor doesn't recognize it. Result: `config.backend` stays as `undefined`, `this.llmBackend` becomes `'auto'`, and the agent falls through to WebLLM — which fails if the WebLLM model was never downloaded.
+
+**Bug 2 — Ollama model name not persisted:**
+`switchOllamaModel()` saved `navi_backend_pref='ollama'` (via BackendSelectScreen) but never saved the MODEL NAME. On restart, even if the backend was correctly restored, the model defaulted to `qwen2.5:1.5b`.
+
+**FIX:**
+1. Added `|| savedBackendPref === 'ollama'` to constructor check
+2. When `savedBackendPref === 'ollama'`, read `navi_ollama_model` from localStorage
+3. In `switchOllamaModel()`, added localStorage persistence for both `navi_backend_pref` and `navi_ollama_model`
+
+**Files changed:** `src/agent/index.ts`
+- **Result**: Build passes. 104/104 tests pass.
+- **Verdict**: BUG FIXED. Root cause: constructor's `if` excluded `'ollama'` from saved preferences, causing WebLLM fallback on every restart for Ollama users.
