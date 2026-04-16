@@ -15,7 +15,16 @@
 import type { LearnerProfileStore } from '../memory/learnerProfile';
 import type { EpisodicMemoryStore } from '../memory/episodicMemory';
 
-const STREAK_MILESTONES = [7, 14, 30];
+const STREAK_MILESTONES = [3, 7, 14, 30];
+
+/** Narrative streak messages — these come from the CHARACTER, not the app.
+ *  They should feel like the avatar noticing a pattern, not a badge notification. */
+const STREAK_NARRATIVES: Record<number, string> = {
+  3: `Three days in a row — you're building something here.`,
+  7: `A full week. Most people give up by day 3.`,
+  14: `Two weeks. This isn't a hobby anymore, is it?`,
+  30: `A month. I don't even think about whether you'll show up anymore.`,
+};
 
 /** Backstory disclosure messages the avatar can share at each tier */
 const BACKSTORY_OPENERS = [
@@ -73,17 +82,29 @@ export class ProactiveEngine {
 
     let message: string | null = null;
 
-    // 1. Long absence (> 7 days)
+    // 1. Long absence (> 7 days) — loss aversion: reference what they built
     if (daysSinceLast > 7) {
-      message = `Hey, it's been a while! Life got busy? No pressure — we can ease back in whenever you're ready. What's been going on?`;
+      const totalPhrases = stats.totalPhrases;
+      const streakBefore = stats.longestStreak;
+      if (totalPhrases > 0) {
+        message = `Hey — you've got ${totalPhrases} phrase${totalPhrases === 1 ? '' : 's'} and ${streakBefore > 0 ? `a ${streakBefore}-day streak` : 'real momentum'} going. Would be a shame to let that fade. What's been going on?`;
+      } else {
+        message = `Hey, it's been a while! Life got busy? No pressure — we can ease back in whenever you're ready. What's been going on?`;
+      }
     }
-    // 2. Short absence (> 2 days)
+    // 2. Short absence (> 2 days) — loss aversion: reference what they've built
     else if (daysSinceLast > 2) {
-      message = `Hey, haven't heard from you in a couple days — everything good? Whenever you're ready, I'm here.`;
+      const totalPhrases = stats.totalPhrases;
+      const currentStreakVal = stats.currentStreak;
+      if (totalPhrases > 0 || currentStreakVal > 0) {
+        message = `You've got ${totalPhrases} phrase${totalPhrases === 1 ? '' : 's'}${currentStreakVal > 0 ? ` and a ${currentStreakVal}-day streak` : ''} building up. Would be a shame to let that slip — pick up where we left off?`;
+      } else {
+        message = `Hey, haven't heard from you in a couple days — everything good? Whenever you're ready, I'm here.`;
+      }
     }
-    // 3. Streak milestone
+    // 3. Streak milestone — narrative response from the character, not a badge
     else if (streak > 0 && this.isStreakMilestone(streak)) {
-      message = `${streak}-day streak! You've been showing up — that's the whole game.`;
+      message = STREAK_NARRATIVES[streak] ?? `${streak}-day streak. You've been showing up — that's the whole game.`;
     }
     // 4. Scenario completion debrief
     else if (this.lastCompletedScenario) {

@@ -820,3 +820,194 @@ Test Files  8 passed (8)
 ```
 
 All experiments validated. No regressions.
+
+---
+
+## EXP-026: Identity Reinforcement
+**Date:** 2026-04-16
+**Status:** IMPLEMENTED
+
+**Hypothesis:** Dornyei's (2009) L2 Motivational Self System research shows that the strongest predictor of sustained language learning isn't skill acquisition -- it's identity formation. "I am someone who speaks French" is a fundamentally different motivational structure than "I know 200 French words." The first is identity-based and self-sustaining; the second is achievement-based and requires constant external validation. Norton (2000) found that "identity investment" drives persistence more than instrumental motivation. NAVI currently frames all progress as learning ("you're getting better at X") rather than identity ("you sound like someone who lives here").
+
+**What was done:**
+
+1. **Added `identity_reinforcement` skill to `conversationSkills.json`:**
+   - Trigger: `user_at_functional_or_higher` (survival users would find identity framing patronizing -- they know they can't speak yet)
+   - Injection: reframe skill as identity. Instead of "you're learning French well," say "you sound like someone who's been here a while" or "locals would think you've been here longer than you have." Never use learner-framing language: "you're learning", "good student", "improving."
+   - Evidence: Dornyei (2009) L2 Motivational Self System, Norton (2000) identity investment
+   - Antipattern: never use "you're learning", "you're studying", "good student", "your [language] is improving" -- these reinforce a student identity the user will eventually graduate out of
+
+2. **Added identity reinforcement sub-instruction to `celebrate_progress` goal in `systemLayers.json`:**
+   - Appended: "IDENTITY REINFORCEMENT: Frame their progress as identity, not skill. Instead of 'you're learning French well,' say 'you sound like someone who's been here a while' or 'locals would think you've been here longer than you have.' They are becoming a speaker, not remaining a student."
+   - Also fixed a typo: "theure" -> "their identity" in the original instruction
+
+**Why functional stage minimum:**
+At survival stage, the user has maybe 5-10 phrases. Telling them "you sound like someone who lives here" would feel dishonest and break trust. At functional stage (8+ mastered phrases, can sustain basic exchanges), the framing becomes aspirational but believable: they ARE starting to move differently through the language landscape.
+
+**The identity shift in practice:**
+- Before: "You're getting better at ordering in French!" (learner frame)
+- After: "You ordered that like you've been coming here for years." (speaker frame)
+- Before: "Your pronunciation is improving!" (progress frame)
+- After: "Locals would think you've been here longer than you have." (belonging frame)
+
+**Files changed:**
+- `AI Language Companion App/src/config/prompts/conversationSkills.json` (identity_reinforcement skill added)
+- `AI Language Companion App/src/config/prompts/systemLayers.json` (celebrate_progress updated with identity sub-instruction)
+
+**Validation:** Build passes, 104/104 tests pass.
+
+---
+
+## EXP-027: Streak Narrative
+**Date:** 2026-04-16
+**Status:** IMPLEMENTED
+
+**Hypothesis:** NAVI tracks streaks in the `LearnerProfileStore` and the `ProactiveEngine` fires messages at streak milestones (previously 7, 14, 30). But the previous messages were generic badge-style notifications: "7-day streak! You've been showing up -- that's the whole game." This reads as app chrome, not character dialogue. Streaks are just numbers unless the avatar REACTS to them narratively -- the avatar should notice the pattern the way a friend would, not announce it the way a fitness app would.
+
+**What was done:**
+
+1. **Added day 3 as a streak milestone** -- the original milestones (7, 14, 30) missed the critical early reinforcement window. Day 3 is when most language app users drop off. Acknowledging it early signals "I notice you."
+
+2. **Added `STREAK_NARRATIVES` record to `ProactiveEngine.ts`:**
+   - Day 3: "Three days in a row -- you're building something here."
+   - Day 7: "A full week. Most people give up by day 3."
+   - Day 14: "Two weeks. This isn't a hobby anymore, is it?"
+   - Day 30: "A month. I don't even think about whether you'll show up anymore."
+
+3. **Updated streak milestone message selection** to use narrative messages with fallback to generic for unlisted milestones.
+
+4. **Updated tests** to match new narrative messages (regex patterns changed from `/7-day streak/i` to `/full week/i`, etc.)
+
+**Design principles for the narratives:**
+- **Day 3** is observational: "you're building something." Low-key, no pressure.
+- **Day 7** uses social comparison: "most people give up by day 3." This is loss aversion AND social proof in one sentence -- you're NOT most people.
+- **Day 14** asks an identity question: "this isn't a hobby anymore, is it?" This triggers self-reflection on identity (connects to EXP-026).
+- **Day 30** is the deepest: "I don't even think about whether you'll show up anymore." This is the avatar expressing trust -- the relationship has matured past uncertainty. It's also a compliment disguised as indifference, which feels more real than "amazing job!"
+
+**Why these come from the CHARACTER, not the app:**
+Badge notifications ("7-day streak!") are extrinsic motivation -- the user is rewarded by the system. Narrative observations ("Most people give up by day 3") are relational -- the user is recognized by a person. The parasocial bond research (Horton & Wohl, 1956) shows that relational recognition is more motivating than system rewards, especially for long-term behavior change.
+
+**Files changed:**
+- `AI Language Companion App/src/agent/director/ProactiveEngine.ts` (STREAK_NARRATIVES, day 3 milestone, narrative message selection)
+- `AI Language Companion App/src/agent/director/ProactiveEngine.test.ts` (updated 3 test assertions for narrative messages)
+
+**Validation:** Build passes, 104/104 tests pass.
+
+---
+
+## EXP-028: Loss Aversion
+**Date:** 2026-04-16
+**Status:** IMPLEMENTED
+
+**Hypothesis:** Kahneman & Tversky's (1979) prospect theory shows that people are approximately 2x more motivated by avoiding loss than by achieving gain. A user returning after absence is more likely to re-engage if the message references what they've BUILT (and might lose) rather than generically welcoming them back. "You've got 47 phrases and a 12-day streak going. Would be a shame to let that fade." is stronger than "Hey, it's been a while!"
+
+**What was done:**
+
+Modified both absence triggers in `ProactiveEngine.getProactiveMessage()`:
+
+1. **Long absence (> 7 days):**
+   - Previous: `"Hey, it's been a while! Life got busy? No pressure — we can ease back in whenever you're ready. What's been going on?"`
+   - New (when user has phrases): `"Hey — you've got ${totalPhrases} phrases and a ${longestStreak}-day streak going. Would be a shame to let that fade. What's been going on?"`
+   - Falls back to the original generic message when `totalPhrases === 0` (new user who left before learning anything -- nothing to invoke loss aversion on)
+
+2. **Short absence (> 2 days):**
+   - Previous: `"Hey, haven't heard from you in a couple days — everything good? Whenever you're ready, I'm here."`
+   - New (when user has phrases or streak): `"You've got ${totalPhrases} phrases and a ${currentStreak}-day streak building up. Would be a shame to let that slip — pick up where we left off?"`
+   - Falls back to original when no data exists
+
+**Key design decisions:**
+- **Specific numbers, not vague references:** "47 phrases" is more concrete than "all the phrases you've learned." Specificity makes the loss feel real.
+- **"Would be a shame" framing:** This is soft loss aversion -- it doesn't threaten or guilt. It's the avatar observing reality, not punishing. A friend saying "would be a shame to let that fade" is empathetic, not manipulative.
+- **Graceful fallback:** New users who haven't learned any phrases get the original generic message. You can't invoke loss aversion on nothing.
+- **Long absence uses `longestStreak`** (not `currentStreak`) because after 7+ days the current streak is likely 0 or reset. The longest streak represents what they achieved at their peak.
+- **Short absence uses `currentStreak`** because the streak is still active and at risk -- this is live loss, not historical.
+
+**Why this isn't manipulative:**
+The messages reference REAL accomplishments and REAL risk. 47 phrases IS a meaningful investment that WILL decay without practice (spaced repetition intervals extend, mastery degrades). The streak WILL reset if they don't return. The avatar is stating facts with emotional coloring, not fabricating urgency. The "no pressure" subtext is maintained via "would be a shame" (not "you'll lose everything").
+
+**Files changed:**
+- `AI Language Companion App/src/agent/director/ProactiveEngine.ts` (absence messages rewritten with loss framing + specific stats)
+
+**Validation:** Build passes, 104/104 tests pass.
+
+---
+
+## EXP-029: Social Proof Simulation
+**Date:** 2026-04-16
+**Status:** IMPLEMENTED
+
+**Hypothesis:** Cialdini's (2006) social proof principle shows that people look to others' behavior under uncertainty. Bandura's (1977) vicarious experience research shows that seeing similar others succeed (or struggle and overcome) is the second-strongest source of self-efficacy after direct mastery. When a language learner is struggling or hesitant, knowing that the struggle is UNIVERSAL reduces the affective filter and increases willingness to attempt. The avatar can simulate social proof by referencing "others" naturally -- but it must feel like lived experience, not data.
+
+**What was done:**
+
+**Added `social_proof` skill to `conversationSkills.json`:**
+- Trigger: `user_struggling_or_hesitant`
+- Injection: normalize struggle by referencing others. "Everyone messes that one up at first." "I had a friend who took weeks to get that sound right." Never say "other users" -- say "my friend" or "everyone." Draw on the avatar's experience as a person who has watched many people learn this language.
+- Evidence: Cialdini (2006) social proof principle, Bandura (1977) vicarious experience
+- Antipattern: NEVER say "other users", "many learners", or "studies show" -- these break character. NEVER use social proof to minimize genuine difficulty ("everyone finds this easy" when the user is struggling is invalidating, not normalizing). The message is "this is hard AND you're not alone."
+
+**Why "my friend" and not "other users":**
+The avatar is a character, not a platform. Saying "other users find this tricky" breaks the fourth wall -- it reveals that the avatar is software serving multiple people. Saying "my friend had the same problem" maintains the parasocial relationship and makes the avatar feel like they have a life and connections beyond the user. This is consistent with the progressive backstory disclosure system (EXP-010) where the avatar shares more about their life over time.
+
+**The spectrum of social proof in practice:**
+- Normalizing: "Everyone messes that one up at first" -- you're normal
+- Vicarious success: "My friend took weeks to get that sound right, and now she doesn't even think about it" -- others have overcome this
+- Comparative upward: "Honestly, most people who come here can't even attempt what you just did" -- you're ahead of the curve
+- Shared experience: "I remember when I was learning English, there was this one sound I just couldn't..." -- even the avatar struggled
+
+**Files changed:**
+- `AI Language Companion App/src/config/prompts/conversationSkills.json` (social_proof skill added)
+
+**Validation:** Build passes, 104/104 tests pass.
+
+---
+
+## EXP-030: Session Pacing
+**Date:** 2026-04-16
+**Status:** IMPLEMENTED
+
+**Hypothesis:** Cognitive science research on spaced practice (Cepeda et al., 2006) consistently shows that distributed short sessions outperform massed long sessions for retention. Most language learning sessions should be 5-10 minutes for optimal encoding. After 8-10 conversational exchanges, attention and encoding quality decline sharply. Long sessions lead to diminishing returns -- the user feels like they practiced a lot but retains less than they would from two 5-minute sessions. NAVI currently has no mechanism to pace sessions or wrap up naturally.
+
+**What was done:**
+
+**Added SESSION PACING section to `coreRules.json`** (between MICRO-MISSIONS and SPEECH TEXTURE):
+- After 8-10 exchanges, start wrapping up naturally. Don't announce "time to stop" -- plant a seed for next time.
+- Reference something to continue next time. Create pull, not push.
+- Better to have 5 focused minutes than 30 unfocused ones.
+- If the user is clearly energized and driving the conversation, DON'T cut them off. The 8-10 guideline is for neutral/declining energy.
+- NEVER say "we should stop here" or "that's enough for today."
+
+**Why 8-10 exchanges, not a timer:**
+The avatar doesn't have access to a clock or session timer. But it CAN count exchanges (it sees the conversation history). 8-10 exchanges at ~30 seconds each is roughly 4-5 minutes, which aligns with the optimal 5-10 minute window. The exchange count is a proxy for time that the LLM can actually use.
+
+**Why "plant a seed" instead of "stop":**
+The session pacing instruction explicitly requires creating an OPEN LOOP before wrapping up. This connects to the existing Open Loop skill (conversationSkills.json) and the session continuity system (EXP-020). The wrap-up IS a retention mechanism: the user leaves wanting to come back. "There's a phrase for what you just described, but I'll save it" creates an information gap (Loewenstein, 1994) that pulls them back next session.
+
+**Why the energy override:**
+Rigid pacing would be counterproductive during high-engagement moments. If a user is in flow -- asking rapid questions, trying phrases, telling stories -- cutting them off at exchange 10 would damage the experience. The instruction says "if the user is clearly energized and driving the conversation, don't cut them off." This gives the LLM permission to extend beyond 10 exchanges when signals indicate high engagement, while defaulting to wrap-up when energy is neutral or declining.
+
+**Interaction with ProactiveEngine:**
+Session pacing creates natural session ends, which means more session-start opportunities for the ProactiveEngine to fire. Shorter sessions with more frequent returns create more touchpoints for streak tracking (EXP-027), loss aversion (EXP-028), and session continuity (EXP-020). The pacing instruction is designed to work WITH the session-start mechanisms, not against them.
+
+**Files changed:**
+- `AI Language Companion App/src/config/prompts/coreRules.json` (SESSION PACING section added)
+
+**Validation:** Build passes, 104/104 tests pass.
+
+---
+
+## Build & Test Results (Post EXP-026 through EXP-030)
+
+```
+$ cd "AI Language Companion App" && npx vite build
+vite v6.3.5 building for production...
+✓ 2127 modules transformed.
+✓ built in 3.41s
+
+$ npx vitest run
+Test Files  8 passed (8)
+     Tests  104 passed (104)
+  Duration  1.15s
+```
+
+All experiments validated. No regressions.

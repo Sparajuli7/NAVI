@@ -65,29 +65,29 @@ describe('ProactiveEngine', () => {
     expect(msg).toMatch(/haven't heard from you/i);
   });
 
-  it('returns streak milestone message at day 7', () => {
+  it('returns streak narrative message at day 7', () => {
     const eng = new ProactiveEngine(
       makeLearner({ lastSessionDate: Date.now() - 1000, currentStreak: 7 }),
       fakeEpisodic,
     );
     const msg = eng.getProactiveMessage();
-    expect(msg).toMatch(/7-day streak/i);
+    expect(msg).toMatch(/full week/i);
   });
 
-  it('returns streak milestone message at day 14', () => {
+  it('returns streak narrative message at day 14', () => {
     const eng = new ProactiveEngine(
       makeLearner({ lastSessionDate: Date.now() - 1000, currentStreak: 14 }),
       fakeEpisodic,
     );
-    expect(eng.getProactiveMessage()).toMatch(/14-day streak/i);
+    expect(eng.getProactiveMessage()).toMatch(/two weeks/i);
   });
 
-  it('returns streak milestone message at day 30', () => {
+  it('returns streak narrative message at day 30', () => {
     const eng = new ProactiveEngine(
       makeLearner({ lastSessionDate: Date.now() - 1000, currentStreak: 30 }),
       fakeEpisodic,
     );
-    expect(eng.getProactiveMessage()).toMatch(/30-day streak/i);
+    expect(eng.getProactiveMessage()).toMatch(/a month/i);
   });
 
   it('returns struggling-phrase nudge when phrases present + 1 day absence', () => {

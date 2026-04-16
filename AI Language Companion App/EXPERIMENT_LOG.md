@@ -200,3 +200,38 @@ Avatar: "Au marché (oh mar-SHAY) ce matin? Sympa. T'as trouvé quelque chose de
 - **Result**: [What happened]
 - **Verdict**: KEEP / REVERT / MODIFY
 - **Notes**: [What we learned]
+
+---
+
+## LIVE TEST RESULTS — qwen2.5:1.5b (2026-04-16)
+
+### Model: qwen2.5:1.5b via Ollama
+### System prompts: NAVI engagement-overhaul configs (post-EXP-025)
+
+| Scenario | Avg Score | Open Loops | Target Lang | No Sycophancy | Personality | Sensory |
+|----------|----------|-----------|-------------|---------------|-------------|---------|
+| First Contact (Tokyo) | 3.1/5.0 | 0/5 | 5/5 | 5/5 | 0/5 | 0/5 |
+| Restaurant (Paris) | 3.1/5.0 | 1/5 | 4/5 | 5/5 | 0/5 | 0/5 |
+| Frustration (Kathmandu) | 2.9/5.0 | 0/5 | 3/5 | 5/5 | 0/5 | 1/5 |
+| Advanced Chat (Seoul) | 3.1/5.0 | 0/5 | 4/5 | 5/5 | 0/5 | 2/5 |
+| **OVERALL** | **3.1/5.0** | **1/20** | **16/20** | **20/20** | **0/20** | **3/20** |
+
+### Key Findings:
+1. **Anti-sycophancy: PERFECT (20/20)** — The NEVER rules work. Not a single "Great question!" or "Of course!"
+2. **Target language: STRONG (16/20)** — Model leads in target language most of the time
+3. **Open loops: FAILING (1/20)** — Model almost never ends with hooks. The instruction exists but 1.5B model ignores it
+4. **Personality: ZERO (0/20)** — No opinions, stories, or personal details. Model stays generic despite instructions
+5. **Sensory grounding: WEAK (3/20)** — Occasional mention but mostly absent
+6. **Recasting: MIXED** — Model sometimes corrects explicitly ("the correct way is...") despite instruction not to
+
+### Critical Issues:
+- **qwen2.5:1.5b is too small to follow complex behavioral instructions** — it handles negative constraints well (NEVER rules) but ignores positive ones (personality, hooks, sensory)
+- **qwen3.5:4b can't be tested** — puts ALL output in thinking tags, returns empty responses via Ollama
+- **Need a model between 3-7B that doesn't have thinking mode** for proper testing
+- **The system prompt may be too long for 1.5B** — instruction overload causes the model to follow only the simplest rules
+
+### Recommendations:
+- EXP-026+: Test with gemma4:e2b (5.1B, no thinking mode) once GPU memory frees up
+- Simplify the system prompt for small models — fewer instructions, more impact
+- The NEVER rules clearly work better than DO rules on small models — lean into this
+- Open loop instruction needs to be stronger or moved to fewShotExamples with concrete examples
