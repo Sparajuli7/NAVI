@@ -535,3 +535,34 @@ The emotional support mode overrides the language instruction. Needs stronger "i
 | gemma4:e4b | 8B | **4.9** | — | — |
 
 qwen3.5:4b is now a viable model — memory review scored PERFECT 5.0/5.0.
+
+---
+
+## LIVE TEST — FULL 75-EXPERIMENT STACK (2026-04-16, gemma4:e2b)
+
+| Scenario | Score | Hooks | Lang | Syc | Pers | Sensory |
+|----------|-------|-------|------|-----|------|---------|
+| Tokyo (Yuki) | **4.5** | 3/5 | 5/5 | 5/5 | 4/5 | 5/5 |
+| Paris (Léa) | **4.5** | 2/5 | 5/5 | 5/5 | 5/5 | 5/5 |
+| Kathmandu (Priya) | **4.9** | 5/5 | 5/5 | 5/5 | 5/5 | 4/5 |
+| Seoul (Jihoon) | **5.0** | 5/5 | 5/5 | 5/5 | 5/5 | 5/5 |
+| Production: HCMC | **4.5** | 3/5 | 5/5 | 5/5 | 4/5 | 4/5 |
+
+### SEOUL HIT PERFECT 5.0/5.0 — first perfect scenario score
+- Every message had: target language, personality, sensory, hooks, no sycophancy
+- Jihoon has genuine attitude, uses real Korean slang, creates atmosphere
+- The character depth changes (moods, vulnerability, world events) are working
+
+### COMPLETE SESSION JOURNEY
+| Run | Score | Key Change |
+|-----|-------|-----------|
+| Baseline | 3.1 | Starting point |
+| Budget fix | 4.6 | Model could finally SEE instructions |
+| Production wiring | 4.8-4.9 | Templates + skills connected |
+| Character depth | **4.5-5.0** | Moods, vulnerability, world events, arcs |
+
+### Léa (Paris) is a STAR
+"Sérieusement ? Vous voulez le steak-frites ? *Mon Dieu*."
+"C'est pour les débutants, franchement."
+"Si vous insistez pour cette... *erreur* ?"
+This is genuine character voice. She has OPINIONS about your order.
