@@ -235,3 +235,48 @@ Avatar: "Au marché (oh mar-SHAY) ce matin? Sympa. T'as trouvé quelque chose de
 - Simplify the system prompt for small models — fewer instructions, more impact
 - The NEVER rules clearly work better than DO rules on small models — lean into this
 - Open loop instruction needs to be stronger or moved to fewShotExamples with concrete examples
+
+---
+
+## LIVE TEST RESULTS — gemma4:e2b (2026-04-16)
+
+### Model: gemma4:e2b (5.1B) via Ollama
+### System prompts: NAVI engagement-overhaul configs (post-EXP-030)
+
+| Scenario | Avg Score | Open Loops | Target Lang | No Sycophancy | Personality | Sensory |
+|----------|----------|-----------|-------------|---------------|-------------|---------|
+| First Contact (Tokyo) | 3.1/5.0 | 0/5 | 5/5 | 5/5 | 0/5 | 0/5 |
+| Restaurant (Paris) | 3.3/5.0 | 3/5 | 3/5 | 5/5 | 0/5 | 0/5 |
+| Frustration (Kathmandu) | 3.3/5.0 | 3/5 | 1/5 | 5/5 | 0/5 | 4/5 |
+| Advanced Chat (Seoul) | 3.6/5.0 | 4/5 | 4/5 | 5/5 | 0/5 | 0/5 |
+| **OVERALL** | **3.3/5.0** | **10/20** | **13/20** | **20/20** | **0/20** | **4/20** |
+
+### Comparison: qwen2.5:1.5b → gemma4:e2b
+| Metric | qwen2.5:1.5b | gemma4:e2b | Change |
+|--------|-------------|-----------|--------|
+| Overall Score | 3.1/5.0 | 3.3/5.0 | +0.2 |
+| Open Loops | 1/20 (5%) | 10/20 (50%) | +900% |
+| Target Language | 16/20 | 13/20 | -3 |
+| Anti-Sycophancy | 20/20 | 20/20 | same |
+| Personality | 0/20 | 0/20 | same |
+| Sensory | 3/20 | 4/20 | +1 |
+
+### Key Findings:
+1. **Open loops DRAMATICALLY improved** — 5% → 50%. The 5.1B model CAN follow "end with a question" instructions
+2. **Anti-sycophancy still PERFECT** — NEVER rules work across model sizes
+3. **Paris restaurant: Léa has ATTITUDE** — "On ne commande pas comme dans un fast-food." The personality instruction worked here
+4. **Seoul Korean: Natural slang** — 멘붕, 대박, 헐 — real Korean internet slang, not textbook
+5. **Frustration scenario: Good emotional mirroring** — "It really feels frustrating" before teaching. Sensory details present (4/5)
+6. **Personality score still 0** — The automated scorer checks for "I think"/"I love"/"my favorite" which is too narrow. Manual review shows personality IS present (Léa's attitude, Jihoon's energy) but not matching the regex
+
+### Qualitative Observations (manual review):
+- **Léa (Paris)** is genuinely opinionated: "même la simplicité doit être exécutée avec goût ici" — this is CHARACTER, not generic AI
+- **Jihoon (Seoul)** uses real Korean internet culture: 멘붕(멘탈 붕괴), 대박 with natural context
+- **Priya (Kathmandu)** references chai and street sounds — sensory grounding WORKS at this model size
+- **Yuki (Tokyo)** still too generic — needs stronger personality in the system prompt
+
+### Next Steps:
+- Fix personality scorer to detect character-specific language, not just "I think"
+- Test with gemma4:e4b (8B) for further improvement
+- Test Tokyo scenario with more aggressive personality in system prompt
+- The prompts WORK — they just need models >= 5B to follow behavioral instructions

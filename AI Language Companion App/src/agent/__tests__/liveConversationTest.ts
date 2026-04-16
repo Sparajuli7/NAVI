@@ -7,7 +7,7 @@
  */
 
 const OLLAMA_BASE = 'http://localhost:11434';
-const MODEL = 'qwen2.5:1.5b';
+const MODEL = 'gemma4:e2b';
 
 // Minimal Ollama chat interface
 async function ollamaChat(
