@@ -67,6 +67,7 @@ export function AvatarSelectScreen({ onSelect }: AvatarSelectScreenProps) {
   const [citySearch, setCitySearch] = useState('');
   const [detectingGPS, setDetectingGPS] = useState(false);
   const [gpsLocation, setGpsLocation] = useState<LocationContext | null>(null);
+  const [customCityName, setCustomCityName] = useState('');
 
   const templates = avatarTemplates as AvatarTemplate[];
   const cityGroups = useCityGroups();
@@ -74,7 +75,7 @@ export function AvatarSelectScreen({ onSelect }: AvatarSelectScreenProps) {
   const isCustom = selected === 'custom';
   const hasSelection = selected !== null;
   const hasDescription = !isCustom || customDesc.trim().length > 0;
-  const hasLocation = selectedCityKey !== null || gpsLocation !== null;
+  const hasLocation = selectedCityKey !== null || gpsLocation !== null || customCityName.trim().length > 0;
   const canStart = hasSelection && hasDescription && hasLocation;
 
   // Selected city display info
@@ -120,6 +121,14 @@ export function AvatarSelectScreen({ onSelect }: AvatarSelectScreenProps) {
   const handleSelectCity = (key: string) => {
     setSelectedCityKey(key);
     setGpsLocation(null); // Manual pick overrides GPS
+    setCustomCityName(''); // Manual pick overrides custom city
+    setLocationPickerOpen(false);
+  };
+
+  const handleCustomCitySubmit = () => {
+    if (!customCityName.trim()) return;
+    setSelectedCityKey(null); // Custom city overrides preset pick
+    setGpsLocation(null); // Custom city overrides GPS
     setLocationPickerOpen(false);
   };
 
@@ -132,6 +141,22 @@ export function AvatarSelectScreen({ onSelect }: AvatarSelectScreenProps) {
       locationCtx = buildLocationFromPreset(selectedCityKey);
     } else if (gpsLocation) {
       locationCtx = gpsLocation;
+    } else if (customCityName.trim()) {
+      // Freeform city — no dialect data, but universal location personality layers still apply
+      const trimmedCity = customCityName.trim();
+      // Try to parse "City, Country" format
+      const parts = trimmedCity.split(',').map(s => s.trim());
+      const cityName = parts[0];
+      const countryName = parts[1] || '';
+      locationCtx = {
+        city: cityName,
+        country: countryName,
+        countryCode: '',
+        lat: 0,
+        lng: 0,
+        dialectKey: '',
+        dialectInfo: null,
+      };
     }
 
     let tmpl: AvatarTemplate;
@@ -272,6 +297,15 @@ export function AvatarSelectScreen({ onSelect }: AvatarSelectScreenProps) {
                               {selectedCityInfo.dialect} — {selectedCityInfo.language}
                             </span>
                           </>
+                        ) : customCityName.trim() && !selectedCityKey && !gpsLocation ? (
+                          <>
+                            <span className="text-sm font-medium text-foreground">
+                              {customCityName.trim()}
+                            </span>
+                            <span className="text-xs text-muted-foreground block">
+                              Custom city — local language
+                            </span>
+                          </>
                         ) : gpsLocation ? (
                           <>
                             <span className="text-sm font-medium text-foreground">
@@ -367,9 +401,48 @@ export function AvatarSelectScreen({ onSelect }: AvatarSelectScreenProps) {
                                   })}
                                 </div>
                               ))}
-                              {filteredGroups.length === 0 && (
+                              {filteredGroups.length === 0 && !customCityName.trim() && (
                                 <p className="text-xs text-muted-foreground text-center py-4">
                                   No cities match "{citySearch}"
+                                </p>
+                              )}
+                            </div>
+
+                            {/* Freeform city entry */}
+                            <div className="border-t border-border pt-2 mt-1">
+                              <p className="text-xs text-muted-foreground px-1 mb-1.5">
+                                Don't see your city? Type it:
+                              </p>
+                              <div className="flex gap-2">
+                                <input
+                                  type="text"
+                                  value={customCityName}
+                                  onChange={(e) => {
+                                    setCustomCityName(e.target.value);
+                                    if (e.target.value.trim()) {
+                                      setSelectedCityKey(null);
+                                      setGpsLocation(null);
+                                    }
+                                  }}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') handleCustomCitySubmit();
+                                  }}
+                                  placeholder="e.g. Lisbon, Portugal"
+                                  className="flex-1 px-3 py-2 bg-background border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/50"
+                                />
+                                {customCityName.trim() && (
+                                  <button
+                                    type="button"
+                                    onClick={handleCustomCitySubmit}
+                                    className="px-3 py-2 bg-primary/10 text-primary rounded-lg text-sm font-medium hover:bg-primary/20 transition-colors"
+                                  >
+                                    Use
+                                  </button>
+                                )}
+                              </div>
+                              {customCityName.trim() && !selectedCityKey && !gpsLocation && (
+                                <p className="text-xs text-primary mt-1 px-1">
+                                  ✓ Using "{customCityName.trim()}" — personality adapts to any city
                                 </p>
                               )}
                             </div>

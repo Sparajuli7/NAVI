@@ -2722,3 +2722,61 @@ Production vs hand-crafted gap: -0.2
 - Character gen (EXP-043 re-test): 5/5 personality_details fields, all specific, valid JSON
 
 All experiments validated. No regressions.
+
+---
+
+## EXP-081: Universal Location Personality System
+**Date:** 2026-04-16
+**Status:** IMPLEMENTED
+
+**Problem:** Avatar personality is rich only for the 8 hardcoded templates in `avatarTemplates.json` and the 15 cities in `dialectMap.json`. If a user picks Barcelona, Berlin, Lisbon, Accra, or ANY city NOT in the templates, the avatar gets generic personality. RESEARCH_ROUND7 diagnosed this as a "personality data gap" — Barcelona scored 5/6 dialect markers but only 2/5 personality. Every city needs a personality layer, not just dialect data.
+
+**Solution:** Instead of hardcoding personality per city, create universal instructions that tell the LLM to generate location-specific personality ON THE FLY.
+
+### Part 1: `locationPersonality` layer
+Added to `systemLayers.json`:
+```
+"locationPersonality": "YOU LIVE IN {{city}}, {{country}}. This is YOUR city — you have strong opinions about it. You know which streets to avoid, which food joints are overrated, which neighborhoods are changing. You have a favorite spot that most people don't know about..."
+```
+
+### Part 2: `culturalVoice` layer with language family mapping
+Added 8 cultural voice styles mapped to language families:
+- `romance` (French, Spanish, Italian, Portuguese, Catalan, Romanian) — warm, expressive, passionate
+- `germanic` (German, Dutch, Swedish, Norwegian, Danish) — direct, dry humor, efficient
+- `east_asian` (Japanese, Korean, Mandarin, Cantonese) — harmony, indirectness, wordplay
+- `south_asian` (Nepali, Hindi, Bengali, Tamil, Urdu) — hospitable, communal, gentle teasing
+- `slavic` (Russian, Polish, Czech, Ukrainian, Serbian) — blunt, philosophical, dark humor
+- `semitic` (Arabic, Hebrew, Amharic) — hospitable, elaborate greetings, storytelling
+- `southeast_asian` (Thai, Vietnamese, Indonesian, Tagalog, Khmer) — gentle, indirect, harmony
+- `default` — fallback for unmapped languages
+
+`LANGUAGE_FAMILY_MAP` in `contextController.ts` covers 50+ languages across 7 families.
+
+### Part 3: `locationSensory` layer
+Added to `systemLayers.json`:
+```
+"locationSensory": "SENSORY REALITY OF {{city}}: You experience this city through your senses every day..."
+```
+
+### Part 4: Unknown city handling
+All three layers are injected UNCONDITIONALLY in `buildLocationLayer()` — for both dialectMap cities and cities with no dialect data.
+
+### Part 5: Freeform city entry in UI
+`AvatarSelectScreen.tsx` now has a freeform text input below the preset city list with "Don't see your city? Type it:" label, "City, Country" parsing, and confirmation display.
+
+**Files changed:**
+- `src/config/prompts/systemLayers.json` — Added `locationPersonality`, `culturalVoice` (8 families), `locationSensory`
+- `src/agent/avatar/contextController.ts` — Added `LANGUAGE_FAMILY_MAP` (50+ languages to 7 families), `getLanguageFamily()`, city/country extraction in `buildLocationLayer()`, unconditional injection of 3 new layers
+- `src/app/components/AvatarSelectScreen.tsx` — Added `customCityName` state, freeform city input UI, `handleCustomCitySubmit()`, custom city LocationContext creation
+
+**Validation:**
+```
+$ npx vite build
+built in 5.06s
+
+$ npx vitest run
+Test Files  8 passed (8)
+     Tests  104 passed (104)
+
+Barcelona dialect test: 5/6 markers (EXCELLENT)
+```

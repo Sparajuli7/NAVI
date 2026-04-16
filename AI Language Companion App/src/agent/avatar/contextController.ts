@@ -41,6 +41,40 @@ interface DialectConfig extends DialectInfo {
   scripts?: string[];
 }
 
+// ─── Language Family Mapping ───────────────────────────────────
+// Maps language names (as stored in dialectMap) to cultural voice families.
+// Used by buildLocationLayer to inject culturalVoice for any resolved language.
+
+const LANGUAGE_FAMILY_MAP: Record<string, string> = {
+  // Romance
+  French: 'romance', Spanish: 'romance', Italian: 'romance', Portuguese: 'romance',
+  Catalan: 'romance', Romanian: 'romance',
+  // Germanic
+  German: 'germanic', Dutch: 'germanic', Swedish: 'germanic', Norwegian: 'germanic',
+  Danish: 'germanic', Icelandic: 'germanic',
+  // East Asian
+  Japanese: 'east_asian', Korean: 'east_asian', Mandarin: 'east_asian',
+  Cantonese: 'east_asian', Chinese: 'east_asian',
+  // South Asian
+  Nepali: 'south_asian', Hindi: 'south_asian', Bengali: 'south_asian',
+  Tamil: 'south_asian', Urdu: 'south_asian', Sinhala: 'south_asian',
+  Punjabi: 'south_asian', Marathi: 'south_asian', Gujarati: 'south_asian',
+  // Slavic
+  Russian: 'slavic', Polish: 'slavic', Czech: 'slavic', Ukrainian: 'slavic',
+  Serbian: 'slavic', Croatian: 'slavic', Bulgarian: 'slavic', Slovak: 'slavic',
+  // Semitic
+  Arabic: 'semitic', Hebrew: 'semitic', Amharic: 'semitic',
+  // Southeast Asian
+  Thai: 'southeast_asian', Vietnamese: 'southeast_asian', Indonesian: 'southeast_asian',
+  Malay: 'southeast_asian', Tagalog: 'southeast_asian', Khmer: 'southeast_asian',
+  Burmese: 'southeast_asian', Lao: 'southeast_asian',
+  // English defaults to 'default' (not listed)
+};
+
+function getLanguageFamily(language: string): string {
+  return LANGUAGE_FAMILY_MAP[language] ?? 'default';
+}
+
 // ─── Controller ────────────────────────────────────────────────
 
 export class AvatarContextController {
@@ -405,6 +439,41 @@ export class AvatarContextController {
   private buildLocationLayer(location: string, ageGroup: string, userNativeLanguage: string, dialectKey?: string): string {
     const dialectConfig = this.resolveDialect(location, dialectKey);
 
+    // Extract city and country for universal layers
+    let city = location;
+    let country = '';
+    let language = '';
+    if (dialectKey) {
+      const parts = dialectKey.split('/');
+      if (parts.length === 2) {
+        const countryCode = parts[0];
+        city = parts[1] || location;
+        // Resolve country name from COUNTRY_NAMES-style map
+        const countryNames: Record<string, string> = {
+          JP: 'Japan', VN: 'Vietnam', FR: 'France', MX: 'Mexico', KR: 'South Korea',
+          NP: 'Nepal', ES: 'Spain', IT: 'Italy', TH: 'Thailand', DE: 'Germany',
+          BR: 'Brazil', CN: 'China', AR: 'Argentina', US: 'United States', GB: 'United Kingdom',
+          AU: 'Australia', CA: 'Canada', IN: 'India', RU: 'Russia', PL: 'Poland',
+          CZ: 'Czech Republic', UA: 'Ukraine', GR: 'Greece', TR: 'Turkey', EG: 'Egypt',
+          SA: 'Saudi Arabia', AE: 'UAE', IL: 'Israel', PH: 'Philippines', ID: 'Indonesia',
+          MY: 'Malaysia', SG: 'Singapore', KH: 'Cambodia', MM: 'Myanmar', LA: 'Laos',
+          SE: 'Sweden', NO: 'Norway', DK: 'Denmark', FI: 'Finland', NL: 'Netherlands',
+          BE: 'Belgium', PT: 'Portugal', CH: 'Switzerland', AT: 'Austria', IE: 'Ireland',
+          CO: 'Colombia', PE: 'Peru', CL: 'Chile', EC: 'Ecuador', VE: 'Venezuela',
+        };
+        country = countryNames[countryCode] ?? countryCode;
+      }
+    }
+    // If location contains a comma, try to parse "City, Country"
+    if (!country && location.includes(',')) {
+      const parts = location.split(',').map(s => s.trim());
+      city = parts[0];
+      country = parts[1] || '';
+    }
+    if (dialectConfig) {
+      language = dialectConfig.language;
+    }
+
     let layer = `Location: ${location}.`;
     if (dialectConfig) {
       layer += ` You are a native ${dialectConfig.language} speaker. Your language is ${dialectConfig.language} (${dialectConfig.dialect}).`;
@@ -458,9 +527,45 @@ export class AvatarContextController {
       // No dialect config — infer language from location name
       console.warn(
         `[NAVI:avatar] No dialect config found for location="${location}" dialectKey="${dialectKey ?? ''}". ` +
-        'Avatar may open in wrong language. Check dialectMap.json or pass dialectKey explicitly.',
+        'Using universal location personality layers. Avatar will use LLM knowledge of the city.',
       );
       layer += ` Speak in the local language of ${location}. Your default is the local language from the first message. Use ${userNativeLanguage} only when the user clearly needs support or asks for help — not as a default.`;
+    }
+
+    // ── EXP-081: Universal location personality layers ──────────────
+    // Injected for ALL cities (dialectMap or not) to ensure rich personality everywhere.
+
+    // Location personality — makes the avatar a true local
+    try {
+      const locPersonality = promptLoader.get('systemLayers.locationPersonality', {
+        city: city || location,
+        country: country || 'your country',
+      });
+      layer += `\n${locPersonality}`;
+    } catch {
+      // locationPersonality template not available — skip silently
+    }
+
+    // Cultural voice — language-family conversational style
+    try {
+      const family = language ? getLanguageFamily(language) : 'default';
+      const culturalVoiceKey = `systemLayers.culturalVoice.${family}`;
+      const culturalVoice = promptLoader.get(culturalVoiceKey, {
+        city: city || location,
+      });
+      layer += `\n${culturalVoice}`;
+    } catch {
+      // culturalVoice template not available — skip silently
+    }
+
+    // Location sensory — grounds the avatar in the physical city
+    try {
+      const locSensory = promptLoader.get('systemLayers.locationSensory', {
+        city: city || location,
+      });
+      layer += `\n${locSensory}`;
+    } catch {
+      // locationSensory template not available — skip silently
     }
 
     return layer;
