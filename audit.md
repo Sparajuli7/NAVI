@@ -1,6 +1,8 @@
 # NAVI Codebase Audit
 
-**Last updated: 2026-04-14** (pronunciation grounding: `pronunciationLookup.ts` — Free Dictionary API + IndexedDB cache for real IPA data; `pronounceTool` pre-injects IPA reference; both pronounce/phrase tools post-process via `enrichPronunciations()` to replace hallucinated pronunciations; prompt templates hardened with syllable-mapping rules + skip-native-language guard)
+**Last updated: 2026-04-16** (code quality cleanup: removed 13 dead files -1977 LOC; extracted 3 shared utilities (locationHelpers, avatarProfileHelpers, GeneratedCharacter/mapCharacterToUI); consolidated duplicate types across 6 files; removed 5 error-hiding try-catches; fixed last `any` type; build passes, 104/104 tests pass)
+
+**Previously: 2026-04-14** (pronunciation grounding: `pronunciationLookup.ts` — Free Dictionary API + IndexedDB cache for real IPA data; `pronounceTool` pre-injects IPA reference; both pronounce/phrase tools post-process via `enrichPronunciations()` to replace hallucinated pronunciations; prompt templates hardened with syllable-mapping rules + skip-native-language guard)
 
 **Previously: 2026-04-13** (simplified onboarding: replaced 4-step `NewOnboardingScreen` with single-step `AvatarSelectScreen.tsx` — 8 avatar template grid, no LLM needed for character creation; auto-default WebGPU Qwen3 1.7B on first launch, `backend_select` skipped unless no WebGPU; model changes only in Settings; GPS location detected in background during avatar selection)
 

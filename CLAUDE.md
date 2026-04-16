@@ -44,7 +44,6 @@ NAVI is an **AI language companion app** — a local friend in your pocket who s
 │   │   │       ├── ui/               # 50+ shadcn/ui primitives
 │   │   │       ├── ConversationScreen.tsx   # Main chat interface
 │   │   │       ├── AvatarSelectScreen.tsx    # Onboarding — pick avatar template
-│   │   │       ├── NewOnboardingScreen.tsx  # (Legacy) Character creation flow
 │   │   │       ├── CameraOverlay.tsx        # Camera + OCR UI
 │   │   │       ├── ExpandedPhraseCard.tsx   # Phrase detail bottom sheet
 │   │   │       ├── NewChatBubble.tsx        # Chat message bubbles
@@ -53,8 +52,7 @@ NAVI is an **AI language companion app** — a local friend in your pocket who s
 │   │   │       ├── ModelDownloadScreen.tsx  # Model download progress
 │   │   │       └── QuickActionPill.tsx      # Contextual action buttons
 │   │   ├── services/                 # Legacy service layer (wrapped by agent)
-│   │   │   ├── llm.ts               # On-device LLM wrapper (WebLLM)
-│   │   │   ├── modelManager.ts      # Model download/load/status
+│   │   │   ├── modelManager.ts      # Model download/load/status + WebGPU check
 │   │   │   ├── ocr.ts               # Tesseract.js OCR
 │   │   │   ├── tts.ts               # Text-to-speech (Web Speech API)
 │   │   │   ├── stt.ts               # Speech-to-text (Web Speech API)
@@ -63,14 +61,9 @@ NAVI is an **AI language companion app** — a local friend in your pocket who s
 │   │   │   ├── appStore.ts          # Global app config + model status
 │   │   │   ├── characterStore.ts    # Active AI character + memories
 │   │   │   └── chatStore.ts         # Messages + scenario state
-│   │   ├── prompts/                  # LLM prompt templates (legacy, uses PromptLoader)
-│   │   │   ├── systemBuilder.ts     # 6-layer system prompt engine
-│   │   │   ├── characterGen.ts      # Character generation prompts
-│   │   │   ├── camera.ts            # Camera/OCR prompt builder
-│   │   │   ├── phrase.ts            # Phrase card prompt builder
-│   │   │   ├── slang.ts             # Slang prompt builder
-│   │   │   ├── scenario.ts          # Scenario/location change prompts
-│   │   │   └── memory.ts            # Memory extraction prompt
+│   │   ├── utils/                    # Helpers (storage, parsing, tokens, etc.)
+│   │   │   ├── locationHelpers.ts   # Shared dialect/location resolution
+│   │   │   ├── avatarProfileHelpers.ts # Character → AvatarProfile mapping
 │   │   ├── config/                   # Data files (editable without code)
 │   │   │   ├── avatarTemplates.json # 8 character templates by vocation
 │   │   │   ├── dialectMap.json      # Language/dialect/slang mappings
@@ -304,17 +297,20 @@ The agent framework is fully built. All UI screens still call legacy services di
 ### Resolved Feature Gaps (2026-04-13)
 - ~~**Multi-step onboarding too complex for first launch**~~ — Replaced 4-step onboarding (target language → native language → describe companion → appearance) with a single `AvatarSelectScreen.tsx` showing 8 avatar template cards (Street Food Guide, Form Helper, etc.). User picks a template and hits Start. Character is created from template defaults (no LLM generation needed). Model auto-defaults to WebGPU Qwen3 1.7B — `backend_select` screen is skipped on first launch (kept accessible via Settings for model changes). GPS location detected in background. `NewOnboardingScreen.tsx` retained but no longer rendered.
 
+### Resolved Feature Gaps (2026-04-16)
+- ~~**Dead code bloat**~~ — Removed 13 dead files (-1,977 lines): 4 unused avatar components (AnimatedCharacter, AvatarDisplay, AvatarRenderer, BlockyAvatar), NewOnboardingScreen (replaced by AvatarSelectScreen), services/llm.ts (superseded by agent framework), entire src/prompts/ directory (7 legacy prompt builders superseded by config/prompts/*.json + promptLoader).
+- ~~**DRY violations**~~ — Extracted 3 shared utilities: `locationHelpers.ts` (dialect key resolution, location context building — was duplicated 3x), `avatarProfileHelpers.ts` (style-to-energy/humor/slang mapping — was copy-pasted 3x), `GeneratedCharacter` + `mapCharacterToUI` moved to types/character.ts (was defined inline in 3 files).
+- ~~**Duplicate types**~~ — Consolidated: `GeneratedCharacter`, `AvatarState` → types/character.ts; `PhraseHighlight` → types/chat.ts; `OCRResult` → types/inference.ts; `ScenarioConfig` → reuses ScenarioContext from types/config.ts; `ConversationGoal` + `DirectorContext` → agent/director/types.ts (breaks circular dep).
+- ~~**Error-hiding try-catches**~~ — Removed 5 catches that swallowed errors with console.error + fallback to empty objects (director, memory retrieval, research agent, pronunciation bank, conversationDirector calibration).
+- ~~**Last `any` type**~~ — `expandedPhrase: any` in ConversationScreen replaced with proper typed interface.
+
 ### Known Feature Gaps
 - **CameraOverlay OCR/LLM pipeline not wired** — Prompt 7 incomplete. `CameraOverlay.tsx` still uses a mocked scan flow; `agent.handleImage()` pipeline exists but is not connected.
-- **`generateCharacter()` in `llm.ts` is dead code** — onboarding uses `agent.getLLM().chat()` directly; `generateCharacter()` updated to return `{ character, avatarPrefs }` for consistency but has no active callers.
-- **`NewOnboardingScreen.tsx` is dead code** — Replaced by `AvatarSelectScreen.tsx` but file retained. Can be deleted when confirmed no longer needed.
-- **Cloudflare Worker D1 database ID not set** — `web/wrangler.toml` contains `database_id = "YOUR_D1_DATABASE_ID"` placeholder. Run `wrangler d1 create navi-feedback`, copy the returned ID, and update `wrangler.toml`. Then run the CREATE TABLE command from `web/worker.js` header comments before deploying.
-- **Feedback worker URL** — `web/feedback.html` references `https://navi-feedback.shreyashparajuli.workers.dev`. Update this constant if the worker is deployed under a different subdomain.
-- **Pending feedback sync** — `feedback.html` stores offline submissions in `localStorage` as `navi_pending_feedback`, but there is no retry mechanism to flush them when the user comes back online.
-- **AnimatedCharacter Lottie files missing** — `AnimatedCharacter.tsx` is built and falls back gracefully to emoji avatar. To activate: (1) `pnpm add lottie-react`, (2) place 4 Lottie JSON files in `public/lottie/`: `char_idle.json`, `char_speaking.json`, `char_thinking.json`, `char_success.json` (free downloads from lottiefiles.com). Component auto-activates when files are present.
-- **Existing characters lack `portrait_prompt`** — Characters created before 2026-03-27 do not have `portrait_prompt` set, so "Regenerate Portrait" in Settings will show as disabled. Workaround: create a new character.
-- **Knowledge Graph migration from flat stores not yet triggered** — `KnowledgeGraphStore` is built and wired but existing `EpisodicMemory[]` and `TrackedPhrase[]` data is not automatically migrated to graph nodes. New conversations write to both flat stores and the graph. Migration can be added when graph-first queries replace flat store queries.
-- **ResearchAgent web lookup not implemented** — `fetchWebContext()` method is defined in the plan but not yet built. Protocols are config-driven and sufficient for now.
+- **Cloudflare Worker D1 database ID not set** — `web/wrangler.toml` contains `database_id = "YOUR_D1_DATABASE_ID"` placeholder.
+- **Feedback worker URL** — `web/feedback.html` references `https://navi-feedback.shreyashparajuli.workers.dev`. Update if deployed under a different subdomain.
+- **Pending feedback sync** — `feedback.html` stores offline submissions in `localStorage` but has no retry mechanism.
+- **Knowledge Graph migration from flat stores not yet triggered** — Existing data not auto-migrated to graph nodes.
+- **ResearchAgent web lookup not implemented** — Protocols are config-driven and sufficient for now.
 - **ExpandedPhraseCard TTS/STT still uses legacy services** — Not yet wired to agent TTS/STT tools.
 
 ### Resolved Feature Gaps (2026-03-30)
