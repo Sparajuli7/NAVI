@@ -654,3 +654,31 @@ personality and sensory weak. Needs richer system prompt like other scenarios.
 - Comfort anchor: FIRES — teaches comfort phrase during recovery
 - Laughter anchor: FIRES — teaches phrase at center of humor
 - OVERALL: ALL ANCHORS FIRE — phrases taught during emotional peaks
+
+---
+
+## FINAL COMPREHENSIVE TEST — 90-EXPERIMENT STACK (2026-04-16)
+
+| Scenario | Score | Notes |
+|----------|-------|-------|
+| Tokyo (Yuki) | **4.7** | 3x 5.0 messages, strong personality |
+| Paris (Léa) | **4.3** | Open loops weaker this run |
+| Kathmandu (Priya) | **5.0** | PERFECT — all 5 messages clean |
+| Seoul (Jihoon) | **4.9** | Near-perfect, one sensory miss |
+| Production: HCMC | **4.8** | Production template performing well |
+
+### KATHMANDU PERFECT 5.0/5.0 — SECOND PERFECT SCENARIO
+After Seoul, Kathmandu is the second scenario to hit perfect 5.0.
+Every message had: target language (Nepali with glosses), personality,
+sensory grounding, open loops, zero sycophancy.
+
+### COMPLETE SESSION JOURNEY (all runs, best scores)
+| Metric | Baseline | Final | Change |
+|--------|----------|-------|--------|
+| Best scenario | 3.1 | **5.0** | +61% |
+| Average | 3.1 | **4.7** | +52% |
+| Target language | 80% | **100%** | +25% |
+| Anti-sycophancy | 100% | **100%** | held |
+| Personality | 0% | **90%+** | from zero |
+| Open loops | 5% | **85%+** | +1600% |
+| Sensory | 15% | **70%+** | +367% |
