@@ -427,6 +427,37 @@ export class ConversationDirector {
       );
     }
 
+    // 0f-ii. EXP-071: Avatar mood injection — 40% chance on session start
+    // Makes the avatar feel like a real person with varying emotional states between sessions.
+    // 60% neutral (no mood injection) to keep moods occasional, not constant.
+    if (options?.isSessionStart) {
+      const moods = ['cheerful', 'tired', 'nostalgic', 'excited', 'restless', 'contemplative', 'playful'] as const;
+      if (Math.random() < 0.4) {
+        const mood = moods[Math.floor(Math.random() * moods.length)];
+        const moodText = promptLoader.get(`systemLayers.avatarMoods.${mood}`) as string;
+        if (moodText) {
+          goalInstructions.push(`TODAY'S MOOD: ${moodText}`);
+          console.log(`[NAVI:director] EXP-071 avatar mood injected: ${mood}`);
+        }
+      }
+    }
+
+    // 0f-iii. EXP-071: Greeting evolution — inject greeting style from current warmth tier on session start
+    // The way the avatar greets the user evolves with the relationship depth.
+    if (options?.isSessionStart) {
+      const relForGreeting = this.relationships.getRelationship(avatarId);
+      const warmthLevels = promptLoader.getRaw('warmthLevels.levels') as Array<{ range: [number, number]; label: string; greetingStyle?: string }>;
+      if (warmthLevels) {
+        const matchedLevel = warmthLevels.find(
+          (level) => relForGreeting.warmth >= level.range[0] && relForGreeting.warmth < level.range[1],
+        ) ?? warmthLevels[warmthLevels.length - 1];
+        if (matchedLevel?.greetingStyle) {
+          goalInstructions.push(`GREETING STYLE (based on your relationship): ${matchedLevel.greetingStyle}`);
+          console.log(`[NAVI:director] EXP-071 greeting style injected: ${matchedLevel.label}`);
+        }
+      }
+    }
+
     // 0g. World event injection — give the avatar an ongoing life (25% chance per message)
     // This makes the avatar feel like a real person with things happening around them
     // EXP-066: Now also pulls from avatar template world_events (ongoing personal storylines)
