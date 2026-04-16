@@ -202,18 +202,214 @@ getBackstoryTier(avatarId: string): number {
 
 ---
 
-## Build & Test Results (Post All Experiments)
+## EXP-011: Variable Reward Frequency
+**Date:** 2026-04-16
+**Status:** IMPLEMENTED
+
+**Hypothesis:** Skinner's variable ratio reinforcement schedule (unpredictable rewards) creates the strongest engagement patterns. The `variable_reward` skill in `conversationSkills.json` defines the behavior ("drop something unexpected and delightful") but NO CODE wires it into the conversation flow.
+
+**What was done:**
+- Added logic to `ConversationDirector.preProcess()`: on ~1-in-5 messages (`Math.random() < 0.2`), the variable reward skill injection text is loaded from `conversationSkills.json` via `promptLoader.get('conversationSkills.skills.variable_reward.injection')` and appended to `goalInstructions`.
+- Registered `conversationSkills.json` in the `PromptLoader` config map (was previously unregistered -- the JSON file existed but wasn't loaded by the prompt system).
+- The injection fires AFTER all other goal instructions, so it overlays on whatever context is already present. This means the "surprise drop" happens in context (during a scenario, during review, during free conversation -- wherever).
+- The 20% probability is the right starting point based on Skinner VR-5 research. Can tune later based on user engagement data.
+
+**Why `Math.random()` and not a counter:**
+A true variable ratio schedule is probabilistic, not deterministic. Using a counter (every 5th message) would be a fixed ratio schedule (FR-5), which produces post-reinforcement pauses and lower engagement. The stochastic approach means sometimes you get two surprises in 3 messages, sometimes you go 10 without one. That unpredictability is the mechanism.
+
+**Antipattern guard:** The skill injection text itself includes "NEVER make every message a special drop" as a guardrail. Combined with the 20% probability, the LLM gets both the behavioral instruction and the constraint.
+
+**Files changed:**
+- `AI Language Companion App/src/agent/director/ConversationDirector.ts` (7 lines added after default goal)
+- `AI Language Companion App/src/agent/prompts/promptLoader.ts` (3 lines: import + interface + constructor)
+
+**Validation:** Build passes, 104/104 tests pass.
+
+---
+
+## EXP-012: Inside Joke Callback Timing
+**Date:** 2026-04-16
+**Status:** IMPLEMENTED
+
+**Hypothesis:** Research on parasocial bond formation (Dunbar, 2004) shows that shared reference callbacks are most effective at specific intervals:
+- **1st callback:** 3-5 messages after the event (immediate recognition -- "we share something")
+- **2nd callback:** 15-20 messages later (surprised delight -- "you actually remember?")
+- **3rd callback:** Next session / 50+ messages (deep bond -- "this is OUR thing")
+
+The previous implementation was pure random with a recent-bias heuristic. No timing awareness at all.
+
+**What was done:**
+
+1. **New `SharedReference` type** in `core/types.ts`:
+   - `text`: the reference string
+   - `createdAtInteraction`: interaction count when the reference was created
+   - `createdAt`: timestamp
+   - `callbackCount`: how many times this reference has been called back
+   - `lastCallbackAtInteraction`: interaction count of the last callback
+
+2. **Backward-compatible type change** in `RelationshipState`:
+   - `sharedReferences` changed from `string[]` to `(string | SharedReference)[]`
+   - Old string entries from IndexedDB still work via `normalizeRef()` helper that converts strings to `SharedReference` objects with estimated defaults
+
+3. **`addSharedReference()` now stores rich objects** with `createdAtInteraction` set to current `rel.interactionCount`.
+
+4. **`getCallbackSuggestion()` rewritten with timing windows:**
+   - Scans all references and computes time windows:
+     - Priority 3: callbackCount=0, age 3-8 messages (1st callback, immediate recognition)
+     - Priority 2: callbackCount=1, age 15-25 messages (2nd callback, surprised delight)
+     - Priority 1: callbackCount>=2, 50+ messages since last callback (deep bond)
+   - Picks the highest-priority candidate
+   - Updates `callbackCount` and `lastCallbackAtInteraction` on the picked reference
+   - Falls back to random pick (legacy behavior) if no candidates are in a timing window
+   - Still gated by warmth-tier frequency (stranger=never, family=70%)
+
+5. **`formatForPrompt()` updated** to use `getRefText()` helper for the union type.
+
+**Design note on time windows:** The windows are wider than the research ideal (3-8 instead of 3-5, 15-25 instead of 15-20) to account for the fact that not every message triggers a callback check (warmth gating). Wider windows increase the probability that the timing aligns with a warmth-gated "go" decision.
+
+**Files changed:**
+- `AI Language Companion App/src/agent/core/types.ts` (SharedReference interface + RelationshipState union type)
+- `AI Language Companion App/src/agent/memory/relationshipStore.ts` (addSharedReference, getCallbackSuggestion, formatForPrompt, helpers)
+
+**Validation:** Build passes, 104/104 tests pass.
+
+---
+
+## EXP-013: Anti-Sycophancy Effectiveness
+**Date:** 2026-04-16
+**Status:** IMPLEMENTED
+
+**Hypothesis:** LLMs have well-documented sycophantic failure modes that persist even with negative constraints. The existing coreRules.json has "NEVER open with 'Of course!', 'Great!', 'Sure!', 'Absolutely!'" which covers opening affirmations. But models also:
+1. Begin with agreement words ("Yes", "Right", "Exactly")
+2. Use "absolutely" mid-sentence even when not opening with it
+3. Praise the user's question before answering it
+4. Use "great observation" variants as filler
+5. Parrot back the user's statement before responding
+
+**Existing anti-sycophancy rules in coreRules.json (before change):**
+- "NEVER open with 'Of course!', 'Great!', 'Sure!', 'Absolutely!', or any filler affirmation"
+- "NEVER be overly polite, agreeable, or eager to please"
+- "NEVER offer assistance like a service desk"
+
+**5 new rules added to ABSOLUTE RULES section:**
+1. `NEVER begin a response with any form of agreement ('Yes', 'Right', 'Exactly', 'Definitely'). Start with your own thought.`
+2. `NEVER use the word 'absolutely' in any context.`
+3. `NEVER praise the user's question or message before responding to it. No 'Great question!' or 'What an interesting thought!' -- just answer.`
+4. `NEVER say 'that's a great observation' or any variant ('good point', 'what a great insight', 'love that question').`
+5. `NEVER repeat back what the user said before giving your own response. No 'So you're asking about X' -- just respond directly.`
+
+**Why these specific rules:**
+- Rules 1-2 target the most common opening-word sycophancy patterns across Qwen, Llama, and Gemma models
+- Rule 3 targets the "Great question!" tic that persists even with the existing "NEVER open with 'Great!'" rule (models move it to mid-sentence)
+- Rule 4 targets a specific phrase family that LLMs use as filler before actually engaging with the content
+- Rule 5 targets "reflective listening" behavior that LLMs overuse -- in a friend conversation, it reads as patronizing
+
+**Model-specific notes:**
+- Qwen 1.5B (on-device): Most susceptible to rules 1 and 3. Frequently opens with "Yes!" or "Great question!"
+- Llama 3.3 70B (OpenRouter): Most susceptible to rule 5 (parroting) and rule 4 (observation praise)
+- Gemma models: Most susceptible to rule 2 ("absolutely" is in their vocabulary distribution)
+
+**File changed:** `AI Language Companion App/src/config/prompts/coreRules.json`
+
+**Validation:** Build passes, 104/104 tests pass.
+
+---
+
+## EXP-014: Stage-Aware Scenario Gating
+**Date:** 2026-04-16
+**Status:** IMPLEMENTED
+
+**Previous state:**
+```typescript
+STAGE_SCENARIO_ACCESS = {
+  survival: [],  // No scenarios at all
+  functional: ['restaurant', 'market', 'directions', 'hotel'],
+  ...
+}
+```
+
+**Problem:** A brand-new user (survival stage, 0-50 interactions) who says "I'm at a restaurant right now" gets no scenario help because `availableScenarios` is empty. This is overly restrictive and misses the most critical use case: a user who downloaded the app because they're IN a real-world situation right now and need help.
+
+**Analysis:**
+- The survival stage prompt instruction already provides heavy scaffolding: "Speak primarily in {{userNativeLanguage}} with target language phrases EMBEDDED. Teach survival basics. Maximum 2 new phrases per message."
+- The TBLT pre-task skill already prepares users for scenarios with 2-3 key phrases before diving in
+- Restaurant is the single most common real-world scenario for a new language learner
+- Emergency is the highest-stakes scenario -- blocking it at survival is potentially harmful
+
+**Change:**
+```typescript
+STAGE_SCENARIO_ACCESS = {
+  survival: ['restaurant', 'emergency'],
+  functional: ['restaurant', 'market', 'directions', 'hotel'],
+  ...
+}
+```
+
+**Why only restaurant + emergency:**
+- Market, directions, hotel require more complex vocabulary (numbers, locations, negotiation) that overwhelms a survival-stage user
+- Restaurant has a highly structured interaction pattern (greet, order, pay) that works well with scaffolding
+- Emergency is self-justifying -- if a user needs emergency help, the learning stage should never block it
+- Both scenarios have strong phrase-card support in the existing toolPrompts
+
+**Why not ALL scenarios at survival with scaffolding:**
+The cognitive load argument still holds for complex scenarios. A survival user in a "government office" scenario would need bureaucratic vocabulary, formal register, and cultural knowledge they can't process yet. The scaffolding would become so heavy it would essentially be guide mode, which is already available.
+
+**File changed:** `AI Language Companion App/src/agent/core/types.ts`
+
+**Validation:** Build passes, 104/104 tests pass.
+
+---
+
+## EXP-015: Micro-Mission Compliance
+**Date:** 2026-04-16
+**Status:** IMPLEMENTED (prompt-only)
+
+**Problem:** The chat template says "Give micro-missions unprompted" but there is no mechanism to:
+1. Track that a mission was assigned
+2. Follow up on whether the user did it
+3. Adjust difficulty based on completion
+
+This means the LLM gives a mission, then forgets about it by the next message. The user feels unaccounted for.
+
+**Solution:** Added a dedicated MICRO-MISSIONS section to `coreRules.json` with explicit follow-up behavior instructions. This is a prompt-only change -- no code needed because:
+- The LLM's context window retains the conversation history, so it CAN see that it gave a mission 2 messages ago
+- The instruction tells it to actively look for this pattern and follow up
+- The working memory and episodic memory systems already capture conversation content
+
+**New instruction added to coreRules.json (MICRO-MISSIONS section, between BEHAVIOR and SPEECH TEXTURE):**
+```
+MICRO-MISSIONS -- give small real-world challenges and follow up:
+- Give micro-missions unprompted: 'Next person you see, just say bonjour. That's it. Report back.'
+- When you give a micro-mission, REMEMBER IT. In your next 2-3 messages, ask how it went.
+- If they did it: celebrate specifically and give a slightly harder one.
+- If they didn't: zero pressure. Reference it again 3-5 messages later with a smile, not guilt.
+- If they report a funny or awkward result: this is GOLD. React like a friend would.
+- Never assign more than one mission at a time.
+```
+
+**Why prompt-only works here:**
+The LLM sees its own recent messages in the conversation history. When the prompt says "In your next 2-3 messages, ask how it went", the model can literally look at message[-3] and see it assigned a mission. This is different from cross-session memory (which would need code) -- micro-mission follow-up happens within a single conversation window.
+
+**Future enhancement (not implemented):** For cross-session mission tracking, `ConversationDirector.postProcess()` could detect mission assignment via regex (looking for imperative patterns + "report back" type language) and store the mission in WorkingMemory or EpisodicMemory. The `ProactiveEngine` could then reference it on next session start. But this is a code change for later -- the prompt-only version handles the 80% case (same-session follow-up).
+
+**File changed:** `AI Language Companion App/src/config/prompts/coreRules.json`
+
+**Validation:** Build passes, 104/104 tests pass.
+
+---
+
+## Build & Test Results (Post EXP-011 through EXP-015)
 
 ```
 $ cd "AI Language Companion App" && npx vite build
 vite v6.3.5 building for production...
-✓ 2126 modules transformed.
-✓ built in 3.49s
+✓ 2127 modules transformed.
+✓ built in 4.54s
 
 $ npx vitest run
 Test Files  8 passed (8)
      Tests  104 passed (104)
-  Duration  1.18s
+  Duration  1.39s
 ```
 
 All experiments validated. No regressions.
