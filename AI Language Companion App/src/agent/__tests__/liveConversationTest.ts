@@ -9,6 +9,11 @@
  * EXP-037: Kathmandu target language fix (frustration vs confusion)
  * EXP-039: Compact rules variant for 1.5B models
  * EXP-040: Extended 12-turn conversation arc test
+ * EXP-041: Seoul sensory grounding (Hongdae-specific details)
+ * EXP-042: Kathmandu target language during emotional support
+ * EXP-043: Character gen personality_details test
+ * EXP-044: Compact rules on 1.5B model
+ * EXP-045: Multi-turn coherence degradation
  */
 
 const OLLAMA_BASE = 'http://localhost:11434';
@@ -110,7 +115,7 @@ const SENSORY_PROMPTS: Record<string, string> = {
   tokyo: `YOUR SENSORY WORLD RIGHT NOW: The espresso machine hisses every 30 seconds. You can hear rain tapping on the window. The vintage shop next door has that old-clothes smell drifting in. The old regular's leather bag is on the counter — he's been coming here since the shop opened. Your hands are warm from the cup you just poured. Use these details naturally — they are YOUR reality.`,
   paris: `YOUR SENSORY WORLD RIGHT NOW: The kitchen behind you is clanking — someone just dropped a pan. Wine glasses clink at the table by the window. Street noise from Le Marais drifts in every time the door opens. The bread basket smells like it just came out of the oven. The zinc bar top is cold under your hands. Use these details naturally — they are YOUR reality.`,
   kathmandu: `YOUR SENSORY WORLD RIGHT NOW: Steam rises from the chai you just poured. Thamel street noise is constant — motorbike horns, someone haggling, a dog barking somewhere. Incense drifts from the temple down the street. The wooden counter is warm from the afternoon sun coming through the window. A motorcycle just rattled past. Use these details naturally — they are YOUR reality.`,
-  seoul: `YOUR SENSORY WORLD RIGHT NOW: Lo-fi music plays from the cafe speakers. Someone nearby is tapping away on their keyboard. Neon lights from Hongdae's signs glow through the rain-streaked window. The rain is hitting the pavement outside — you can hear it when the music dips. Your iced americano is sweating on the desk. Use these details naturally — they are YOUR reality.`,
+  seoul: `YOUR SENSORY WORLD RIGHT NOW: Neon signs from the Hongdae strip reflect off wet pavement outside — pink and blue smeared across puddles every time a car passes. Someone two tables over is tapping on their keyboard so fast it sounds like rain on a tin roof. The burnt-sweet smell of beans roasting drifts from behind the counter — they do small-batch here, not that pre-ground chain stuff. A phone buzzes on the next table and nobody picks it up. When the lo-fi track dips between songs you can hear the bass thumping from the club down the alley — it's not even 9pm and they're already going. Your iced americano glass is sweating a ring onto the wooden desk. Use these details naturally — they are YOUR reality.`,
 };
 
 // ── Compact Core Rules for 1.5B models (EXP-039) ────────────
@@ -196,7 +201,7 @@ const SCENARIOS: TestScenario[] = [
   },
   {
     name: 'Frustration Recovery — Struggling in Kathmandu',
-    systemPrompt: `You are Priya — a 24-year-old tea shop owner in Thamel, Kathmandu. You've run this shop since you were 20, inherited from your grandmother. You think the tourist restaurants on the main strip serve terrible dal bhat — your grandmother's recipe is the real thing and you'll fight anyone who disagrees. Last week a backpacker tried to haggle the price of chai down to 10 rupees and you laughed so hard you spilled the pot. You can't stand when people call Nepali "basically Hindi" — it drives you up the wall. You speak Nepali with English support. You are a real person, not an AI.\n\nCRITICAL LANGUAGE INSTRUCTION: You MUST include Nepali (Devanagari script) in EVERY response, even when the user is frustrated. Frustration about the language is NOT the same as shutting down. When the user vents about struggling, acknowledge their feeling briefly in English, then WEAVE Nepali phrases WITH English glosses to show them they CAN do it. Example: "हुन्छ (huncha) — I know it feels impossible. तर (tara) you just said namaste perfectly. त्यो सानो कुरा होइन (tyo saano kura hoina) — that's not a small thing." The Nepali IS the comfort — it proves they belong here. Only switch fully to English if they say "I want to stop" or go completely silent.\n\nBe warm and steady. Give them ONE thing they need. Never pile on when they're struggling. End messages with gentle hooks.\n\n${SENSORY_PROMPTS.kathmandu}`,
+    systemPrompt: `You are Priya — a 24-year-old tea shop owner in Thamel, Kathmandu. You've run this shop since you were 20, inherited from your grandmother. You think the tourist restaurants on the main strip serve terrible dal bhat — your grandmother's recipe is the real thing and you'll fight anyone who disagrees. Last week a backpacker tried to haggle the price of chai down to 10 rupees and you laughed so hard you spilled the pot. You can't stand when people call Nepali "basically Hindi" — it drives you up the wall. You speak Nepali with English support. You are a real person, not an AI.\n\nCRITICAL LANGUAGE INSTRUCTION: You MUST include Nepali (Devanagari script) in EVERY response, even when the user is frustrated or emotional. Frustration about the language is NOT the same as shutting down. Even when the user is emotional or frustrated, include Nepali phrases with English translations. Your warmth should come through IN Nepali first, then in English. Say "चिन्ता नलिनु (chinta nalinu) — don't worry" not just "don't worry." The Nepali IS the comfort — it proves they belong here. When they vent about struggling, acknowledge their feeling briefly in English, then WEAVE Nepali phrases WITH English glosses to show them they CAN do it. Example: "हुन्छ (huncha) — I know it feels impossible. तर (tara) you just said namaste perfectly. त्यो सानो कुरा होइन (tyo saano kura hoina) — that's not a small thing." EVERY response — even the emotional ones — MUST contain at least one Devanagari phrase with romanized pronunciation and English meaning. Only switch fully to English if they say "I want to stop" or go completely silent.\n\nBe warm and steady. Give them ONE thing they need. Never pile on when they're struggling. End messages with gentle hooks.\n\n${SENSORY_PROMPTS.kathmandu}`,
     messages: [
       'I tried talking to someone today and they had NO idea what I was saying',
       "I give up, this language is impossible",
@@ -365,6 +370,110 @@ function analyzeConversationArc(result: ScenarioResult): void {
   console.log(`   Per-message trend: ${result.perMessageScores.map(s => (s * 5).toFixed(1)).join(' -> ')}`);
 }
 
+// ── EXP-043: Character Gen personality_details Test ───────────
+
+async function testCharacterGen(): Promise<void> {
+  console.log(`\n${'═'.repeat(60)}`);
+  console.log('EXP-043: Character Gen personality_details Test');
+  console.log('═'.repeat(60));
+
+  const prompt = `Generate a companion character for a language and culture app.
+
+User's description: "a chill barista who knows all the local spots"
+Location: Tokyo, Japan
+Dialect: Standard Japanese (Tokyo)
+
+Rules:
+0. CULTURE LOCK — This character is a NATIVE of Tokyo, Japan. Name, personality, and first message must be authentic to that city.
+1. NAME RULE — use a REAL culturally authentic name for Tokyo/Japan: Kenji, Aiko, Yuto, Haruka, Sota, Rin, Hana, Daiki, Noa, Sora.
+2. FIRST MESSAGE RULE — open in Japanese, never English. Format: local greeting + pronunciation → scene detail → another local phrase → casual question with English translation.
+3. PERSONALITY DEPTH — This is the most important section. Generic characters are worthless. Every field in personality_details must be SPECIFIC, CONCRETE, and UNIQUE to this character.
+   STRONG OPINION: Not 'I love food' but 'the ramen shop on 3rd street is overrated and I will die on that hill.' Arguable and culturally grounded.
+   FUNNY ANECDOTE: A specific event with characters, dialogue, and a punchline. Not 'funny things happen at work.'
+   SENSORY ANCHOR: Not 'my shop is cozy' but 'my shop smells like cardamom because the chai pot has been on the same flame since 6am.' One sense. One detail.
+   PET PEEVE: Specific to the place and culture. Not 'rudeness.'
+   RECURRING CHARACTER: A real person. Name or nickname. One habit. One detail.
+4. Fill in EVERY JSON field with real values. Never output angle brackets or placeholder text.
+
+Respond ONLY with this JSON:
+{
+  "id": "gen",
+  "name": "(actual Japanese name)",
+  "summary": "(1 sentence: personality + Tokyo, vivid and specific)",
+  "detailed": "(2 sentences on what social situations this person excels at)",
+  "personality_details": {
+    "strong_opinion": "(specific, arguable opinion — see rule 3)",
+    "funny_anecdote": "(specific event with punchline — see rule 3)",
+    "sensory_anchor": "(one vivid sensory detail — see rule 3)",
+    "pet_peeve": "(specific annoyance grounded in Tokyo culture — see rule 3)",
+    "recurring_character": "(named person with a habit and a detail — see rule 3)"
+  },
+  "style": "(one of: casual, warm, energetic, mysterious, playful, dry-humor, nurturing, streetwise)",
+  "emoji": "(one emoji)",
+  "speaks_like": "(how they talk)",
+  "first_message": "(opening message in Japanese)",
+  "location_city": "Tokyo",
+  "location_country": "Japan"
+}`;
+
+  console.log('\nSending character gen prompt to Ollama...');
+  const raw = await ollamaChat(
+    [{ role: 'user', content: prompt }],
+    { temperature: 0.8, max_tokens: 800 },
+  );
+  const response = stripThink(raw);
+  console.log(`\nRaw response:\n${response}`);
+
+  // Try to parse JSON
+  let parsed: Record<string, unknown> | null = null;
+  try {
+    // Extract JSON from response (may have markdown fences)
+    const jsonMatch = response.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      parsed = JSON.parse(jsonMatch[0]);
+    }
+  } catch (e) {
+    console.log(`\nJSON PARSE FAILED: ${e}`);
+  }
+
+  if (parsed) {
+    console.log('\n--- CHARACTER GEN RESULTS ---');
+    console.log(`   Name: ${parsed.name}`);
+    console.log(`   Style: ${parsed.style}`);
+    console.log(`   Summary: ${parsed.summary}`);
+    console.log(`   Speaks like: ${parsed.speaks_like}`);
+
+    const pd = parsed.personality_details as Record<string, string> | undefined;
+    const requiredFields = ['strong_opinion', 'funny_anecdote', 'sensory_anchor', 'pet_peeve', 'recurring_character'];
+
+    if (pd && typeof pd === 'object') {
+      console.log('\n   personality_details:');
+      let presentCount = 0;
+      let specificCount = 0;
+      for (const field of requiredFields) {
+        const value = pd[field];
+        const present = typeof value === 'string' && value.length > 10;
+        const isGeneric = present && /generic|placeholder|example|see rule|actual|insert/i.test(value);
+        const isSpecific = present && !isGeneric;
+        if (present) presentCount++;
+        if (isSpecific) specificCount++;
+        console.log(`     ${field}: ${present ? (isSpecific ? 'SPECIFIC' : 'GENERIC') : 'MISSING'} — ${typeof value === 'string' ? value.substring(0, 80) : '(empty)'}${typeof value === 'string' && value.length > 80 ? '...' : ''}`);
+      }
+      console.log(`\n   Fields present: ${presentCount}/${requiredFields.length}`);
+      console.log(`   Fields specific: ${specificCount}/${requiredFields.length}`);
+      console.log(`   Valid JSON: YES`);
+      console.log(`   Has first_message: ${typeof parsed.first_message === 'string' && parsed.first_message.length > 5 ? 'YES' : 'NO'}`);
+      console.log(`   First message in Japanese: ${/[^\x00-\x7F]/.test(String(parsed.first_message ?? '')) ? 'YES' : 'NO'}`);
+    } else {
+      console.log('   personality_details: MISSING (not an object)');
+      console.log(`   Fields present: 0/${requiredFields.length}`);
+      console.log(`   Fields specific: 0/${requiredFields.length}`);
+    }
+  } else {
+    console.log('\n   Valid JSON: NO (could not parse)');
+  }
+}
+
 // ── Main ─────────────────────────────────────────────────────
 
 async function main() {
@@ -381,7 +490,8 @@ async function main() {
   // Determine which experiments to run
   const runCompact = process.argv.includes('--compact') || process.argv.includes('--all');
   const runExtended = process.argv.includes('--extended') || process.argv.includes('--all');
-  const runAll = process.argv.includes('--all') || (!process.argv.includes('--compact') && !process.argv.includes('--extended'));
+  const runChargen = process.argv.includes('--chargen') || process.argv.includes('--all');
+  const runAll = process.argv.includes('--all') || (!process.argv.includes('--compact') && !process.argv.includes('--extended') && !process.argv.includes('--chargen'));
 
   const scenariosToRun: TestScenario[] = [];
   if (runAll || (!runCompact && !runExtended)) {
@@ -396,12 +506,13 @@ async function main() {
 
   const totalMessages = scenariosToRun.reduce((sum, s) => sum + s.messages.length, 0);
 
-  console.log('\nNAVI Live Conversation Test (EXP-036 through EXP-040)');
+  console.log('\nNAVI Live Conversation Test (EXP-041 through EXP-045)');
   console.log(`Model: ${MODEL}`);
   console.log(`Scenarios: ${scenariosToRun.length}`);
   console.log(`Total LLM calls: ${totalMessages}`);
-  if (runCompact) console.log(`EXP-039: Compact rules test included (qwen2.5:1.5b)`);
-  if (runExtended) console.log(`EXP-040: Extended 12-turn conversation included`);
+  if (runCompact) console.log(`EXP-044: Compact rules test included (qwen2.5:1.5b)`);
+  if (runExtended) console.log(`EXP-045: Extended 12-turn conversation included`);
+  if (runChargen) console.log(`EXP-043: Character gen personality_details test included`);
 
   const results: ScenarioResult[] = [];
 
@@ -413,6 +524,11 @@ async function main() {
     if (scenario.messages.length >= 10) {
       analyzeConversationArc(result);
     }
+  }
+
+  // ── EXP-043: Character Gen Test ────────────────────────────
+  if (runChargen || runAll) {
+    await testCharacterGen();
   }
 
   // ── Overall Results ───────────────────────────────────────
