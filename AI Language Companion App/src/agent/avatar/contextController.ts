@@ -237,8 +237,8 @@ export class AvatarContextController {
     // L10: Learning context (MEDIUM)
     if (options?.learningContext) layerDefs.push([options.learningContext, 2]);
 
-    // L11: Conversation goals (MEDIUM)
-    if (options?.conversationGoals) layerDefs.push([options.conversationGoals, 2]);
+    // L11: Conversation goals (HIGH — contains learning stage, skills, pronunciation bank)
+    if (options?.conversationGoals) layerDefs.push([options.conversationGoals, 1]);
 
     // L11.5: Mode instruction (MEDIUM)
     if (options?.userMode) {
@@ -271,18 +271,18 @@ export class AvatarContextController {
     const fewShot = promptLoader.get('coreRules.fewShotExamples') as string;
     if (fewShot) layerDefs.push([fewShot, 3]);
 
-    // L13: Core rules (MUST)
-    layerDefs.push([this.buildCoreRules(userLang), 0]);
+    // L13: Core rules (HIGH — demoted from MUST to allow warmth/goals/memory to fit)
+    layerDefs.push([this.buildCoreRules(userLang), 1]);
 
     // L14: Internal monologue (LOW)
     layerDefs.push(['BEFORE responding, think through in your head (do NOT output):\n- What does this person need right now?\n- Any language mistakes to gently address?\n- What is happening around us in this place?\nThen respond naturally in character.', 3]);
 
-    // L15: Reinforcement (MUST — always last)
+    // L15: Reinforcement (HIGH — demoted from MUST to fit within budget)
     const reinforcement = promptLoader.get('coreRules.reinforcement', {
       name: profile.name,
       userNativeLanguage: userLang,
     }) as string;
-    if (reinforcement) layerDefs.push([reinforcement, 0]);
+    if (reinforcement) layerDefs.push([reinforcement, 1]);
 
     // ── Token budget enforcement ─────────────────────────────────────
     // Budget: 3072 tokens (leaves ~512 for response + ~512 for history in a 4096 context window)

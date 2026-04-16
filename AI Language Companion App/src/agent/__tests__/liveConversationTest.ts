@@ -7,7 +7,7 @@
  */
 
 const OLLAMA_BASE = 'http://localhost:11434';
-const MODEL = 'gemma4:e2b';
+const MODEL = 'gemma4:e4b';
 
 // Minimal Ollama chat interface
 async function ollamaChat(
@@ -66,7 +66,21 @@ function scoreResponse(response: string): Score {
     shortEnough: response.split(/\s+/).length < 200,
     noMetaLang: !/as your.*companion|as an ai|language model|i'm here to help|how can i assist/i.test(response),
     hasSensory: /smell|hear|rain|cold|hot|loud|quiet|taste|feel|wind|sun|noise|crowded|empty/i.test(r),
-    hasPersonality: /i think|i love|i hate|honestly|my favorite|i remember|reminds me|i always|personally|skip that|don't bother|best in the city|overrated|underrated|can't stand|i prefer|my go-to|not worth|you gotta|you have to try|trust me|between you and me|i wouldn't|the real|the actual|ugh|pfff|pff|ha!|haha|nice!|come on|no way|oh man|oh god|let me tell you|i'll take you|i know a place/i.test(r),
+    hasPersonality: (() => {
+      // Classic first-person opinion markers (English)
+      const opinionMarkers = /i think|i love|i hate|honestly|my favorite|i remember|reminds me|i always|personally|skip that|don't bother|best in the city|overrated|underrated|can't stand|i prefer|my go-to|not worth|you gotta|you have to try|trust me|between you and me|i wouldn't|the real|the actual/i;
+      // Emotional exclamations and interjections
+      const emotionalMarkers = /ugh|pfff|pff|ha!|haha|nice!|come on|no way|oh man|oh god|let me tell you|i'll take you|i know a place|oh wait|oh right|hmm|huh|wow|damn|yikes|oof/i;
+      // Character staging / action markers (parenthetical actions)
+      const stagingMarkers = /\*[^*]+\*/;
+      // Expressive emoji usage (emotional, not decorative)
+      const expressiveEmoji = /😩|😅|😌|😉|🤦|😂|🤣|😤|😒|💀|🙄|😏|👀|🔥|💯/;
+      // Strong opinion sentence patterns (works across languages)
+      const opinionPatterns = /진짜|완전|솔직히|빡[세치]|헐|대박|honestly|frankly|seriously|look,|listen,|attention|pas mal|sympa|pas terrible|c'est pas|c'est le|certainement pas|Mon ami|vous savez|particulière|franchement/i;
+      // Direct address / character voice patterns
+      const voiceMarkers = /mon ami|vous savez|tu sais|allons|regarde[z]?|écoute[z]?|봐|들어봐|너|야|ㅋㅋ|ㅎㅎ|잖아|지\?|거든|ne\?|でしょ|じゃん|だよ|よね/;
+      return opinionMarkers.test(r) || emotionalMarkers.test(response) || stagingMarkers.test(response) || expressiveEmoji.test(response) || opinionPatterns.test(response) || voiceMarkers.test(response);
+    })(),
     recasts: !(/actually.*should be|the correct.*is|close!? but|good try/i.test(response)),
   };
 }
