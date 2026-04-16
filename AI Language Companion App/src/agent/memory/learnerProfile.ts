@@ -161,19 +161,32 @@ export class LearnerProfileStore {
     return tracked;
   }
 
-  /** Get phrases due for spaced repetition review */
-  getPhrasesForReview(limit: number = 5): TrackedPhrase[] {
+  /**
+   * Get phrases due for spaced repetition review.
+   * When `language` is provided, only returns phrases matching that language
+   * (EXP-053: prevents Nepali phrases surfacing with a French companion).
+   */
+  getPhrasesForReview(limit: number = 5, language?: string): TrackedPhrase[] {
     const now = Date.now();
     return this.profile.phrases
-      .filter((p) => p.nextReviewAt <= now && p.mastery !== 'mastered')
+      .filter((p) => {
+        if (language && p.language !== language) return false;
+        return p.nextReviewAt <= now && p.mastery !== 'mastered';
+      })
       .sort((a, b) => a.nextReviewAt - b.nextReviewAt)
       .slice(0, limit);
   }
 
-  /** Get phrases the user has struggled with */
-  getStrugglingPhrases(limit: number = 5): TrackedPhrase[] {
+  /**
+   * Get phrases the user has struggled with.
+   * When `language` is provided, only returns phrases matching that language.
+   */
+  getStrugglingPhrases(limit: number = 5, language?: string): TrackedPhrase[] {
     return this.profile.phrases
-      .filter((p) => p.mastery === 'new' && p.attemptCount >= 2)
+      .filter((p) => {
+        if (language && p.language !== language) return false;
+        return p.mastery === 'new' && p.attemptCount >= 2;
+      })
       .sort((a, b) => a.lastPracticed - b.lastPracticed)
       .slice(0, limit);
   }
@@ -182,15 +195,18 @@ export class LearnerProfileStore {
    * Get struggling phrases on the urgent SR track.
    * These have been marked as 'struggled' at least once and are due for review now.
    * Sorted by nextReviewAt ASC (most overdue first).
+   * When `language` is provided, only returns phrases matching that language.
    */
-  getUrgentReviewPhrases(limit: number = 5): TrackedPhrase[] {
+  getUrgentReviewPhrases(limit: number = 5, language?: string): TrackedPhrase[] {
     const now = Date.now();
     return this.profile.phrases
       .filter(
-        (p) =>
-          p.mastery !== 'mastered' &&
-          (p.struggleCount ?? 0) >= 1 &&
-          p.nextReviewAt <= now,
+        (p) => {
+          if (language && p.language !== language) return false;
+          return p.mastery !== 'mastered' &&
+            (p.struggleCount ?? 0) >= 1 &&
+            p.nextReviewAt <= now;
+        },
       )
       .sort((a, b) => a.nextReviewAt - b.nextReviewAt)
       .slice(0, limit);
@@ -199,15 +215,18 @@ export class LearnerProfileStore {
   /**
    * Get phrases on the routine SR track (never struggled, due for regular review).
    * Sorted by nextReviewAt ASC (most overdue first).
+   * When `language` is provided, only returns phrases matching that language.
    */
-  getRoutineReviewPhrases(limit: number = 5): TrackedPhrase[] {
+  getRoutineReviewPhrases(limit: number = 5, language?: string): TrackedPhrase[] {
     const now = Date.now();
     return this.profile.phrases
       .filter(
-        (p) =>
-          p.mastery !== 'mastered' &&
-          (p.struggleCount ?? 0) === 0 &&
-          p.nextReviewAt <= now,
+        (p) => {
+          if (language && p.language !== language) return false;
+          return p.mastery !== 'mastered' &&
+            (p.struggleCount ?? 0) === 0 &&
+            p.nextReviewAt <= now;
+        },
       )
       .sort((a, b) => a.nextReviewAt - b.nextReviewAt)
       .slice(0, limit);
@@ -317,23 +336,34 @@ export class LearnerProfileStore {
 
   // ── Prompt Formatting ────────────────────────────────────────
 
-  /** Format learner context for injection into system prompt */
-  formatForPrompt(): string {
+  /**
+   * Format learner context for injection into system prompt.
+   * When `language` is provided, only includes phrases matching that language
+   * (EXP-053: prevents cross-companion phrase leaking).
+   */
+  formatForPrompt(language?: string): string {
     const sections: string[] = [];
     const stats = this.profile.stats;
 
     // Auto-advance comfort tier based on mastered phrases
     this.autoAdvanceComfort();
 
-    if (stats.totalPhrases > 0) {
+    // When language is set, compute language-scoped stats for the prompt
+    const scopedPhrases = language
+      ? this.profile.phrases.filter((p) => p.language === language)
+      : this.profile.phrases;
+    const scopedTotal = scopedPhrases.length;
+    const scopedMastered = scopedPhrases.filter((p) => p.mastery === 'mastered').length;
+
+    if (scopedTotal > 0) {
       sections.push(
-        `Learner stats: ${stats.totalPhrases} phrases tracked, ${stats.masteredPhrases} mastered. ` +
+        `Learner stats: ${scopedTotal} phrases tracked, ${scopedMastered} mastered. ` +
         `${stats.currentStreak}-day streak. ${stats.totalSessions} sessions total.`,
       );
     }
 
-    // Recent phrases for context
-    const recent = [...this.profile.phrases]
+    // Recent phrases for context (language-scoped)
+    const recent = [...scopedPhrases]
       .sort((a, b) => b.lastPracticed - a.lastPracticed)
       .slice(0, 5);
     if (recent.length > 0) {
@@ -408,9 +438,13 @@ export class LearnerProfileStore {
    *
    * This is always computed, never stored.
    */
-  getCurrentStage(interactionCount: number, completedScenarios: number = 0): LearningStageInfo {
+  getCurrentStage(interactionCount: number, completedScenarios: number = 0, language?: string): LearningStageInfo {
     // Count phrases at 'practiced' or 'mastered' level as "functionally mastered"
-    const masteredCount = this.profile.phrases.filter(
+    // EXP-053: When language is set, only count phrases in that language
+    const scopedPhrases = language
+      ? this.profile.phrases.filter((p) => p.language === language)
+      : this.profile.phrases;
+    const masteredCount = scopedPhrases.filter(
       (p) => p.mastery === 'practiced' || p.mastery === 'mastered',
     ).length;
 
@@ -484,6 +518,15 @@ export class LearnerProfileStore {
 
   get phrases(): TrackedPhrase[] {
     return this.profile.phrases;
+  }
+
+  /**
+   * Get phrases filtered by language.
+   * EXP-053: Use this when displaying phrases for a specific companion
+   * to avoid showing Nepali phrases in a French companion's context.
+   */
+  getPhrasesForLanguage(language: string): TrackedPhrase[] {
+    return this.profile.phrases.filter((p) => p.language === language);
   }
 
   get topics(): TopicProficiency[] {

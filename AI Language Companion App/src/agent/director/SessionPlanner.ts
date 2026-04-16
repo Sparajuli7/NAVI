@@ -55,6 +55,8 @@ export class SessionPlanner {
     learner: LearnerProfileStore,
     relationships: RelationshipStore,
     episodic: EpisodicMemoryStore,
+    /** EXP-053: Current target language — scopes phrase queries */
+    language?: string,
   ): SessionGoal {
     const key = `session_goal_${avatarId}`;
 
@@ -65,7 +67,7 @@ export class SessionPlanner {
     }
 
     // Pick a new goal using priority order
-    const goal = this.pickGoal(avatarId, learner, relationships, episodic);
+    const goal = this.pickGoal(avatarId, learner, relationships, episodic, language);
     this.working.set(key, goal, SESSION_GOAL_TTL_MS);
     console.log(`[NAVI:session] goal picked: ${goal.type}${goal.target ? ` (target: ${goal.target})` : ''}`);
     return goal;
@@ -100,11 +102,13 @@ export class SessionPlanner {
     learner: LearnerProfileStore,
     relationships: RelationshipStore,
     episodic: EpisodicMemoryStore,
+    language?: string,
   ): SessionGoal {
     const now = Date.now();
 
     // 1. Phrases due for review (urgent spaced repetition)
-    const duePhrases = learner.getPhrasesForReview(1);
+    // EXP-053: Scope to current language
+    const duePhrases = learner.getPhrasesForReview(1, language);
     if (duePhrases.length > 0) {
       const phrase = duePhrases[0];
       return {
@@ -118,7 +122,8 @@ export class SessionPlanner {
     }
 
     // 2. Struggling phrases (mastery=new, attempts>=2)
-    const struggling = learner.getStrugglingPhrases(1);
+    // EXP-053: Scope to current language
+    const struggling = learner.getStrugglingPhrases(1, language);
     if (struggling.length > 0) {
       const phrase = struggling[0];
       return {

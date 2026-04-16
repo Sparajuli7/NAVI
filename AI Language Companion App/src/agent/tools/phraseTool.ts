@@ -34,7 +34,10 @@ export function createPhraseTool(
         mode_header: string; template: string; temperature: number; max_tokens: number;
       };
       const userNativeLanguage = memoryManager.profile.getProfile().nativeLanguage || 'English';
-      const trackedPhrases = memoryManager.learner.phrases;
+      // EXP-053: Filter tracked phrases by current language to avoid cross-companion leaking
+      const trackedPhrases = language
+        ? memoryManager.learner.getPhrasesForLanguage(language)
+        : memoryManager.learner.phrases;
       const recentPhrases = trackedPhrases.length > 0
         ? [...trackedPhrases]
             .sort((a, b) => b.lastPracticed - a.lastPracticed)

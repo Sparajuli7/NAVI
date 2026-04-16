@@ -524,19 +524,21 @@ export class NaviAgent {
     // Must compute BEFORE updating previousScenario
     const isFirstScenarioMessage = !!currentScenario && currentScenario !== this.previousScenario;
 
+    // 1b. Sub-agent context gathering (runs in parallel with director)
+    // EXP-053: Compute language BEFORE director.preProcess so it can scope phrase queries
+    const locationCtx = this.location.getLocation();
+    const currentLanguage = this.location.getPrimaryLanguage();
+
     const directorCtx = this.director.preProcess(message, avatarId, {
       isSessionStart,
       userMode: currentMode,
       activeScenario: currentScenario || undefined,
       previousScenario: this.previousScenario || undefined,
+      language: currentLanguage || undefined,
     });
     // Update previous scenario tracker for TBLT transitions (EXP-050)
     this.previousScenario = currentScenario;
     agentBus.emit('director:goals_set', { goals: directorCtx.goals });
-
-    // 1b. Sub-agent context gathering (runs in parallel with director)
-    const locationCtx = this.location.getLocation();
-    const currentLanguage = this.location.getPrimaryLanguage();
     const currentDialect = profile?.dialect || '';
 
     // Memory Retrieval Agent — get graph-based context
@@ -589,9 +591,13 @@ export class NaviAgent {
     const combinedSubAgentContext = subAgentInjections.join('\n\n');
 
     // Pronunciation reference bank — external API + IndexedDB, must not break message flow
+    // EXP-053: Scope pronunciation bank to current language
+    const languageScopedPhrases = currentLanguage
+      ? this.memory.learner.getPhrasesForLanguage(currentLanguage)
+      : this.memory.learner.phrases;
     const pronunciationBank = await buildPronunciationBank(
       currentLanguage,
-      this.memory.learner.phrases.slice(0, 5),
+      languageScopedPhrases.slice(0, 5),
     ).catch(() => '');
 
     // Merge director goals + sub-agent context + pronunciation bank
@@ -754,7 +760,9 @@ export class NaviAgent {
     const backstoryTier = avatarId
       ? this.memory.relationships.getBackstoryTier(avatarId)
       : 0;
-    return this.proactiveEngine.getProactiveMessage(backstoryTier);
+    // EXP-053: Scope to current language
+    const currentLanguage = this.location.getPrimaryLanguage() || undefined;
+    return this.proactiveEngine.getProactiveMessage(backstoryTier, currentLanguage);
   }
 
   /** Get the current Ollama model name (if using Ollama backend) */

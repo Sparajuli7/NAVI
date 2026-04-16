@@ -435,9 +435,16 @@ export class MemoryRetrievalAgent {
     };
   }
 
-  private getStrugglingTermPhrases(): string[] {
+  /**
+   * Get phrases the user struggles with from the knowledge graph.
+   * EXP-054: When language is provided, only returns terms matching that language.
+   */
+  private getStrugglingTermPhrases(language?: string): string[] {
     return this.graph.getNodesByType<TermNode>('term')
-      .filter(t => t.struggleCount > 0 && t.mastery !== 'mastered')
+      .filter(t => {
+        if (language && t.language !== language) return false;
+        return t.struggleCount > 0 && t.mastery !== 'mastered';
+      })
       .sort((a, b) => b.struggleCount - a.struggleCount)
       .slice(0, 5)
       .map(t => `"${t.phrase}"`);

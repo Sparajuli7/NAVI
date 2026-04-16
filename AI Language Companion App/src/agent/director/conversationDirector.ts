@@ -216,10 +216,14 @@ export class ConversationDirector {
       completedScenarios?: number;
       activeScenario?: string;
       previousScenario?: string;
+      /** EXP-053: Current target language — scopes phrase queries to this language */
+      language?: string;
     },
   ): DirectorContext {
     const goals: ConversationGoal[] = [];
     const goalInstructions: string[] = [];
+    // EXP-053: Current language for scoping phrase queries
+    const currentLanguage = options?.language;
 
     // 0-pre. Emotional state detection — inject calibration context
     const emotionalState = detectEmotionalState(message);
@@ -287,6 +291,7 @@ export class ConversationDirector {
         this.learner,
         this.relationships,
         this.episodic,
+        currentLanguage,
       );
       if (sessionGoal && !sessionGoal.achieved) {
         goals.push(sessionGoal.type);
@@ -300,7 +305,7 @@ export class ConversationDirector {
     // 0a-pre. Learning stage detection — HIGH priority, shapes the entire interaction
     const interactionCount = this.relationships.getRelationship(avatarId).interactionCount;
     const completedScenarios = options?.completedScenarios ?? 0;
-    const stageInfo = this.learner.getCurrentStage(interactionCount, completedScenarios);
+    const stageInfo = this.learner.getCurrentStage(interactionCount, completedScenarios, currentLanguage);
     const userNativeLang = options?.userNativeLanguage || 'English';
 
     if (!isGuideMode) {
@@ -394,7 +399,7 @@ export class ConversationDirector {
     // Learning goals — only active in 'learn' mode or blended (null) mode. Skipped in guide/friend.
     if (!isGuideMode) {
       // 1. Check for phrases due for review (spaced repetition + contextual re-introduction)
-      const reviewDue = this.learner.getPhrasesForReview(3);
+      const reviewDue = this.learner.getPhrasesForReview(3, currentLanguage);
       if (reviewDue.length > 0) {
         goals.push('review_due_phrases');
         const phrases = reviewDue.map((p) => `"${p.phrase}"`).join(', ');
@@ -412,7 +417,7 @@ export class ConversationDirector {
       }
 
       // 2. Check for struggling phrases
-      const struggling = this.learner.getStrugglingPhrases(3);
+      const struggling = this.learner.getStrugglingPhrases(3, currentLanguage);
       if (struggling.length > 0) {
         goals.push('revisit_struggling');
         const phrases = struggling.map((p) => `"${p.phrase}"`).join(', ');
@@ -431,8 +436,8 @@ export class ConversationDirector {
         );
       }
 
-      // 4. Check for cross-location bridges
-      const bridges = this.findLocationBridges(avatarId);
+      // 4. Check for cross-location bridges (EXP-053: scoped to current language)
+      const bridges = this.findLocationBridges(avatarId, currentLanguage);
       if (bridges) {
         goals.push('bridge_locations');
         goalInstructions.push(
@@ -574,8 +579,8 @@ export class ConversationDirector {
     // Use elicitation instead of direct review to make the user produce the phrase themselves
     if (goals.includes('review_due_phrases') && isFunctionalOrHigher && Math.random() < 0.30) {
       const elicitationText = promptLoader.get('conversationSkills.skills.contextual_repetition.injection', {
-        phrase: this.learner.getPhrasesForReview(1)[0]?.phrase ?? '',
-        originalContext: (this.learner.getPhrasesForReview(1)[0] as TrackedPhrase & { context?: string })?.context || 'an earlier conversation',
+        phrase: this.learner.getPhrasesForReview(1, currentLanguage)[0]?.phrase ?? '',
+        originalContext: (this.learner.getPhrasesForReview(1, currentLanguage)[0] as TrackedPhrase & { context?: string })?.context || 'an earlier conversation',
       });
       if (elicitationText) {
         goalInstructions.push(elicitationText);
@@ -641,8 +646,8 @@ export class ConversationDirector {
       this.working.set('last_known_stage', stageInfo.stage, 24 * 60 * 60 * 1000);
     }
 
-    // Build context strings
-    const learningContext = this.learner.formatForPrompt();
+    // Build context strings (EXP-053: scope to current language)
+    const learningContext = this.learner.formatForPrompt(currentLanguage);
     const warmthInstruction = this.relationships.formatForPrompt(avatarId);
     const personalCtx = this.surfacePersonalContext();
     const allInstructions = [
@@ -806,11 +811,11 @@ export class ConversationDirector {
    * Generate suggestions the UI can display to the user.
    * Call periodically or on session start.
    */
-  getSuggestions(avatarId: string): string[] {
+  getSuggestions(avatarId: string, language?: string): string[] {
     const suggestions: string[] = [];
 
-    // Review due phrases
-    const reviewDue = this.learner.getPhrasesForReview(2);
+    // Review due phrases (EXP-053: scoped to current language)
+    const reviewDue = this.learner.getPhrasesForReview(2, language);
     for (const phrase of reviewDue) {
       suggestions.push(
         `Review time! You learned "${phrase.phrase}" a while ago — let's practice it.`,
@@ -883,12 +888,12 @@ export class ConversationDirector {
     return ASSESSMENT_QUESTIONS[idx];
   }
 
-  private findLocationBridges(avatarId: string): string | null {
+  private findLocationBridges(avatarId: string, language?: string): string | null {
     const rel = this.relationships.getRelationship(avatarId);
     if (rel.interactionCount < 5) return null; // Too early for bridges
 
-    // Look for phrases learned in other locations
-    const phrases = this.learner.phrases;
+    // Look for phrases learned in other locations (EXP-053: scoped to current language)
+    const phrases = language ? this.learner.getPhrasesForLanguage(language) : this.learner.phrases;
     const locations = new Set(phrases.map((p) => p.learnedAt).filter(Boolean));
 
     if (locations.size <= 1) return null;

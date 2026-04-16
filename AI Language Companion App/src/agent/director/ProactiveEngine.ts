@@ -73,7 +73,7 @@ export class ProactiveEngine {
    * Call this on app open before the user types anything.
    * Guaranteed to return a non-null value at most once per session.
    */
-  getProactiveMessage(backstoryTier?: number): string | null {
+  getProactiveMessage(backstoryTier?: number, language?: string): string | null {
     if (this.firedThisSession) return null;
 
     const stats = this.learner.stats;
@@ -121,7 +121,8 @@ export class ProactiveEngine {
     }
     // 6. Struggling phrases + at least 1 day since last session
     else {
-      const struggling = this.learner.getStrugglingPhrases(1);
+      // EXP-053: Scope to current language
+      const struggling = this.learner.getStrugglingPhrases(1, language);
       if (struggling.length > 0 && daysSinceLast >= 1) {
         message = `That phrase we've been working on — want to give it another shot today? No pressure, just checking in.`;
       }
