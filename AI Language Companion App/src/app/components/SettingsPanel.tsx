@@ -824,8 +824,7 @@ export function SettingsPanel({ onClose, onRegenerate, onDeleteCompanion, onUpda
                   [
                     { key: 'cloud-free' as const, label: 'Cloud Free' },
                     { key: 'cloud-paid' as const, label: 'Cloud Paid' },
-                    ...(ollamaConnected || ollamaModels.length > 0 || backend === 'ollama' ? [{ key: 'ollama' as const, label: 'Ollama' }] : []),
-                    { key: 'webllm' as const, label: 'On-Device' },
+                    { key: 'ollama' as const, label: 'Local (Ollama)' },
                   ] as Array<{ key: BackendCard; label: string }>
                 ).map(({ key, label }) => (
                   <button
@@ -843,25 +842,7 @@ export function SettingsPanel({ onClose, onRegenerate, onDeleteCompanion, onUpda
               </div>
 
               {/* Per-tab config */}
-              {selectedCard === 'webllm' && (
-                <div className="space-y-2">
-                  <div className="relative">
-                    <select
-                      value={pendingWebllmPreset}
-                      onChange={(e) => setPendingWebllmPreset(e.target.value)}
-                      className="w-full appearance-none px-3 py-2.5 pr-8 bg-card border border-border rounded-xl text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 cursor-pointer"
-                    >
-                      {Object.entries(LLM_PRESETS).map(([key, cfg]) => (
-                        <option key={key} value={key}>
-                          {cfg.name} — {(cfg.sizeBytes / 1e9).toFixed(1)} GB
-                        </option>
-                      ))}
-                    </select>
-                    <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
-                  </div>
-                  <p className="text-xs text-muted-foreground px-1">Offline · downloads once · no account needed</p>
-                </div>
-              )}
+              {/* WebLLM on-device tab removed — Ollama is the local model path */}
 
               {selectedCard === 'cloud-free' && (
                 <div className="bg-card border border-border rounded-xl px-4 py-3 flex items-center justify-between">
