@@ -566,3 +566,45 @@ qwen3.5:4b is now a viable model — memory review scored PERFECT 5.0/5.0.
 "C'est pour les débutants, franchement."
 "Si vous insistez pour cette... *erreur* ?"
 This is genuine character voice. She has OPINIONS about your order.
+
+---
+
+## DIALECT AWARENESS EXPERIMENTS (2026-04-16, EXP-076 through EXP-080)
+
+Focus: Making the agent's teaching DIALECT-AWARE — not just "Spanish" but Barcelona Catalan-Spanish, not just "German" but Berlin slang.
+
+### EXP-076: Dialect-specific teaching instructions
+- **Hypothesis**: The system prompt says "speak the local language" but doesn't tell the model HOW the local dialect differs from the standard. Adding a `dialectTeaching` layer that surfaces `cultural_notes` and `slang_era` data from dialectMap.json will make teaching more locale-specific.
+- **Config change**: Added `dialectTeaching.template` to `systemLayers.json` with interpolation slots for `{{culturalNotes}}` and `{{slangEraNote}}`. Wired into `contextController.buildLocationLayer()` — when a dialect is resolved, the template is populated with the dialect's cultural notes and the avatar's generation-appropriate slang era examples.
+- **Before**: Location layer said "speak Southern Vietnamese (Saigon)" but gave no guidance on HOW it differs from standard Vietnamese.
+- **After**: Location layer now includes "DIALECT AWARENESS: You don't just speak Vietnamese — you speak the Southern Vietnamese (Saigon) variety. When teaching phrases, show the LOCAL way..." plus cultural notes and slang palette.
+- **Status**: Shipped. Awaiting live test results.
+
+### EXP-077: Slang era integration
+- **Hypothesis**: The slang tool defaults to `gen_z` regardless of avatar age. An elder speaker (60s+) should default to `older` slang, a market haggler (30s) to `millennial`.
+- **Config change**: (1) Added `SLANG ERA MATCHING` block to `coreRules.json` — tells the model to match slang to character age/style. (2) Modified `slangTool.ts` to read `avatarController.getActiveProfile().ageGroup` and map it to a generation (`20s→gen_z`, `30s→millennial`, `60s+→older`) instead of hardcoding `gen_z`.
+- **Before**: Tanaka-san (60s+ Osaka elder) would be prompted with gen_z slang.
+- **After**: Tanaka-san defaults to `older` slang (おおきに, あきまへん), Jimin (20s Seoul) defaults to `gen_z` slang (ㅋㅋㅋ, 갓).
+- **Status**: Shipped.
+
+### EXP-078: Cultural guardrails per scenario
+- **Hypothesis**: `scenarioContexts.json` has `cultural_guardrails` per scenario but the injection template was weak ("Cultural watch-out:"). Strengthening the template and adding guardrails to the coach mode will prevent the model from suggesting culturally inappropriate actions.
+- **Config change**: (1) `scenarioLock` template upgraded from "Cultural watch-out:" to "CULTURAL GUARDRAILS (do NOT violate these): ... warn them BEFORE they do it, not after." (2) `scenarioCoach` template appended with cultural norms warning instruction.
+- **Before**: Guardrails were injected but phrased as an afterthought.
+- **After**: Guardrails are framed as constraints the model must actively enforce, with proactive warning instruction.
+- **Verification**: `buildScenarioLayer()` already passes `config.cultural_guardrails` to the template — no code change needed, only prompt strengthening.
+- **Status**: Shipped.
+
+### EXP-079: Regional pronunciation guidance
+- **Hypothesis**: The pronounce tool teaches standard pronunciation even when the avatar is in a dialect region. Adding a `REGIONAL PRONUNCIATION` block to the pronounce template will make pronunciation teaching match the local sound system.
+- **Config change**: Added `REGIONAL PRONUNCIATION` section to `toolPrompts.pronounce.template` between the phrase card format and pronunciation rules. Instructs model to teach local pronunciation first and note the textbook way as a secondary reference.
+- **Before**: Pronounce tool said "Language: Japanese (Osaka-ben)" but gave no instruction to teach Osaka pronunciation vs Tokyo standard.
+- **After**: Template now says "teach the LOCAL pronunciation first. Mark it as 'how people actually say it here' vs 'the textbook way.'"
+- **Status**: Shipped.
+
+### EXP-080: Barcelona dialect awareness live test
+- **Hypothesis**: With EXP-076 through EXP-079 in place, a Barcelona tapas bar owner character should naturally mix Catalan and Spanish, teach Catalan greetings, note pronunciation differences from Castilian, and reference cultural norms.
+- **Test design**: 5-message conversation with Jordi (45yo tapas bar owner, Gothic Quarter). Messages test: ordering tapas, asking about pronunciation in Spanish, whether to use Catalan, understanding a local's joke, and learning to say cheers.
+- **Scoring**: Custom `DialectScore` checks 6 markers: Catalan phrases, Spanish phrases, Barcelona slang, dialect notes (Catalan vs Castilian), cultural guardrails, local references.
+- **Run command**: `npx tsx src/agent/__tests__/liveConversationTest.ts --dialect`
+- **Status**: Test built. Awaiting execution with gemma4:e2b (requires Ollama running).

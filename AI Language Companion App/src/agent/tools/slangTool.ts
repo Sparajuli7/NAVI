@@ -29,7 +29,15 @@ export function createSlangTool(
 
     async execute(params: Record<string, unknown>): Promise<unknown> {
       const message = params.message as string;
-      const generation = (params.generation as string) ?? 'gen_z';
+      // EXP-077: Default slang generation to avatar's age group instead of always gen_z
+      const profile = avatarController.getActiveProfile();
+      const ageGenMap: Record<string, string> = {
+        teen: 'gen_z', '20s': 'gen_z',
+        '30s': 'millennial', '40s': 'millennial',
+        '50s': 'older', '60s+': 'older',
+      };
+      const avatarGeneration = profile ? (ageGenMap[profile.ageGroup] ?? 'millennial') : 'gen_z';
+      const generation = (params.generation as string) ?? avatarGeneration;
       const language = locationIntelligence.getPrimaryLanguage();
       const dialect = locationIntelligence.getDialect();
       const locationCtx = locationIntelligence.buildContextForPrompt();

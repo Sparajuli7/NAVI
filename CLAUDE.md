@@ -417,6 +417,12 @@ The agent framework is fully built. All UI screens still call legacy services di
 - ~~**Scenario completion never tracked**~~ — `LearnerProfileStore.recordScenarioCompletion(scenarioKey)` added. `LearnerProfile.stats.completedScenarios` field added (optional, backwards-compat). `handleEndScenario()` now calls both `recordScenarioCompletion()` and `proactiveEngine.markScenarioCompleted()` (was dead code). Feeds into `getCurrentStage()` composite scoring.
 - ~~**detectScenario runs in guide mode**~~ — `detectScenario()` is now skipped when `userMode === 'guide'`, preventing accidental scenario triggers when the user mentions scenario keywords while asking for translation help.
 
+### Resolved Feature Gaps (2026-04-16)
+- ~~**No dialect-specific teaching instructions**~~ — `dialectTeaching` section in `systemLayers.json` + wiring in `contextController.buildLocationLayer()` surfaces cultural_notes and slang_era from dialectMap.json into the system prompt. Model now teaches the LOCAL way of saying things, not textbook standard.
+- ~~**Slang tool ignores avatar age**~~ — `slangTool.ts` now reads `avatarController.getActiveProfile().ageGroup` and maps to generation (20s->gen_z, 30s->millennial, 60s+->older) instead of hardcoding gen_z. `SLANG ERA MATCHING` rule in coreRules.json instructs the model to match slang to character age.
+- ~~**Cultural guardrails weakly injected**~~ — `scenarioLock` template upgraded to "CULTURAL GUARDRAILS (do NOT violate these)" with proactive warning instruction. `scenarioCoach` template also now includes cultural norm warnings.
+- ~~**Pronunciation tool teaches standard, not local**~~ — `REGIONAL PRONUNCIATION` block in `toolPrompts.pronounce.template` instructs model to teach local pronunciation first and note textbook as footnote.
+
 ### Resolved Feature Gaps (2026-03-30)
 - ~~**No multi-agent architecture**~~ — NaviAgent refactored into Orchestrator pattern with MemoryRetrievalAgent (graph traversal) and ResearchAgent (learning protocols) as sub-agents. Context Injection Protocol merges sub-agent outputs into avatar scaffold before every LLM call.
 - ~~**Flat memory with no relationships**~~ — `KnowledgeGraphStore` added with 6 node types (Conversation, Term, Topic, Scenario, Avatar, Location) and 9 edge types. `MemoryMaker` writes rich metadata (engagement score, encounter type, inferred reason, language/script/avatar) after every exchange.

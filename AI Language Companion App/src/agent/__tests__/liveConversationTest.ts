@@ -292,6 +292,7 @@ interface ScenarioResult {
   scores: Score[];
   avgScore: number;
   perMessageScores: number[];
+  responses: string[];  // EXP-080: raw responses for dialect analysis
 }
 
 async function runScenario(scenario: TestScenario): Promise<ScenarioResult> {
@@ -304,6 +305,7 @@ async function runScenario(scenario: TestScenario): Promise<ScenarioResult> {
   const history: Array<{ role: string; content: string }> = [];
   const scores: Score[] = [];
   const perMessageScores: number[] = [];
+  const responses: string[] = [];  // EXP-080: collect raw responses
 
   for (let i = 0; i < scenario.messages.length; i++) {
     const userMsg = scenario.messages[i];
@@ -321,6 +323,7 @@ async function runScenario(scenario: TestScenario): Promise<ScenarioResult> {
       model: scenario.model,
     });
     const response = stripThink(raw);
+    responses.push(response);  // EXP-080
 
     console.log(`    AGENT: ${response}`);
 
@@ -354,7 +357,7 @@ async function runScenario(scenario: TestScenario): Promise<ScenarioResult> {
   console.log(`   Personality: ${scores.filter(s => s.hasPersonality).length}/${scores.length}`);
   console.log(`   Sensory grounding: ${scores.filter(s => s.hasSensory).length}/${scores.length}`);
 
-  return { name: scenario.name, scores, avgScore, perMessageScores };
+  return { name: scenario.name, scores, avgScore, perMessageScores, responses };
 }
 
 // ── EXP-040: Extended conversation degradation analysis ──────
@@ -759,7 +762,8 @@ async function main() {
   const runExtended = process.argv.includes('--extended') || process.argv.includes('--all');
   const runChargen = process.argv.includes('--chargen') || process.argv.includes('--all');
   const runProduction = process.argv.includes('--production') || process.argv.includes('--all');
-  const runAll = process.argv.includes('--all') || (!process.argv.includes('--compact') && !process.argv.includes('--extended') && !process.argv.includes('--chargen') && !process.argv.includes('--production'));
+  const runDialect = process.argv.includes('--dialect') || process.argv.includes('--all');
+  const runAll = process.argv.includes('--all') || (!process.argv.includes('--compact') && !process.argv.includes('--extended') && !process.argv.includes('--chargen') && !process.argv.includes('--production') && !process.argv.includes('--dialect'));
 
   const scenariosToRun: TestScenario[] = [];
   if (runAll || (!runCompact && !runExtended && !runProduction)) {
@@ -776,6 +780,9 @@ async function main() {
     scenariosToRun.push(SCENARIO_MATCHING_TEST);
     scenariosToRun.push(MEMORY_INJECTION_TEST);
   }
+  if (runDialect || runAll) {
+    scenariosToRun.push(BARCELONA_DIALECT_SCENARIO);
+  }
 
   const totalMessages = scenariosToRun.reduce((sum, s) => sum + s.messages.length, 0);
 
@@ -787,6 +794,7 @@ async function main() {
   if (runExtended) console.log(`EXP-045: Extended 12-turn conversation included`);
   if (runChargen) console.log(`EXP-043: Character gen personality_details test included`);
   if (runProduction || runAll) console.log(`EXP-047/048/049: Production avatar tests included`);
+  if (runDialect || runAll) console.log(`EXP-080: Barcelona dialect awareness test included`);
 
   const results: ScenarioResult[] = [];
 
@@ -867,6 +875,13 @@ async function main() {
       .find(s => s.name === r.name);
     if (matchingScenario) {
       checkMemoryInjection(r, matchingScenario);
+    }
+  }
+
+  // EXP-080: Dialect awareness analysis
+  for (const r of results) {
+    if (r.name.includes('EXP-080')) {
+      analyzeDialectAwareness(r, r.responses);
     }
   }
 }

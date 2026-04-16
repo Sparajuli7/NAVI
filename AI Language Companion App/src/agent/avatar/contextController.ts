@@ -428,6 +428,32 @@ export class AvatarContextController {
       if (dialectConfig.scripts && dialectConfig.scripts.length > 0) {
         layer += ` Always write phrases in both ${dialectConfig.scripts[0]} script AND romanized transliteration side by side.`;
       }
+
+      // EXP-076: Dialect-specific teaching instructions
+      try {
+        const culturalNotesFragment = dialectConfig.cultural_notes
+          ? ` Cultural context for your dialect: ${dialectConfig.cultural_notes}`
+          : '';
+        const genMap076: Record<string, string> = {
+          teen: 'gen_z', '20s': 'gen_z',
+          '30s': 'millennial', '40s': 'millennial',
+          '50s': 'older', '60s+': 'older',
+        };
+        const gen076 = genMap076[ageGroup] ?? 'millennial';
+        const slangEraData = dialectConfig.slang_era[gen076];
+        const slangEraFragment = slangEraData
+          ? ` Your generation's slang palette: ${slangEraData}`
+          : '';
+        const dialectTeachingLayer = promptLoader.get('systemLayers.dialectTeaching.template', {
+          language: dialectConfig.language,
+          dialect: dialectConfig.dialect,
+          culturalNotes: culturalNotesFragment,
+          slangEraNote: slangEraFragment,
+        });
+        layer += ` ${dialectTeachingLayer}`;
+      } catch {
+        // dialectTeaching template not available — skip silently
+      }
     } else {
       // No dialect config — infer language from location name
       console.warn(
