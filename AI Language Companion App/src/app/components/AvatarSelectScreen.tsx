@@ -92,8 +92,8 @@ export function AvatarSelectScreen({ onSelect }: AvatarSelectScreenProps) {
   };
 
   return (
-    <div className="min-h-[calc(100vh-57px)] bg-background flex flex-col relative overflow-hidden">
-      <div className="absolute inset-0 bg-gradient-to-br from-purple-950/20 via-background to-teal-950/20 dark:from-purple-950/10 dark:via-background dark:to-teal-950/10" />
+    <div className="min-h-[calc(100vh-57px)] bg-background flex flex-col relative">
+      <div className="absolute inset-0 bg-gradient-to-br from-purple-950/20 via-background to-teal-950/20 dark:from-purple-950/10 dark:via-background dark:to-teal-950/10 overflow-hidden" />
 
       <div className="relative z-10 flex-1 flex flex-col px-6 py-8">
         {/* Header */}
@@ -191,7 +191,7 @@ export function AvatarSelectScreen({ onSelect }: AvatarSelectScreenProps) {
                   )}
 
                   {/* -- City Picker -- */}
-                  <div className="space-y-1.5">
+                  <div className="space-y-1.5 relative z-20">
                     <div className="flex items-center gap-1.5 px-1">
                       <MapPin className="w-3.5 h-3.5 text-primary" />
                       <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">

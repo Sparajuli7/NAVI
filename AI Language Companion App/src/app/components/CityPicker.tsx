@@ -212,16 +212,16 @@ export function CityPicker({ value, onChange, placeholder = 'Search cities...', 
         </div>
       )}
 
-      {/* Dropdown */}
+      {/* City results — inline list (not floating) to avoid overflow clipping */}
       {isOpen && !value && (
-        <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-card border border-border rounded-xl shadow-lg overflow-hidden max-h-72 overflow-y-auto">
+        <div className="mt-2 bg-card border border-border rounded-xl overflow-hidden max-h-56 overflow-y-auto">
           {filtered.length > 0 ? (
             filtered.map((c, i) => (
               <button
                 key={`${c.city}-${c.countryCode}-${i}`}
                 type="button"
                 onClick={() => handleSelect(c)}
-                className="w-full flex items-center gap-2.5 px-3 py-2.5 text-left hover:bg-muted/50 transition-colors border-b border-border/50 last:border-b-0"
+                className="w-full flex items-center gap-2.5 px-3 py-2.5 text-left hover:bg-muted/50 active:bg-primary/10 transition-colors border-b border-border/50 last:border-b-0"
               >
                 <span className="text-base shrink-0">{countryFlag(c.countryCode)}</span>
                 <div className="flex-1 min-w-0">
