@@ -312,3 +312,34 @@ Avatar: "Au marché (oh mar-SHAY) ce matin? Sympa. T'as trouvé quelque chose de
 - Léa (Paris) scored 4.7/5.0 — genuine character voice, opinions about food, appropriate sarcasm
 - Jihoon (Seoul) teaching REAL Korean slang: 대박, 어쩔티비, 갑분싸, 오운완 — these are actual Korean internet culture terms
 - Priya (Kathmandu) teaching Ma thik chhu, Ma sikhdai chu — real Nepali with cultural sensitivity
+
+---
+
+## LIVE TEST RESULTS — gemma4:e4b 8B POST-BUDGET-FIX (2026-04-16)
+
+### Model: gemma4:e4b (8B) via Ollama
+### Config: Post-budget-fix + all 35 experiments
+
+| Scenario | Score | Open Loops | Target Lang | No Sycophancy | Personality | Sensory |
+|----------|-------|-----------|-------------|---------------|-------------|---------|
+| Tokyo (Yuki) | **4.9/5.0** | 5/5 | 5/5 | 5/5 | 5/5 | 4/5 |
+| Paris (Léa) | **4.6/5.0** | 5/5 | 4/5 | 5/5 | 5/5 | 2/5 |
+| Kathmandu (Priya) | **4.4/5.0** | 5/5 | 2/5 | 5/5 | 5/5 | 4/5 |
+| Seoul (Jihoon) | **4.6/5.0** | 5/5 | 5/5 | 5/5 | 5/5 | 0/5 |
+| **OVERALL** | **4.6/5.0** | **20/20** | **16/20** | **20/20** | **20/20** | **10/20** |
+
+### COMPLETE SESSION PROGRESSION (all models, all configs)
+| Run | Model | Size | Config | Score | Personality | Open Loops |
+|-----|-------|------|--------|-------|-------------|-----------|
+| 1 | qwen2.5 | 1.5B | baseline | 3.1 | 0% | 5% |
+| 2 | gemma4:e2b | 5.1B | pre-fix | 3.3 | 0% | 50% |
+| 3 | gemma4:e2b | 5.1B | +personality | 3.5 | 15% | 50% |
+| 4 | gemma4:e2b | 5.1B | POST-FIX | **4.6** | **95%** | **90%** |
+| 5 | gemma4:e4b | 8B | POST-FIX | **4.6** | **100%** | **100%** |
+
+### Key Finding:
+- Open loops: **100%** on 8B — EVERY message ends with a hook
+- Personality: **100%** on 8B — all characters have genuine voice
+- Anti-sycophancy: **100%** across ALL model sizes and ALL test runs
+- Sensory grounding still weakest dimension (50%) — needs more work
+- Kathmandu target language still low (40%) — Priya defaults to English for emotional support
