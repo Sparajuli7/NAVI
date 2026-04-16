@@ -632,3 +632,25 @@ References the Ethiopian Yirgacheffe, rain on the window, the old regular
 
 ### BARCELONA needs work — dialect awareness EXCELLENT (5/6 markers) but
 personality and sensory weak. Needs richer system prompt like other scenarios.
+
+---
+
+## TEST RESULTS — Advanced Test Suites (2026-04-16)
+
+### EXP-083: Retention Test
+- Session 1: 5/6 phrase markers taught successfully  
+- Session 2 (simulated next day): 3/6 phrases resurfaced contextually
+- System DOES bring back phrases — but ~50% resurfacing rate needs improvement
+
+### EXP-084: Conversation Variety
+- Jaccard similarity Run 1-2: 66.7% (too similar — repetitive opening)
+- Jaccard similarity Run 1-3: 10.5% (good variety)
+- Jaccard similarity Run 2-3: 9.5% (good variety)
+- The model has ONE repetitive opening pattern then varies after that
+- Need: stronger "avoid recent openers" instruction
+
+### EXP-085: Emotional Anchors
+- Victory anchor: FIRES — teaches new phrase during pride moment
+- Comfort anchor: FIRES — teaches comfort phrase during recovery
+- Laughter anchor: FIRES — teaches phrase at center of humor
+- OVERALL: ALL ANCHORS FIRE — phrases taught during emotional peaks
