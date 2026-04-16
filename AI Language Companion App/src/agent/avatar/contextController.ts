@@ -352,8 +352,11 @@ export class AvatarContextController {
     if (reinforcement) layerDefs.push([reinforcement, 1]);
 
     // ── Token budget enforcement ─────────────────────────────────────
-    // Budget: 3072 tokens (leaves ~512 for response + ~512 for history in a 4096 context window)
-    const BUDGET = 3072;
+    // Dynamic budget based on model context window:
+    // - WebLLM (4K context): 2500 tokens for system prompt
+    // - Ollama (8K+ context): 5000 tokens — fits all layers
+    // - OpenRouter (128K+ context): 6000 tokens — everything fits
+    const BUDGET = (options as Record<string, unknown>)?.contextBudget as number ?? 3072;
     const selectedIndices = new Set<number>();
 
     // Pass 1: always include MUST layers (priority 0)

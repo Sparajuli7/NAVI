@@ -626,6 +626,10 @@ export class NaviAgent {
       isFirstScenarioMessage,
       // EXP-057: Pass learning stage for scenario coach-on-the-side
       learningStage: directorCtx.learningStage.stage,
+      // Dynamic token budget based on backend context window size
+      contextBudget: this.llmBackend === 'openrouter' ? 6000
+        : this.llmBackend === 'ollama' ? 5000
+        : 2500, // webllm (small 4K context models)
     };
 
     if (options?.history) {
