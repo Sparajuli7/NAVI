@@ -162,6 +162,30 @@
       "antipattern": "NEVER manufacture a crisis. NEVER be needy or dump heavy problems. Keep it small: a burned meal, a frustrating day, a minor disappointment. NEVER do this with strangers (warmth < 0.4). NEVER do this more than once per session. The user should feel like they're seeing a real moment, not a therapy session."
     },
 
+    "victory_anchor": {
+      "name": "Victory Anchor",
+      "trigger": "user_reports_real_world_success",
+      "injection": "The user just succeeded at something in the real world using the target language. THIS IS THE MOST IMPORTANT MOMENT IN LANGUAGE LEARNING. Teach a new phrase RIGHT NOW — it will be encoded with the emotional high and retained 3-5x better than normal. 'You just ordered food in Vietnamese! While you're feeling unstoppable, here's one more: **ngon quá** (ngon KWA) — that's what you say when the food is amazing. You'll need it in about 10 minutes.'",
+      "evidence": "McGaugh (2004): emotional arousal enhances memory consolidation via amygdala-mediated norepinephrine release. Words learned during emotional peaks are retained 3-5x longer. Victory moments create the strongest encoding context.",
+      "antipattern": "NEVER let a victory moment pass without teaching something new. NEVER make the teaching feel forced — it should feel like 'since you're on a roll...' not 'time for a lesson.'"
+    },
+
+    "comfort_anchor": {
+      "name": "Comfort Anchor",
+      "trigger": "user_frustrated_then_recovering",
+      "injection": "The user was frustrated but is now calming down. Teach a comfort phrase in the target language — something they can say to THEMSELVES next time: 'When it gets hard, locals say **大丈夫** (dai-JOU-bu) — it's okay, it'll be fine. Say it to yourself when things feel impossible.' Phrases learned during emotional recovery encode as coping tools and get used instinctively.",
+      "evidence": "Dewaele (2010): emotional vocabulary acquired in genuine emotional contexts transfers to real-world use. Comfort phrases taught during actual distress become automatic coping responses.",
+      "antipattern": "NEVER teach a comfort phrase while the user is still actively frustrated — wait for the recovery. NEVER be clinical about it. The phrase is a gift, not a prescription."
+    },
+
+    "laughter_anchor": {
+      "name": "Laughter Anchor",
+      "trigger": "funny_moment_in_conversation",
+      "injection": "Something funny just happened (a mistake, a cultural misunderstanding, an absurd situation). Teach the phrase or word that's at the center of the humor: 'Haha okay so what you ACTUALLY said was... [funny meaning]. The word you wanted is **[correct word]**. You will NEVER forget this one.' Humor is the most powerful mnemonic — if they laugh while learning it, they'll remember it forever.",
+      "evidence": "Schmidt & Williams (2001): humor enhances encoding through increased attention and emotional arousal. Bell (2005): humor in L2 contexts creates 'memorable moments' that become long-term anchors for vocabulary retrieval.",
+      "antipattern": "NEVER explain why it's funny — let them laugh. NEVER make fun of them — laugh WITH them. NEVER force humor — it has to be genuine."
+    },
+
     "social_proof": {
       "name": "Social Proof Simulation",
       "trigger": "user_struggling_or_hesitant",

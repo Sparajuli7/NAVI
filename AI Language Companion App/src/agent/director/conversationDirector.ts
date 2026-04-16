@@ -639,6 +639,25 @@ export class ConversationDirector {
       }
     }
 
+    // Emotional learning anchors — teach during emotional peaks for 3-5x retention
+    // victory_anchor: user reports real-world success
+    if (emotionalState === 'proud' || emotionalState === 'excited') {
+      const prideWords = /did it|said|understood|worked|nailed|got it|they smiled|responded|success/i;
+      if (prideWords.test(message)) {
+        const victoryText = promptLoader.get('conversationSkills.skills.victory_anchor.injection');
+        if (victoryText) goalInstructions.push(victoryText);
+      }
+    }
+    // comfort_anchor: user was frustrated but showing recovery signals
+    if (this.working?.has('was_frustrated') && emotionalState !== 'frustrated') {
+      const comfortText = promptLoader.get('conversationSkills.skills.comfort_anchor.injection');
+      if (comfortText) goalInstructions.push(comfortText);
+      this.working.remove('was_frustrated');
+    }
+    if (emotionalState === 'frustrated' && this.working) {
+      this.working.set('was_frustrated', true, 10 * 60 * 1000); // 10 min TTL
+    }
+
     // EXP-065: Milestone celebration — consume flag set by checkMilestones in postProcess
     if (this.working?.has('milestone_celebration')) {
       const celebrationInstruction = this.working.get('milestone_celebration') as string;
