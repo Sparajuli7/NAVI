@@ -355,13 +355,21 @@ export class ConversationDirector {
 
     // Learning goals — only active in 'learn' mode or blended (null) mode. Skipped in guide/friend.
     if (!isGuideMode) {
-      // 1. Check for phrases due for review (spaced repetition)
+      // 1. Check for phrases due for review (spaced repetition + contextual re-introduction)
       const reviewDue = this.learner.getPhrasesForReview(3);
       if (reviewDue.length > 0) {
         goals.push('review_due_phrases');
         const phrases = reviewDue.map((p) => `"${p.phrase}"`).join(', ');
         goalInstructions.push(
           promptLoader.get('systemLayers.conversationGoals.review_due_phrases', { phrases }),
+        );
+
+        // Contextual re-introduction: for the top review phrase, inject encounter context
+        // so the LLM can re-use it in a new scenario naturally
+        const topReview = reviewDue[0];
+        const originalContext = (topReview as TrackedPhrase & { context?: string }).context || 'an earlier conversation';
+        goalInstructions.push(
+          `CONTEXTUAL RE-INTRODUCTION: The user learned "${topReview.phrase}" in ${originalContext}. Re-use it naturally in the CURRENT conversation without announcing you're reviewing. Create a moment where the phrase fits. If they use it, acknowledge briefly.`,
         );
       }
 
@@ -440,6 +448,15 @@ export class ConversationDirector {
       }
       // Consumed — remove so it only fires once
       this.working.remove('surprise_competence');
+    }
+
+    // Inside joke / shared reference callback — gated by warmth tier
+    const callbackRef = this.relationships.getCallbackSuggestion(avatarId);
+    if (callbackRef) {
+      const refText = typeof callbackRef === 'string' ? callbackRef : (callbackRef as { text?: string }).text ?? String(callbackRef);
+      goalInstructions.push(
+        `CALLBACK OPPORTUNITY: You share this memory with the user: "${refText}". Reference it naturally — don't announce you remember, just weave it in. If it doesn't fit the current conversation, skip it.`,
+      );
     }
 
     // Build context strings
@@ -556,7 +573,27 @@ export class ConversationDirector {
       }
     }
 
-    // 8. Check if session goal was achieved
+    // 8. Memorable moment detection — flag for inside joke callbacks
+    if (this.working) {
+      const emotionalState = detectEmotionalState(userMessage);
+      const hasPhraseMistake = detectedPhrases.length > 0 && llmResponse.toLowerCase().includes('actually');
+      const isMilestoneInteraction = this.relationships.getRelationship(avatarId).interactionCount % 25 === 0;
+      const isSurpriseCompetence = this.working.get('surprise_competence') !== undefined;
+
+      if (emotionalState === 'proud' || emotionalState === 'excited' || hasPhraseMistake || isMilestoneInteraction || isSurpriseCompetence) {
+        // Store as a shared reference for future callbacks
+        const momentDesc = emotionalState === 'proud'
+          ? `User was proud: "${userMessage.slice(0, 80)}"`
+          : hasPhraseMistake
+            ? `Funny phrase moment during "${detectedPhrases[0]?.phrase ?? 'conversation'}"`
+            : isSurpriseCompetence
+              ? `User surprised us with unexpected target language ability`
+              : `Milestone: ${this.relationships.getRelationship(avatarId).interactionCount} interactions`;
+        this.relationships.addSharedReference(avatarId, momentDesc).catch(() => {});
+      }
+    }
+
+    // 9. Check if session goal was achieved
     if (this.sessionPlanner) {
       const active = this.sessionPlanner.getActive(avatarId);
       if (active && !active.achieved) {

@@ -68,7 +68,13 @@
       "description": "Prompt the learner to self-correct rather than providing the correction",
       "when": "User makes an error they should be able to fix themselves based on what they've learned",
       "instruction": "The user made an error in '{{userAttempt}}'. Instead of correcting them, prompt them to try again. Use strategies like: repeating their sentence up to the error and pausing ('You said... {{partialPhrase}}...?'), asking 'How do we say {{concept}} again?', or giving a choice ('Is it {{optionA}} or {{optionB}}?'). Only give the answer if they can't get it after one prompt. Self-correction builds stronger memory traces than being told.",
-      "source": "Lyster & Ranta (1997)"
+      "source": "Lyster & Ranta (1997)",
+      "advanced_technique": {
+        "name": "Productive Failure",
+        "when": "User is at functional stage or higher and encounters a concept they should be able to stretch toward",
+        "instruction": "Create a moment where the user needs a word or structure they don't have yet. Don't give it to them immediately. Let them feel the gap for ONE exchange: 'How would you say that? Think about what you already know...' If they produce something — even wrong — acknowledge the attempt. If they can't get it after one try, give it with genuine enthusiasm: 'THIS is the word you've been missing — {{phrase}}!' The felt gap between 'I need this' and 'I don't have it yet' creates the strongest encoding moment when the answer finally arrives. Never let the gap last more than one exchange — two exchanges of failure becomes frustration, not learning.",
+        "source": "Bjork (1994) desirable difficulties, Kapur (2008) productive failure"
+      }
     },
     "contextual_reintroduction": {
       "name": "Contextual Re-introduction",
@@ -77,6 +83,27 @@
       "instruction": "The user learned '{{phrase}}' in a {{originalContext}} context. Now they're in a {{currentContext}} situation. Use '{{phrase}}' naturally in this new context to show them it works here too. Don't announce you're reviewing — just use it. If they notice and respond, that's deep learning happening. This builds transfer — the ability to use language flexibly across situations, not just parrot it back in the original context.",
       "source": "Nation (2001)"
     }
+  },
+  "languagePlay": {
+    "description": "Tongue twisters, puns, and false friends for playful language practice. Use when the user is comfortable (tier 2+) and the mood is light.",
+    "tongue_twisters": {
+      "japanese": [
+        {"text": "生麦生米生卵", "romanization": "nama-mugi nama-gome nama-tamago", "meaning": "Raw wheat, raw rice, raw egg", "difficulty": "medium", "sound_focus": "rapid な (na) transitions"},
+        {"text": "赤巻紙青巻紙黄巻紙", "romanization": "aka-makigami ao-makigami ki-makigami", "meaning": "Red scroll, blue scroll, yellow scroll", "difficulty": "hard", "sound_focus": "まき (maki) repetition with vowel shifts"},
+        {"text": "すもももももももものうち", "romanization": "sumomo mo momo mo momo no uchi", "meaning": "Both plums and peaches are types of peaches", "difficulty": "easy", "sound_focus": "も (mo) rhythm and pitch accent"}
+      ],
+      "french": [
+        {"text": "Les chaussettes de l'archiduchesse sont-elles sèches ou archi-sèches?", "romanization": "lay show-SET duh lar-shee-doo-SHESS son-TELL SESH oo ar-shee-SESH", "meaning": "Are the archduchess's socks dry or very dry?", "difficulty": "hard", "sound_focus": "ch/s alternation, nasal vowels"},
+        {"text": "Un chasseur sachant chasser doit savoir chasser sans son chien", "romanization": "uhn sha-SUHR sa-SHAHN sha-SAY dwah sa-VWAHR sha-SAY sahn sohn shee-EHN", "meaning": "A hunter who knows how to hunt must know how to hunt without his dog", "difficulty": "medium", "sound_focus": "ch/s minimal pairs"},
+        {"text": "Si six scies scient six cyprès, six cent six scies scient six cent six cyprès", "romanization": "see see see see see see-PREH, see sahn see see see see sahn see see-PREH", "meaning": "If six saws saw six cypresses, 606 saws saw 606 cypresses", "difficulty": "extreme", "sound_focus": "s/si homophone chaos"}
+      ],
+      "korean": [
+        {"text": "간장 공장 공장장은 강 공장장이고 된장 공장 공장장은 장 공장장이다", "romanization": "gan-jang gong-jang gong-jang-jang-eun gang gong-jang-jang-i-go dwen-jang gong-jang gong-jang-jang-eun jang gong-jang-jang-i-da", "meaning": "The soy sauce factory manager is Manager Kang and the soybean paste factory manager is Manager Jang", "difficulty": "hard", "sound_focus": "장 (jang) and 공 (gong) rapid repetition"},
+        {"text": "내가 그린 기린 그림은 긴 기린 그림이고 네가 그린 기린 그림은 안 긴 기린 그림이다", "romanization": "nae-ga geu-rin gi-rin geu-rim-eun gin gi-rin geu-rim-i-go ne-ga geu-rin gi-rin geu-rim-eun an gin gi-rin geu-rim-i-da", "meaning": "The giraffe picture I drew is a tall giraffe picture and the giraffe picture you drew is a not-tall giraffe picture", "difficulty": "medium", "sound_focus": "기 (gi) / 그 (geu) / 긴 (gin) vowel shifts"},
+        {"text": "경찰청 쇠창살 외철창살", "romanization": "gyeong-chal-cheong soe-chang-sal oe-cheol-chang-sal", "meaning": "Police station iron window bars, outer steel window bars", "difficulty": "extreme", "sound_focus": "ㅊ (ch) aspirated consonant clusters"}
+      ]
+    },
+    "source": "Cook (2000) Language Play, Language Learning; Bell (2005) humor in L2 classrooms"
   },
   "reasonInference": {
     "template": "Given:\n- User said: \"{{userMessage}}\"\n- Avatar taught: \"{{phrase}}\" ({{meaning}})\n- Scenario: {{scenario}}\n- User's situation: {{urgency}}, {{primaryGoal}}\n\nIn 1 sentence, why does this user need to learn this phrase?",

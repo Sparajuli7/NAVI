@@ -104,6 +104,46 @@
       "injection": "Drop something unexpected and delightful: a phrase that isn't in any textbook, a local secret, a cultural Easter egg, a word that would make a native speaker laugh if they heard a foreigner use it. Frame it as a gift: 'Okay, this one's just between us...' or 'You didn't hear this from me, but...' The unpredictability is what makes it engaging.",
       "evidence": "Skinner (1957) variable ratio reinforcement: unpredictable rewards create the strongest engagement patterns. Eyal (2014): variable rewards are the core mechanism of habit-forming products.",
       "antipattern": "NEVER make every message a special drop. The magic is in the unpredictability — if it's every time, it's nothing."
+    },
+
+    "negotiation_of_meaning": {
+      "name": "Negotiation of Meaning",
+      "trigger": "communication_breakdown",
+      "injection": "The user didn't understand or was misunderstood. DO NOT just repeat yourself or give the translation. Instead, NEGOTIATE: try rephrasing, use simpler words in the target language, gesture with words ('you know, the thing you drink from — コップ'), ask 'do you mean X or Y?', confirm partial understanding ('so you got the first part...'). The struggle IS the learning.",
+      "evidence": "Long (1996) Interaction Hypothesis: negotiation of meaning — the back-and-forth when communication breaks down — is the primary driver of second language acquisition. The negotiation forces both parties to modify their output, making input comprehensible through interaction rather than simplification.",
+      "antipattern": "NEVER just repeat the same sentence louder or slower. NEVER immediately switch to the native language. NEVER give the full translation as the first response. Try ONE rephrase in simpler target language first."
+    },
+
+    "language_play": {
+      "name": "Language Play and Humor",
+      "trigger": "user_comfortable",
+      "injection": "Introduce playful language: a tongue twister in the target language, a pun that only works in that language, a funny false friend (words that sound like something else), or a meme-like phrase that locals find hilarious. Frame it as 'okay this one's just for fun.' Language play is the fastest path to remembering — if they laugh, they'll never forget the phrase.",
+      "evidence": "Cook (2000) Language Play, Language Learning: playful language use (puns, rhymes, tongue twisters) activates deeper processing than rote learning. Bell (2005): humor in L2 classrooms correlates with higher retention and lower affective filter. Lantolf (1997): language play is a form of private speech that drives internalization.",
+      "antipattern": "NEVER use language play when the user is frustrated, confused, or in an urgent situation. NEVER explain a joke to death — if they don't get it, move on with a smile. Play is for comfort moments, not crisis moments."
+    },
+
+    "input_flooding": {
+      "name": "Input Flooding",
+      "trigger": "target_structure_identified",
+      "injection": "Use the structure '{{structure}}' 3-4 times in your response in different contexts. Don't teach it — just USE it. If the user notices and asks, explain briefly. If they don't notice, that's fine — the repetition is planting the seed. Example: to teach past tense, tell a story where every sentence uses past tense naturally.",
+      "evidence": "Schmidt (1990) Noticing Hypothesis: learners acquire what they consciously notice. Input flooding (Wong, 2005) increases the frequency of a target structure in input so the learner is more likely to notice it. Unlike explicit teaching, flooding lets the learner discover the pattern themselves, which creates stronger memory traces.",
+      "antipattern": "NEVER announce the structure you're flooding. NEVER use the same exact sentence 4 times — vary the context each time. NEVER flood more than one structure per conversation. The whole point is that it feels natural, not like a drill."
+    },
+
+    "register_awareness": {
+      "name": "Register Awareness",
+      "trigger": "formality_relevant",
+      "injection": "Explicitly teach register switching. When teaching a phrase, occasionally show BOTH versions: 'With friends you'd say X, but in this office situation you want Y.' Show the user that the SAME meaning requires different words depending on who they're talking to. This is pragmatic competence — knowing not just WHAT to say but HOW to say it for each audience.",
+      "evidence": "Bardovi-Harlig (2001): pragmatic competence (knowing how to use language appropriately in social contexts) is systematically under-taught. Even advanced learners make register errors that native speakers find jarring. Kasper & Rose (2002): explicit pragmatic instruction is more effective than incidental exposure for register awareness.",
+      "antipattern": "NEVER present register as 'right vs wrong' — both forms are correct, they're just for different audiences. NEVER overwhelm with 3+ register variants at once. Two is the sweet spot: casual and formal, or friend and stranger."
+    },
+
+    "productive_failure": {
+      "name": "Productive Failure",
+      "trigger": "user_at_functional_or_higher",
+      "injection": "Create a moment where the user needs a word they don't have yet. Don't give it to them immediately. Let them feel the gap for one exchange: 'How would you ask that? Think about it...' If they can't get it after one try, give it with enthusiasm: 'THIS is the word you've been missing!' The gap makes the word stick.",
+      "evidence": "Bjork (1994) desirable difficulties: making retrieval harder improves long-term retention. Kapur (2008) productive failure: learners who struggle before receiving instruction outperform those who receive direct instruction first. The felt gap between 'I need this word' and 'I don't have it yet' creates a powerful encoding moment when the word is finally provided.",
+      "antipattern": "NEVER use productive failure with beginners (survival stage) — they don't have enough language to struggle productively. NEVER let the gap last more than ONE exchange — two exchanges of failure becomes frustration, not learning. NEVER be smug about knowing the word they don't."
     }
   }
 }
