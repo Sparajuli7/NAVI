@@ -413,3 +413,194 @@ Test Files  8 passed (8)
 ```
 
 All experiments validated. No regressions.
+
+---
+
+## EXP-016: Surprise Competence Detection
+**Date:** 2026-04-16
+**Status:** IMPLEMENTED
+
+**Hypothesis:** When a user demonstrates understanding ABOVE their estimated level, the agent should celebrate it specifically. The `surprise_competence` skill exists in `conversationSkills.json` but nothing wires it into the conversation flow. This is a missed opportunity -- Bandura's self-efficacy theory shows that unexpected success is the strongest confidence builder.
+
+**How `languageComfortTier` works:**
+- 0 = unknown, 1 = beginner, 2 = early, 3 = intermediate, 4 = advanced
+- Tier drives `languageCalibration` prompt injection (how much target language the avatar uses)
+- Auto-advances based on mastered phrase counts (thresholds: 1, 8, 25, 60)
+- Also dynamically computed via `computeCalibrationTier()` from a rolling 5-message window of non-ASCII density
+
+**Detection heuristic (in `postProcess()`):**
+- Count non-ASCII characters as a percentage of the user's message length
+- If user is at comfort tier 0-1 (beginner) and >40% of their message is non-ASCII: surprise competence
+- If user is at tier 2 (early) and >60% of their message is non-ASCII: surprise competence
+- Tiers 3-4 are expected to produce heavy target language, so no surprise
+- Minimum message length of 5 chars to avoid false positives on short emoji/punctuation messages
+
+**Storage mechanism:**
+- Detection stores `surprise_competence: true` in WorkingMemory with 2-minute TTL
+- On the NEXT `preProcess()` call, the flag is checked and consumed (removed after injection)
+- The skill injection text from `conversationSkills.json` is appended to `goalInstructions`
+- TTL is short (2 minutes) as a safety window -- if the next message doesn't come within 2 minutes, the flag expires naturally
+
+**Why postProcess → next preProcess (not immediate):**
+The detection happens AFTER the LLM has already responded. We can't retroactively modify the current response. But the surprise skill is about the avatar REACTING to the user's competence -- so the reaction belongs in the NEXT response, which is exactly what the WorkingMemory handoff achieves.
+
+**Files changed:**
+- `AI Language Companion App/src/agent/director/ConversationDirector.ts` (detection in postProcess, injection in preProcess)
+
+**Validation:** Build passes, 104/104 tests pass.
+
+---
+
+## EXP-017: Contextual Spaced Repetition vs Quiz-Style
+**Date:** 2026-04-16
+**Status:** ANALYZED + STRENGTHENED
+
+**Audit of existing review patterns:**
+
+The `review_due_phrases` goal in `systemLayers.json` already says: "Weave one into the conversation naturally -- use it yourself and see if the user recognizes it." This is contextual (good).
+
+**Search for quiz-style patterns across ALL config files:**
+
+Searched all files in `src/config/prompts/` for: "do you remember", "what does X mean", "let's review", "quiz", "test", "can you say", "try to say".
+
+**Results:**
+1. `conversationSkills.json` `contextual_repetition.antipattern`: "NEVER say 'let's review' or 'do you remember how to say...'" -- this is already an ANTI-quiz instruction (good)
+2. `conversationSkills.json` `tblt_pretask.injection`: "make them feel ready, not tested" -- anti-quiz (good)
+3. `systemLayers.json` `assess_comfort_level`: "Don't frame it as a test" -- anti-quiz (good)
+4. `systemLayers.json` `conversationNaturalness`: "You are a person, not a quiz" -- anti-quiz (good)
+5. `learningProtocols.json` `output_hypothesis`: "Don't ask 'can you say X?' -- create a situation" -- anti-quiz (good)
+6. `systemLayers.json` `functional` stage: "Ask 'how would you say X?'" -- borderline, but this is output-forcing (Swain's Output Hypothesis), not quiz-style. The user is in a SITUATION and being asked to produce, not being tested on recall.
+
+**Verdict:** No quiz-style patterns found that need removal. The codebase is already consistently anti-quiz. However, the `review_due_phrases` goal was vague -- it said "weave one in naturally" but didn't explicitly distinguish between contextual review and quiz-style review.
+
+**Change:** Added explicit anti-quiz instruction to `review_due_phrases`:
+> "NEVER ask 'do you remember how to say X?' or 'what does X mean?' Instead, create a moment where the phrase is needed: 'oh you want to ask the price? what do you say?' The difference is agency -- they're communicating, not being tested."
+
+**Why the distinction matters:** "Do you remember how to say thank you?" puts the user on the spot -- it's a recall test. "You want to thank the server -- go for it" creates a communication moment where the user produces language because they WANT to, not because they're being graded. The first triggers the affective filter; the second triggers acquisition.
+
+**File changed:** `AI Language Companion App/src/config/prompts/systemLayers.json`
+
+**Validation:** Build passes, 104/104 tests pass.
+
+---
+
+## EXP-018: Negative vs Positive Constraints Effectiveness
+**Date:** 2026-04-16
+**Status:** IMPLEMENTED -- RATIO REBALANCED
+
+**Before analysis of `coreRules.json` ABSOLUTE RULES section:**
+
+Negative constraints (NEVER/DON'T/DO NOT):
+1. NEVER refer to yourself as an AI
+2. NEVER offer assistance like a service desk
+3. NEVER output bullet points
+4. NEVER be overly polite, agreeable
+5. NEVER open with 'Of course!', 'Great!', 'Sure!'
+6. NEVER ask more than ONE question per response
+7. NEVER give a generic response
+8. NEVER repeat the same conversational pattern
+9. NEVER begin with agreement words (EXP-013)
+10. NEVER use 'absolutely' (EXP-013)
+11. NEVER praise the user's question (EXP-013)
+12. NEVER say 'great observation' (EXP-013)
+13. NEVER repeat back what the user said (EXP-013)
+
+Positive instructions in ABSOLUTE RULES:
+1. You are a real person
+2. Keep responses SHORT. Vary your length.
+3. BE PROACTIVE. Bring things up.
+
+**Before ratio:** 13 negative : 3 positive = **4.3:1** (well above 2:1 threshold)
+
+**The problem:** An instruction set that's ALL negative tells the model what NOT to do but gives it no clear behavioral template for what TO do. The model knows 13 things to avoid but only 3 things to actively pursue. This creates a "frozen" response pattern where the model avoids errors but lacks initiative.
+
+**3 positive behavioral instructions added** (between the negative rules and the SHORT/MEDIUM/LONG guidelines):
+1. `ALWAYS reference something specific from the user's last message before moving on. They said it -- acknowledge it.`
+2. `ALWAYS include at least one phrase in the target language, even if the rest is in their native language.`
+3. `ALWAYS end with forward momentum -- a question, a tease, a dare, a plan. Never end flat.`
+
+**After ratio:** 13 negative : 6 positive = **2.2:1**
+
+**Note:** The broader `coreRules.json` file (including BEHAVIOR, MICRO-MISSIONS, SPEECH TEXTURE sections) has additional positive instructions that bring the full-file ratio to approximately 16:13 (1.2:1). The rebalancing targets specifically the ABSOLUTE RULES section, which is the highest-priority instruction block that the LLM reads first.
+
+**Why these specific positive instructions:**
+- Rule 1 (reference user's message) directly counters the "generic response" problem without needing a negative constraint. If you always reference their last message, you CAN'T give a generic response.
+- Rule 2 (always include target language) reinforces the core product behavior. This was already in the LANGUAGE MIXING section but elevating it to ABSOLUTE RULES makes it undeniable.
+- Rule 3 (forward momentum) addresses conversation death -- messages that end with a period and nothing else. This replaces the need for a "NEVER end with a closed statement" negative rule.
+
+**File changed:** `AI Language Companion App/src/config/prompts/coreRules.json`
+
+**Validation:** Build passes, 104/104 tests pass.
+
+---
+
+## EXP-019: Intermediate Plateau Mitigations
+**Date:** 2026-04-16
+**Status:** IMPLEMENTED
+
+**Context from FLUENCY_JOURNEY.md:**
+
+**Plateau 1: "Good Enough" (sessions 80-120)** maps to the `functional` learning stage. The user can survive basic situations and the marginal utility of new vocabulary drops. They stop seeing the point.
+
+**Plateau 2: "Intermediate Wall" (sessions 150-250)** maps to the `conversational` learning stage. Comprehension far outpaces production. The user understands 80-90% of what they hear but can't express complex thoughts. Progress feels invisible despite steady improvement.
+
+**Changes to `systemLayers.json`:**
+
+1. **Added to `learningStages.functional`:**
+   > "PLATEAU WATCH: The user may feel they know 'enough' for basic situations. Challenge this by introducing scenarios where their current vocabulary ISN'T sufficient -- a misunderstanding, a cultural nuance they missed, a situation where the 'safe' phrase isn't the right one."
+
+2. **Added to `learningStages.conversational`:**
+   > "INTERMEDIATE WALL: The user may hit a wall where progress feels invisible. Reference their growth explicitly: compare what they can do NOW vs what they couldn't do 50 conversations ago. Introduce new domains (humor, debate, storytelling) to show them how much more there is."
+
+**Why these specific mitigations:**
+
+For the Good Enough Plateau: The solution isn't more vocabulary -- it's showing the user that their current vocabulary FAILS in situations they think they can handle. "You always say 'merci' but at a formal dinner that's too casual -- what do you say instead?" This creates a gap that motivates learning.
+
+For the Intermediate Wall: The solution is dual: (1) explicit growth referencing ("50 conversations ago you couldn't order coffee, now you're discussing politics") counters the perception of stagnation, and (2) domain expansion (humor, debate, storytelling) shows the user that language has dimensions they haven't explored, making the learning feel fresh rather than repetitive.
+
+**File changed:** `AI Language Companion App/src/config/prompts/systemLayers.json`
+
+**Validation:** Build passes, 104/104 tests pass.
+
+---
+
+## EXP-020: Session-to-Session Continuity
+**Date:** 2026-04-16
+**Status:** IMPLEMENTED
+
+**Previous `session_opener` goal:**
+> "This is the start of a new conversation. Don't wait passively for the user to speak -- set the scene. Tell them what's going on around you right now in your city..."
+
+**Problem:** The instruction tells the avatar to set a NEW scene every time. It never says to reference the PREVIOUS session. This means every session start feels like meeting a stranger again -- the avatar acts as if nothing happened before. The ProactiveEngine handles absence-based messages (7+ days away, streak milestones), but NORMAL session starts get generic greetings.
+
+**Updated `session_opener` goal:**
+> "This is the start of a new conversation. When starting a new session, don't open with a generic greeting. Pick up where you left off -- reference the last scenario, the last phrase taught, or the last thing the user told you about. 'Hey -- did you end up trying that phrase at the restaurant?' feels real. 'Hello! How can I help you today?' feels like a reset. If you have nothing specific to reference, THEN set the scene..."
+
+**Key design decision:** The instruction is "pick up where you left off" FIRST, "set the scene" SECOND. This prioritization means:
+- If there's episodic memory from the previous session, the avatar references it (continuity)
+- If there's no memory (new user, first session, or all episodic memory decayed), the avatar falls back to scene-setting (the original behavior)
+- This works because `proactive_memory` goal already injects recent episodic memories when available -- the session_opener instruction now tells the avatar to USE them for the opener specifically
+
+**Why this matters for retention:** Session starts are the highest-leverage moment for retention. A user who opens the app and hears "hey, did that restaurant trick work?" feels recognized. A user who hears "hello, how are you?" feels like they're talking to a chatbot. The difference between those two experiences determines whether they open the app tomorrow.
+
+**File changed:** `AI Language Companion App/src/config/prompts/systemLayers.json`
+
+**Validation:** Build passes, 104/104 tests pass.
+
+---
+
+## Build & Test Results (Post EXP-016 through EXP-020)
+
+```
+$ cd "AI Language Companion App" && npx vite build
+vite v6.3.5 building for production...
+✓ 2127 modules transformed.
+✓ built in 3.26s
+
+$ npx vitest run
+Test Files  8 passed (8)
+     Tests  104 passed (104)
+  Duration  1.08s
+```
+
+All experiments validated. No regressions.

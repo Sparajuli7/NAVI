@@ -431,6 +431,17 @@ export class ConversationDirector {
       }
     }
 
+    // EXP-016: Surprise competence — check WorkingMemory for flag set by postProcess
+    if (this.working?.has('surprise_competence')) {
+      const surpriseText = promptLoader.get('conversationSkills.skills.surprise_competence.injection');
+      if (surpriseText) {
+        goalInstructions.push(surpriseText);
+        console.log('[NAVI:director] surprise competence injection (user exceeded expected level)');
+      }
+      // Consumed — remove so it only fires once
+      this.working.remove('surprise_competence');
+    }
+
     // Build context strings
     const learningContext = this.learner.formatForPrompt();
     const warmthInstruction = this.relationships.formatForPrompt(avatarId);
@@ -518,7 +529,34 @@ export class ConversationDirector {
     // 6. Language tier advancement — assess user message for target-language use vs help requests
     await this.assessLanguageTier(userMessage);
 
-    // 7. Check if session goal was achieved
+    // 7. EXP-016: Surprise competence detection — if the user produces target language
+    // at a density above what we'd expect for their comfort tier, flag it in WorkingMemory
+    // so the NEXT preProcess injects the surprise_competence skill.
+    if (this.working) {
+      const comfortTier = this.learner.languageComfortTier;
+      const nonAsciiCount = (userMessage.match(/[^\x00-\x7F]/g) ?? []).length;
+      const msgLen = userMessage.trim().length;
+      const nonAsciiRatio = msgLen > 0 ? nonAsciiCount / msgLen : 0;
+
+      // Tier 0-1 (beginner): >40% non-ASCII is surprising
+      // Tier 2 (early): >60% non-ASCII is surprising
+      // Tier 3-4: not surprising — they're expected to use target language heavily
+      let isSurprise = false;
+      if (comfortTier <= 1 && nonAsciiRatio > 0.4 && msgLen > 5) {
+        isSurprise = true;
+      } else if (comfortTier === 2 && nonAsciiRatio > 0.6 && msgLen > 5) {
+        isSurprise = true;
+      }
+
+      if (isSurprise) {
+        // Store with short TTL — should fire on the very next preProcess call only
+        // Using 2-minute TTL as a safety window (covers one turn)
+        this.working.set('surprise_competence', true, 2 * 60 * 1000);
+        console.log(`[NAVI:director] surprise competence detected: tier=${comfortTier} nonAsciiRatio=${nonAsciiRatio.toFixed(2)}`);
+      }
+    }
+
+    // 8. Check if session goal was achieved
     if (this.sessionPlanner) {
       const active = this.sessionPlanner.getActive(avatarId);
       if (active && !active.achieved) {
