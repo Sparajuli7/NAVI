@@ -428,6 +428,44 @@ The emotional support mode overrides the language instruction. Needs stronger "i
 
 ---
 
+### EXP-071: Avatar Mood System + Greeting Evolution + Identity Anchors (2026-04-16)
+
+**Hypothesis:** Three changes that make the avatar feel like a real person with emotional variation, evolving relationship dynamics, and consistent personality anchors — the core mechanisms for parasocial attachment identified in Research Round 6.
+
+**Implementation 1 — Avatar Mood System:**
+- Added `avatarMoods` section to `systemLayers.json` with 7 moods: cheerful, tired, nostalgic, excited, restless, contemplative, playful
+- In `ConversationDirector.preProcess()`, on session start: 60% neutral (no injection), 40% randomly selects a mood and injects `TODAY'S MOOD: <text>` into goalInstructions
+- No LLM call needed — pure heuristic injection
+- Config change: `src/config/prompts/systemLayers.json`
+- Code change: `src/agent/director/ConversationDirector.ts` (lines 430-443)
+
+**Implementation 2 — Greeting Evolution:**
+- Added `greetingStyle` field to all 5 warmth tiers in `warmthLevels.json`:
+  - stranger: "Greet formally in the target language with a translation. First impressions matter."
+  - acquaintance: "Greet casually. Use their name sometimes. Drop the translation for greetings you've used before."
+  - friend: "Greet like you'd text a friend — short, casual, maybe skip the greeting entirely and jump into what's on your mind."
+  - close_friend: "Your greeting IS the conversation starter. 'Oh my god, you won't believe what just happened' or just pick up where you left off."
+  - family: "Sometimes no greeting at all — just start talking, like you've been in the same room the whole time."
+- In `ConversationDirector.preProcess()`, on session start: reads current warmth tier from RelationshipStore, finds matching `greetingStyle`, injects as `GREETING STYLE (based on your relationship): <text>`
+- Config change: `src/config/prompts/warmthLevels.json`
+- Code change: `src/agent/director/ConversationDirector.ts` (lines 445-459)
+
+**Implementation 3 — Identity Anchors:**
+- Added `IDENTITY ANCHORS` block to `coreRules.json` rules string, placed between the frustration/confusion section and ABSOLUTE RULES:
+  - Your opinion about your neighborhood (from your personality)
+  - Your go-to recommendation (a place, a food, an experience)
+  - Something you always say in a specific situation (a catchphrase or reaction)
+  - "These create consistency. The user should be able to predict how you'll react to certain topics. That predictability IS the relationship."
+- Config change: `src/config/prompts/coreRules.json`
+
+**Research basis:** Horton & Wohl (1956) parasocial interaction theory — consistency of self-presentation is the single strongest predictor of parasocial bond strength. Berlyne (1960) moderate surprise within predictable framework creates strongest engagement. Altman & Taylor (1973) social penetration theory — greeting formality should match relationship depth.
+
+**Result:** Build passes. 104/104 tests pass.
+
+**Verdict:** SHIPPED. All three mechanisms are lightweight (config + heuristic injection, no LLM calls), composable (mood + greeting + anchors can all fire in the same session start), and reversible (remove JSON fields + code blocks to disable).
+
+---
+
 ## LIVE TEST — qwen3.5:4b with think:false (2026-04-16)
 
 ### Model: qwen3.5:4b (4.7B) via Ollama with think:false
