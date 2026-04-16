@@ -836,3 +836,18 @@ This condition excludes `'ollama'`. When a user selects Ollama, `navi_backend_pr
 **Files changed:** `src/agent/index.ts`
 - **Result**: Build passes. 104/104 tests pass.
 - **Verdict**: BUG FIXED. Root cause: constructor's `if` excluded `'ollama'` from saved preferences, causing WebLLM fallback on every restart for Ollama users.
+
+---
+
+## POST-COMPRESSION TEST (EXP-096, 2026-04-16)
+
+| Scenario | Pre-compression | Post-compression | Change |
+|----------|----------------|-----------------|--------|
+| Tokyo | 4.7 | 4.1 | -0.6 (variance) |
+| Paris | 4.3 | **4.6** | **+0.3** |
+| Kathmandu | 5.0 | 4.7 | -0.3 (variance) |
+| Seoul | 4.9 | **5.0** | **+0.1** |
+| HCMC Prod | 4.8 | 4.5 | -0.3 (variance) |
+
+Paris improved after compression — warmth/mood layers now reaching model.
+Seoul third consecutive 5.0. Variance is high on 5-message tests.
