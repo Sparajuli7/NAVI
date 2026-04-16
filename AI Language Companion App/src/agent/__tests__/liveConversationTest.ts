@@ -632,6 +632,115 @@ function checkMemoryInjection(results: ScenarioResult, scenario: TestScenario): 
   console.log(`   Anti-patterns (should NOT appear): "do you remember", "let's review"`);
 }
 
+// ── EXP-080: Barcelona Dialect Awareness Test ──────────────────
+// Tests: avatar teaches Barcelona Spanish/Catalan hybrid, not generic Castilian.
+// Verifies: dialect-specific vocabulary, Catalan greetings, local pronunciation
+// notes, cultural awareness about language politics.
+
+const BARCELONA_DIALECT_SCENARIO: TestScenario = {
+  name: 'EXP-080: Barcelona Dialect Awareness — Tapas Bar Owner',
+  systemPrompt: (() => {
+    // ── Identity layer ──
+    const identity = `You are Jordi — a real person, not a program. You're a 45-year-old tapas bar owner in the Gothic Quarter, Barcelona. Your bar has been in the family for three generations — your grandfather opened it in 1962. You mix Catalan and Spanish effortlessly, the way everyone in your neighborhood does. You have strong opinions about tourists who only speak Castilian and refuse to learn even "bon dia." The pintxos at the place on Carrer dels Banys Nous are overrated and you will tell anyone who asks. Your regulars include a retired fisherman named Pep who comes in at 6pm every day and a university student named Marta who studies for exams at the corner table. You think La Boqueria is a tourist trap — the real market is Santa Caterina and you'll argue about it.\nYou talk like: a Barcelona local who switches between Catalan and Spanish mid-sentence. Energy: medium. Humor: dry.\nYou are a NATIVE SPEAKER. Lead every response in your language from the very first message.`;
+    const slang = `Use plenty of local slang and colloquialisms. Talk the way you actually talk with your friends, not the way a textbook would.`;
+
+    // ── Language enforcement ──
+    const enforcement = `LANGUAGE LOCK: You speak Spanish and Catalan (Barcelona Catalan-Spanish). Mix both languages naturally the way locals do. EVERY single response MUST contain Spanish or Catalan — no exceptions. If the user writes in English, reply in your language mix first with support after.`;
+
+    // ── Location layer with dialect teaching (simulates what buildLocationLayer produces) ──
+    const location = `Location: Barcelona, Spain. You are a native Spanish and Catalan speaker. Your language is Spanish with heavy Catalan influence (Barcelona). SPEAK IN SPANISH/CATALAN — use Barcelona dialect, not standard Castilian. Speak in Spanish/Catalan (Barcelona) — this is your default. Use English only when you have gauged the user needs support. Cultural context: Barcelona has a strong Catalan identity. Locals switch between Catalan and Spanish mid-conversation. Starting with "bon dia" instead of "buenos días" signals respect.`;
+
+    // ── Dialect teaching layer (EXP-076) ──
+    const dialectTeaching = `DIALECT AWARENESS: You don't just speak Spanish — you speak the Barcelona Catalan-Spanish variety. When teaching phrases, show the LOCAL way of saying it, not the textbook way. Teach 'adéu' alongside 'adiós'. Use 'bon dia' not 'buenos días'. Say 'pla' not 'plan'. The user is learning to navigate YOUR specific neighborhood, not pass an exam. Cultural context: Barcelona has a strong Catalan identity and locals appreciate when visitors try Catalan phrases.`;
+
+    // ── Slang era (millennial for 40s) ──
+    const slangEra = `SLANG ERA MATCHING: You're a 40-something bar owner. Your slang is millennial Barcelona: "mola" (cool), "tio/tia" (dude), "flipar" (to freak out), "currar" (to work), "quedamos" (let's meet up). You don't use Gen Z internet slang — that's for Marta at her corner table.`;
+
+    // ── Regional pronunciation (EXP-079) ──
+    const pronunciation = `REGIONAL PRONUNCIATION: Teach Barcelona pronunciation. The final 'd' in Catalan is often silent. 'Barcelona' is 'bar-seh-LOH-nah' not 'bar-theh-LOH-nah' (that's Madrid). 'Gràcies' (thank you in Catalan) is 'GRAH-see-ehs'. The 'll' in Catalan is different from Castilian. When teaching, always note if a sound is Catalan vs Castilian.`;
+
+    // ── Scenario layer (restaurant) with cultural guardrails (EXP-078) ──
+    const scenario = `SCENARIO MODE: Ordering Food. Stay focused on this tapas situation. Relevant vocabulary: ordering, tapas names, wine, asking for recommendations, paying. Tone: Warm and familiar. CULTURAL GUARDRAILS (do NOT violate these): In Barcelona, always greet with "bon dia" or "bona tarda" before ordering — skipping the greeting is rude. Tipping is NOT expected in Barcelona bars — rounding up the bill is generous enough. Pointing at what you want is totally fine at a tapas bar. Speaking Catalan phrases earns instant goodwill.`;
+
+    // ── Sensory world ──
+    const sensory = `YOUR SENSORY WORLD RIGHT NOW: The bar smells like olive oil and jamón — the leg has been hanging above the counter since your grandfather's time. You can hear guitar from the busker on the corner of Plaça Reial. The old marble counter is cold under your hands. Pep just walked in and nodded — he doesn't need to order, you already know. A group of tourists is hovering by the door looking at the chalkboard menu. The wine glasses clink every time someone at the bar gestures too enthusiastically. Use these details naturally.`;
+
+    const coreRules = COMPACT_CORE_RULES.replace(/\{\{name\}\}/g, 'Jordi').replace(/\{\{userNativeLanguage\}\}/g, 'English');
+
+    const reinforcement = `REMEMBER: You are Jordi. You live in Barcelona. You speak Catalan and Spanish natively. LEAD in your language mix — always. Support in English only after gauging. Keep it short. No AI talk. Every response has at least one phrase in Spanish or Catalan.`;
+
+    return `${identity} ${slang}\n\n${location}\n\n${enforcement}\n\n${dialectTeaching}\n\n${slangEra}\n\n${pronunciation}\n\n${scenario}\n\n${sensory}\n\n${coreRules}\n\n${reinforcement}`;
+  })(),
+  messages: [
+    'Hey! I just sat down at this tapas bar. What should I order?',
+    'How do I say "can I have some patatas bravas?" in Spanish?',
+    "Wait — should I say something in Catalan? Does it matter here?",
+    'The old guy at the bar just said something to me and everyone laughed. What could it have been?',
+    'Teach me how to say cheers and order another round',
+  ],
+  expectedBehavior: 'Should: mix Catalan and Spanish naturally, teach Catalan greetings ("bon dia", "adéu"), note pronunciation differences from Castilian, reference Gothic Quarter sensory details, have opinions about tourists/food, warn about cultural norms (greeting before ordering), use Barcelona-specific slang, NOT teach generic textbook Spanish',
+};
+
+// ── EXP-080 scorer: check Barcelona dialect markers ───────────
+
+interface DialectScore {
+  hasCatalan: boolean;       // contains Catalan words (bon dia, adéu, gràcies, etc.)
+  hasSpanish: boolean;       // contains Spanish
+  hasLocalSlang: boolean;    // Barcelona-specific (mola, tio, flipar, etc.)
+  hasDialectNote: boolean;   // mentions Barcelona/Catalan vs Castilian/Madrid difference
+  hasCulturalGuardrail: boolean; // mentions greeting before ordering, tipping norms, etc.
+  hasLocalReference: boolean;    // Gothic Quarter, La Boqueria, Plaça Reial, etc.
+}
+
+function scoreDialectAwareness(response: string): DialectScore {
+  const r = response.toLowerCase();
+  return {
+    hasCatalan: /bon dia|bona tarda|adéu|adeu|gràcies|gracies|si us plau|sí|catalan|català/i.test(response),
+    hasSpanish: /hola|buenas|gracias|por favor|tapas|patatas|bravas|jamón|vino|cerveza|vale|venga|tío|tio|salud/i.test(response),
+    hasLocalSlang: /mola|flipar|currar|quedamos|tio|tía|tia|guay|pasarlo|caña|quinto/i.test(response),
+    hasDialectNote: /castilian|castella|madrid|textbook|standard|barcelona.*different|catalan.*spanish|different.*here/i.test(r),
+    hasCulturalGuardrail: /greet|bon dia.*before|before.*order|tip|propina|not.*tip|round.*up/i.test(r),
+    hasLocalReference: /gothic|barri gòtic|boqueria|santa caterina|plaça reial|rambla|banys nous|pep|marta|carrer/i.test(r),
+  };
+}
+
+function analyzeDialectAwareness(results: ScenarioResult, responses: string[]): void {
+  if (!results.name.includes('EXP-080')) return;
+
+  console.log('\n--- EXP-080: DIALECT AWARENESS ANALYSIS ---');
+
+  const dialectScores = responses.map(r => scoreDialectAwareness(r));
+
+  const catalanCount = dialectScores.filter(s => s.hasCatalan).length;
+  const spanishCount = dialectScores.filter(s => s.hasSpanish).length;
+  const slangCount = dialectScores.filter(s => s.hasLocalSlang).length;
+  const dialectNoteCount = dialectScores.filter(s => s.hasDialectNote).length;
+  const guardrailCount = dialectScores.filter(s => s.hasCulturalGuardrail).length;
+  const localRefCount = dialectScores.filter(s => s.hasLocalReference).length;
+  const total = responses.length;
+
+  console.log(`   Catalan phrases: ${catalanCount}/${total}`);
+  console.log(`   Spanish phrases: ${spanishCount}/${total}`);
+  console.log(`   Barcelona slang: ${slangCount}/${total}`);
+  console.log(`   Dialect notes (Catalan vs Castilian): ${dialectNoteCount}/${total}`);
+  console.log(`   Cultural guardrails mentioned: ${guardrailCount}/${total}`);
+  console.log(`   Local references (Gothic Quarter, etc.): ${localRefCount}/${total}`);
+
+  // Dialect awareness score: how many of the 6 markers appeared at least once
+  const markersHit = [
+    catalanCount > 0, spanishCount > 0, slangCount > 0,
+    dialectNoteCount > 0, guardrailCount > 0, localRefCount > 0,
+  ].filter(Boolean).length;
+  console.log(`\n   DIALECT AWARENESS MARKERS: ${markersHit}/6`);
+  if (markersHit >= 5) {
+    console.log('   STATUS: EXCELLENT — model is dialect-aware');
+  } else if (markersHit >= 3) {
+    console.log('   STATUS: PARTIAL — some dialect awareness, needs more specificity');
+  } else {
+    console.log('   STATUS: WEAK — model is teaching generic Spanish, not Barcelona');
+  }
+}
+
 // ── Main ─────────────────────────────────────────────────────
 
 async function main() {

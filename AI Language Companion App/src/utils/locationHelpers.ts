@@ -16,6 +16,13 @@ export const COUNTRY_NAMES: Record<string, string> = {
   MX: 'Mexico',
   KR: 'South Korea',
   NP: 'Nepal',
+  ES: 'Spain',
+  IT: 'Italy',
+  TH: 'Thailand',
+  DE: 'Germany',
+  BR: 'Brazil',
+  CN: 'China',
+  AR: 'Argentina',
 };
 
 /** A preset city derived from dialectMap.json */
