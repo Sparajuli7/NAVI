@@ -349,6 +349,8 @@ export interface LearnerProfile {
     longestStreak: number;
     lastSessionDate: number;
     totalSessions: number;
+    /** Number of completed scenario sessions (feeds into learning stage scoring) */
+    completedScenarios?: number;
   };
 }
 

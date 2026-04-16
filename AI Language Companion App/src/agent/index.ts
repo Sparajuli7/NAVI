@@ -270,6 +270,8 @@ export class NaviAgent {
   private onModeChange?: (mode: 'learn' | 'guide' | 'friend' | null) => void;
   /** Tracks how many new terms have been introduced in the current session */
   private termsInSession = 0;
+  /** Tracks previous scenario for TBLT pretask/posttask transitions (EXP-050) */
+  private previousScenario = '';
   /** Tracks how many turns the user hasn't produced target language */
   private turnsWithoutOutput = 0;
 
@@ -518,11 +520,18 @@ export class NaviAgent {
     const profile = this.avatar.getActiveProfile();
     const currentScenario = profile?.scenario || '';
 
+    // Detect first scenario message: scenario is active and different from previous turn
+    // Must compute BEFORE updating previousScenario
+    const isFirstScenarioMessage = !!currentScenario && currentScenario !== this.previousScenario;
+
     const directorCtx = this.director.preProcess(message, avatarId, {
       isSessionStart,
       userMode: currentMode,
       activeScenario: currentScenario || undefined,
+      previousScenario: this.previousScenario || undefined,
     });
+    // Update previous scenario tracker for TBLT transitions (EXP-050)
+    this.previousScenario = currentScenario;
     agentBus.emit('director:goals_set', { goals: directorCtx.goals });
 
     // 1b. Sub-agent context gathering (runs in parallel with director)
@@ -602,6 +611,7 @@ export class NaviAgent {
       userMode: currentMode,
       dialectKey: this.avatar.getActiveProfile()?.dialect || undefined,
       isFirstEverMessage: historyLen === 0,
+      isFirstScenarioMessage,
     };
 
     if (options?.history) {

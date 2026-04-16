@@ -363,5 +363,42 @@ Avatar: "Au marché (oh mar-SHAY) ce matin? Sympa. T'as trouvé quelque chose de
 - Paris sensory improved (3/5) — kitchen clanking, bread smell starting to appear
 
 ### Remaining issue: Kathmandu target language 1/5
-Priya STILL defaults to English during emotional support despite the confusion override nuance. 
+Priya STILL defaults to English during emotional support despite the confusion override nuance.
 The emotional support mode overrides the language instruction. Needs stronger "include Nepali WITH English" instruction.
+
+---
+
+### EXP-052: Scenario lifecycle bug fixes (2026-04-16)
+
+**Hypothesis:** Five interacting bugs prevent scenarios from working as designed: the scenario opener never fires mid-conversation, keyword detection overrides manual scenarios, TBLT pretask is never injected, scenario completions are never tracked, and guide mode accidentally triggers scenarios.
+
+**Changes (5 bugs fixed):**
+
+1. **Bug 1 — scenarioOpener fires on first-ever message, not first scenario message**
+   - File: `src/agent/avatar/contextController.ts`
+   - Added `isFirstScenarioMessage` option to `buildSystemPrompt()`
+   - Changed condition from `isFirstEverMessage && effectiveScenario` to `isFirstScenarioMessage || (isFirstEverMessage && effectiveScenario)` — opener now fires whenever the scenario changes
+   - File: `src/agent/index.ts` — computes `isFirstScenarioMessage` by comparing `currentScenario !== previousScenario` (the `previousScenario` tracker already existed)
+   - File: `src/agent/tools/chatTool.ts` — passes `isFirstScenarioMessage` through to `buildSystemPrompt()`
+
+2. **Bug 2 — detectScenario() keyword matcher overrides manually-set scenarios**
+   - File: `src/app/components/ConversationScreen.tsx`
+   - `detectScenario()` now only runs when `!activeScenario` — if a scenario is already active (set from ScenarioLauncher), keyword detection is skipped entirely
+
+3. **Bug 3 — TBLT pretask never injected during scenarios**
+   - File: `src/agent/avatar/contextController.ts`
+   - When `isFirstScenarioMessage` is true, the `tblt_pretask` template from `systemLayers.json` is injected at HIGH priority alongside the scenario opener
+   - This gives the user key phrases and scene-setting before the task phase starts
+
+4. **Bug 4 — Scenario completion never tracked**
+   - File: `src/agent/core/types.ts` — added optional `completedScenarios` to `LearnerProfile.stats`
+   - File: `src/agent/memory/learnerProfile.ts` — added `recordScenarioCompletion(scenarioKey)` method (increments counter, emits event, persists to IndexedDB) and `completedScenarios` getter
+   - File: `src/app/components/ConversationScreen.tsx` — `handleEndScenario()` now calls `agent.memory.learner.recordScenarioCompletion(scenarioKey)` and `agent.proactiveEngine.markScenarioCompleted(scenarioLabel)` (was dead code)
+
+5. **Bug 5 — detectScenario keyword detection runs in guide mode**
+   - File: `src/app/components/ConversationScreen.tsx`
+   - `detectScenario()` is skipped when `userMode === 'guide'` — prevents accidental scenario triggers when the user mentions "restaurant" in passing while asking for translation help
+
+**Result:** Build passes. 104/104 tests pass. All 5 bugs fixed in a single coordinated change.
+
+**Verdict:** SHIPPED. These bugs were all interacting — fixing just one (e.g., the scenarioOpener) without fixing the others (e.g., detectScenario override) would have created new inconsistencies.

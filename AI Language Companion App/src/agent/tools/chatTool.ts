@@ -33,6 +33,7 @@ export function createChatTool(
       translationMode: { type: 'string', required: false, description: 'Translation mode: listen (ambient) or speak (user message)' },
       dialectKey: { type: 'string', required: false, description: 'Explicit dialect key to override city string matching' },
       isFirstEverMessage: { type: 'boolean', required: false, description: 'True when this is the very first message in the conversation' },
+      isFirstScenarioMessage: { type: 'boolean', required: false, description: 'True when the active scenario just changed (first message in a new scenario)' },
     },
     requiredModels: ['llm'],
     costTier: 'heavy',
@@ -49,6 +50,7 @@ export function createChatTool(
       const translationMode = params.translationMode as 'listen' | 'speak' | undefined;
       const dialectKey = params.dialectKey as string | undefined;
       const isFirstEverMessage = params.isFirstEverMessage as boolean | undefined;
+      const isFirstScenarioMessage = params.isFirstScenarioMessage as boolean | undefined;
 
       // Build system prompt from avatar context + memory + relationship + learning + situation
       const memoryContext = memoryManager.buildContextForPrompt({
@@ -73,6 +75,7 @@ export function createChatTool(
         userMode: userMode ?? null,
         dialectKey,
         isFirstEverMessage,
+        isFirstScenarioMessage,
       });
 
       // In 'listen' translation mode, use the listenAndTranslate template instead of chat

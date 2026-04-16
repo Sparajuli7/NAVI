@@ -172,6 +172,7 @@ export class AvatarContextController {
     userMode?: 'learn' | 'guide' | 'friend' | null;
     dialectKey?: string;
     isFirstEverMessage?: boolean;
+    isFirstScenarioMessage?: boolean;
   }): string {
     if (!this.activeProfile) {
       return 'You are a helpful language assistant.';
@@ -249,13 +250,27 @@ export class AvatarContextController {
     }
 
     // L11.6: Scenario opener (MEDIUM — only on first message with active scenario)
-    if (options?.isFirstEverMessage && effectiveScenario) {
-      const scenarioConfig = this.scenarios[effectiveScenario];
+    // Bug fix (EXP-052): use isFirstScenarioMessage instead of isFirstEverMessage
+    // so the opener fires when a scenario starts mid-conversation, not only on the
+    // user's very first message ever.
+    if ((options?.isFirstScenarioMessage || (options?.isFirstEverMessage && effectiveScenario))) {
+      const scenarioConfig = this.scenarios[effectiveScenario!];
       if (scenarioConfig) {
         const openerLayer = promptLoader.get('systemLayers.modeInstructions.scenarioOpener', {
           scenarioLabel: scenarioConfig.label,
         });
         layerDefs.push([openerLayer, 2]);
+
+        // Bug fix (EXP-052): inject TBLT pretask on first scenario message
+        // so the user gets key phrases and scene-setting before the task phase
+        try {
+          const pretaskLayer = promptLoader.get('systemLayers.scenario.tblt_pretask', {
+            label: scenarioConfig.label,
+          });
+          if (pretaskLayer) layerDefs.push([pretaskLayer, 1]);
+        } catch {
+          // tblt_pretask template not available — skip silently
+        }
       }
     }
 

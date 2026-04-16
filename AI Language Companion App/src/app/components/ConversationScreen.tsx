@@ -163,7 +163,11 @@ export function ConversationScreen({
 
     setLlmError(false);
 
-    const detected = detectScenario(msgText);
+    // Bug fix (EXP-052): Only run detectScenario if no scenario is already active
+    // (prevents keyword detection from overriding a manually-selected scenario)
+    // and skip detection in guide mode (user mentions "restaurant" for translation,
+    // not to start a scenario)
+    const detected = (!activeScenario && userMode !== 'guide') ? detectScenario(msgText) : null;
     if (detected) setScenario(detected);
 
     const historySnapshot = useChatStore.getState().messages;
@@ -282,7 +286,8 @@ export function ConversationScreen({
   };
 
   const handleEndScenario = async () => {
-    const scenarioLabel = activeScenario ? SCENARIOS[activeScenario]?.label ?? activeScenario : 'the scenario';
+    const scenarioKey = activeScenario;
+    const scenarioLabel = scenarioKey ? SCENARIOS[scenarioKey]?.label ?? scenarioKey : 'the scenario';
     setScenarioActive(false);
     setScenarioContext(null);
     setScenario(null);
@@ -292,6 +297,13 @@ export function ConversationScreen({
     });
     await handleSend(`[End scenario — debrief: ${scenarioLabel}]`);
     agent.avatar.clearOverrides();
+
+    // Bug fix (EXP-052): record scenario completion for learning stage progression
+    // and wire ProactiveEngine.markScenarioCompleted() (was dead code)
+    if (scenarioKey) {
+      agent.memory.learner.recordScenarioCompletion(scenarioKey).catch(() => {});
+      agent.proactiveEngine.markScenarioCompleted(scenarioLabel);
+    }
   };
 
   const handlePhraseCardClick = (data: PhraseCardData) => {

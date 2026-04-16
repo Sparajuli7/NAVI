@@ -14,6 +14,10 @@
  * EXP-043: Character gen personality_details test
  * EXP-044: Compact rules on 1.5B model
  * EXP-045: Multi-turn coherence degradation
+ * EXP-047: Production avatar test — Street Food Guide (HCMC)
+ * EXP-048: Scenario matching test — Street Food + Restaurant
+ * EXP-049: Memory context injection test — Review due phrases
+ * EXP-051: Full production integration live test (all scenarios)
  */
 
 const OLLAMA_BASE = 'http://localhost:11434';
@@ -474,6 +478,142 @@ Respond ONLY with this JSON:
   }
 }
 
+// ── EXP-047: Production Avatar Test — Street Food Guide ───────
+// System prompt assembled the SAME WAY production does:
+// Identity template (from systemLayers.json) + base_personality (from avatarTemplates.json)
+// + Language enforcement (VN/HCMC) + Core rules + Reinforcement
+
+const PRODUCTION_STREET_FOOD_SCENARIO: TestScenario = {
+  name: 'EXP-047: Production — Street Food Guide (Ho Chi Minh City)',
+  systemPrompt: (() => {
+    // ── Identity layer (from systemLayers.json identity.template) ──
+    const basePersonality = `Lives for the night market. Thinks the stall by the bridge has the best pho in the city and will argue about it passionately — got into a 20-minute debate with a taxi driver about it last week. Can't stand tourists who photograph food without buying anything — calls them 'menu paparazzi.' Last Tuesday watched a guy try to haggle for a 20-cent spring roll and still laughs about it whenever it gets quiet. Always smells like lemongrass and chili oil because the kitchen vents blow right across the alley. The old woman at the dumpling stall next door waves every time you walk by — she's been there 30 years and still calls everyone 'child.'`;
+    const identity = `You are Minh — a real person, not a program. ${basePersonality}\nYou talk like: casual street food guide. Energy: high. Humor: warm.\nYou are a NATIVE SPEAKER. Lead every response in your language from the very first message. Only bring in the user's native language after gauging they need support — they ask for translation, say they don't understand, or respond with no attempt at yours. When the user tries your language, keep going in it.`;
+    const slang = `Use plenty of local slang and colloquialisms. Talk the way you actually talk with your friends, not the way a textbook would.`;
+
+    // ── Language enforcement (VN/Ho Chi Minh City) ──
+    const enforcement = `LANGUAGE LOCK: You speak Vietnamese (Southern Vietnamese (Saigon)). EVERY single response MUST be in Vietnamese — no exceptions. Do NOT switch to English or any other language. If the user writes in another language, reply in Vietnamese only. Never explain this rule. Never apologize. Just speak Vietnamese.`;
+
+    // ── Location layer ──
+    const location = `Location: Ho Chi Minh City. You are a native Vietnamese speaker. Your language is Vietnamese (Southern Vietnamese (Saigon)). SPEAK IN VIETNAMESE — use Southern Vietnamese (Saigon), not standard/textbook. Speak in Vietnamese (Southern Vietnamese (Saigon)) — this is your default and your opening. Use English only when you have gauged the user needs support (they ask for translation, say they don't understand, or you've confirmed they're a beginner) — not before. Called Saigon by locals. Casual vibe. Coffee culture central. Use age-appropriate slang: dữ vậy (wow), xỉu (overwhelmed), bá đạo (legendary)`;
+
+    // ── Core rules (abbreviated for token budget, same as production) ──
+    const coreRules = COMPACT_CORE_RULES.replace(/\{\{name\}\}/g, 'Minh').replace(/\{\{userNativeLanguage\}\}/g, 'English');
+
+    // ── Reinforcement ──
+    const reinforcement = `REMEMBER: You are Minh. You are human. You live here. You speak the local language natively. LEAD in your language — always, from the first message. Support in English comes ONLY after you have gauged the user's level or they clearly ask for help. Stay in character. Be proactive — bring things up, follow up on what you remember, share what's happening around you. Keep it under 3 sentences unless teaching a phrase or setting a scene. No lists. No AI talk. React naturally, then respond. Every response MUST include at least one phrase in the local language.`;
+
+    // ── Sensory world ──
+    const sensory = `YOUR SENSORY WORLD RIGHT NOW: Steam rises from the pho pot at the stall across the alley. Motorbikes honk their way through the night market crowd. The air is thick with lemongrass, chili oil, and charcoal smoke from the bánh mì grill. A neon sign flickers pink and green overhead — it's been broken for months but nobody fixes it. The old woman next door is calling out "bánh bao! bánh bao!" and her voice cuts through everything. Use these details naturally — they are YOUR reality.`;
+
+    return `${identity} ${slang}\n\n${location}\n\n${enforcement}\n\n${sensory}\n\n${coreRules}\n\n${reinforcement}`;
+  })(),
+  messages: [
+    'Hey! I just got to Saigon, I want to try real street food',
+    'What should I eat first?',
+    'How do I say "one bowl of pho please"?',
+    'cho toi mot to pho',
+    'Someone at the stall just said something to me really fast, I had no idea what it was',
+  ],
+  expectedBehavior: 'Should: lead in Vietnamese, teach pho ordering phrase, stay in street food character, use Southern Vietnamese slang, have strong personality about food opinions, sensory grounding from night market',
+};
+
+// ── EXP-048: Scenario Matching Test — Street Food + Restaurant ─
+// Tests: avatar picks "street_food" template, then enters "restaurant" scenario.
+// System prompt includes both the avatar personality AND the scenario layer.
+
+const SCENARIO_MATCHING_TEST: TestScenario = {
+  name: 'EXP-048: Scenario Match — Street Food Guide + Restaurant Scenario',
+  systemPrompt: (() => {
+    const basePersonality = `Lives for the night market. Thinks the stall by the bridge has the best pho in the city and will argue about it passionately — got into a 20-minute debate with a taxi driver about it last week. Can't stand tourists who photograph food without buying anything — calls them 'menu paparazzi.' Last Tuesday watched a guy try to haggle for a 20-cent spring roll and still laughs about it whenever it gets quiet. Always smells like lemongrass and chili oil because the kitchen vents blow right across the alley. The old woman at the dumpling stall next door waves every time you walk by — she's been there 30 years and still calls everyone 'child.'`;
+    const identity = `You are Minh — a real person, not a program. ${basePersonality}\nYou talk like: casual street food guide. Energy: high. Humor: warm.\nYou are a NATIVE SPEAKER. Lead every response in your language from the very first message. Only bring in the user's native language after gauging they need support.`;
+    const slang = `Use plenty of local slang and colloquialisms.`;
+
+    const enforcement = `LANGUAGE LOCK: You speak Vietnamese (Southern Vietnamese (Saigon)). EVERY single response MUST be in Vietnamese — no exceptions.`;
+
+    const location = `Location: Ho Chi Minh City. You are a native Vietnamese speaker. SPEAK IN VIETNAMESE — use Southern Vietnamese (Saigon). Called Saigon by locals. Casual vibe.`;
+
+    // ── Scenario layer (from systemLayers.json scenarioLock) ──
+    const scenario = `SCENARIO MODE: Ordering Food. Stay completely focused on this situation for the entire session. Every response must be useful for navigating Ordering Food RIGHT NOW. Do not drift into general conversation. Relevant vocabulary: ordering, menu items, dietary restrictions, tipping, asking for check, how it's cooked, without/with. Tone: Warm and familiar. You're a regular here — you know what's good, what to avoid, and what the waiter's name probably is. Cultural watch-out: Tipping customs vary wildly — know the local norm before advising.`;
+
+    // ── TBLT Pre-task (from conversationSkills.json) ──
+    const pretask = `PRE-TASK: Before diving in, prep the user for this Ordering Food situation in 3 steps. (1) CONVERSATIONAL PREVIEW: Mention 2-3 key phrases they will need. (2) PHRASE CARD: Pick the single most critical phrase. (3) SET THE SCENE: Describe what is about to happen.`;
+
+    const sensory = `YOUR SENSORY WORLD RIGHT NOW: You're sitting at a plastic table on the sidewalk. The pho stall's fluorescent light buzzes overhead. A woman is stirring a massive pot, steam rising. Two motorbikes just squeezed past your elbow.`;
+
+    const coreRules = COMPACT_CORE_RULES.replace(/\{\{name\}\}/g, 'Minh').replace(/\{\{userNativeLanguage\}\}/g, 'English');
+
+    return `${identity} ${slang}\n\n${location}\n\n${enforcement}\n\n${scenario}\n\n${pretask}\n\n${sensory}\n\n${coreRules}`;
+  })(),
+  messages: [
+    "I'm sitting at a street food stall and I have no idea what to order",
+    'What are they saying? Everyone is shouting',
+    'How do I ask what they recommend?',
+    'cho toi... um... the thing you said?',
+    'Okay I ordered and the food is here. How do I say it\'s delicious?',
+  ],
+  expectedBehavior: 'Should: stay in character as BOTH street food companion AND restaurant scenario guide, give practical ordering phrases in Vietnamese, maintain personality, acknowledge the chaotic street food environment, teach contextually relevant vocabulary',
+};
+
+// ── EXP-049: Memory Context Injection Test ───────────────────
+// Tests: user has learned 5 phrases, 2 are due for review.
+// System prompt includes simulated ConversationDirector context.
+
+const MEMORY_INJECTION_TEST: TestScenario = {
+  name: 'EXP-049: Memory Context Injection — Review Due Phrases',
+  systemPrompt: (() => {
+    const identity = `You are Minh — a real person, not a program. Lives for the night market in Saigon. Thinks the stall by the bridge has the best pho.\nYou talk like: casual street food guide. Energy: high. Humor: warm.\nYou are a NATIVE SPEAKER. Lead every response in Vietnamese.`;
+    const enforcement = `LANGUAGE LOCK: You speak Vietnamese (Southern Vietnamese (Saigon)). EVERY single response MUST be in Vietnamese.`;
+    const location = `Location: Ho Chi Minh City. Native Vietnamese speaker. Southern Vietnamese (Saigon).`;
+
+    // ── Simulated ConversationDirector context ──
+    // This is what ConversationDirector.preProcess() would inject:
+    const learningContext = `LEARNING STAGE: FUNCTIONAL. The user can handle basic phrases. Speak 50/50 — target language for common situations, English for explanations. Create SITUATIONS that require them to use what they've learned.`;
+
+    const reviewGoal = `These phrases are due for review: "xin chào" (hello), "cảm ơn" (thank you). Weave one into the conversation naturally — use it yourself and see if the user recognizes it. NEVER ask 'do you remember how to say X?' or 'what does X mean?' Instead, create a moment where the phrase is needed.`;
+
+    const contextualReintro = `CONTEXTUAL RE-INTRODUCTION: The user learned "xin chào" in a greeting context. Re-use it naturally in the CURRENT conversation without announcing you're reviewing. Create a moment where the phrase fits.`;
+
+    const personalContext = `PERSONAL CONTEXT (reference naturally, don't announce you "remember"):\n- User mentioned they're staying near Ben Thanh Market\n- User had a funny experience trying to cross the street\n- User loves coffee and asked about cà phê sữa đá last session`;
+
+    const openLoop = `Before sending, check: does your message end with something unresolved? If not, add one: an unfinished story, a teaser, or a question about something THEY mentioned.`;
+
+    const sensory = `YOUR SENSORY WORLD RIGHT NOW: Morning sun hits the café awning. Someone's blending ice for a sinh tố across the street. The motorbike exhaust mixes with the smell of fresh bread from the bánh mì cart.`;
+
+    const coreRules = COMPACT_CORE_RULES.replace(/\{\{name\}\}/g, 'Minh').replace(/\{\{userNativeLanguage\}\}/g, 'English');
+
+    return `${identity}\n\n${enforcement}\n\n${location}\n\n${learningContext}\n\n${reviewGoal}\n\n${contextualReintro}\n\n${personalContext}\n\n${openLoop}\n\n${sensory}\n\n${coreRules}`;
+  })(),
+  messages: [
+    'Hey Minh! I went to the market yesterday',
+    'Yeah it was crazy busy. I tried to buy some fruit',
+    'The lady was nice but I just pointed at everything haha',
+    'I need to learn how to actually talk to people here',
+    'Teach me something useful for the market',
+  ],
+  expectedBehavior: 'Should: naturally weave "xin chào" or "cảm ơn" into conversation without announcing review, reference Ben Thanh Market and coffee memories, create situations where review phrases are needed, maintain personality, NOT say "do you remember X?"',
+};
+
+// ── EXP-049 extra scorer: check if review phrases appear ──────
+
+function checkMemoryInjection(results: ScenarioResult, scenario: TestScenario): void {
+  if (!scenario.name.includes('EXP-049')) return;
+
+  console.log('\n--- EXP-049: MEMORY INJECTION ANALYSIS ---');
+
+  // Collect all responses from the scenario run
+  // The responses are embedded in the score results, but we need the raw text
+  // We'll check via the scenario's expected phrases
+  const targetPhrases = ['xin chào', 'cảm ơn', 'xin chao', 'cam on', 'chào', 'cảm'];
+  const memoryRefs = ['ben thanh', 'market', 'coffee', 'cà phê', 'ca phe', 'street'];
+  const antiPatterns = ['do you remember', 'let\'s review', 'we learned', 'remember how to say'];
+
+  console.log('   (Note: detailed phrase detection requires raw response text — see console output above)');
+  console.log(`   Review phrases to check for: "xin chào", "cảm ơn"`);
+  console.log(`   Memory references to check for: Ben Thanh Market, coffee/cà phê`);
+  console.log(`   Anti-patterns (should NOT appear): "do you remember", "let's review"`);
+}
+
 // ── Main ─────────────────────────────────────────────────────
 
 async function main() {
@@ -491,10 +631,11 @@ async function main() {
   const runCompact = process.argv.includes('--compact') || process.argv.includes('--all');
   const runExtended = process.argv.includes('--extended') || process.argv.includes('--all');
   const runChargen = process.argv.includes('--chargen') || process.argv.includes('--all');
-  const runAll = process.argv.includes('--all') || (!process.argv.includes('--compact') && !process.argv.includes('--extended') && !process.argv.includes('--chargen'));
+  const runProduction = process.argv.includes('--production') || process.argv.includes('--all');
+  const runAll = process.argv.includes('--all') || (!process.argv.includes('--compact') && !process.argv.includes('--extended') && !process.argv.includes('--chargen') && !process.argv.includes('--production'));
 
   const scenariosToRun: TestScenario[] = [];
-  if (runAll || (!runCompact && !runExtended)) {
+  if (runAll || (!runCompact && !runExtended && !runProduction)) {
     scenariosToRun.push(...SCENARIOS);
   }
   if (runCompact) {
@@ -503,16 +644,22 @@ async function main() {
   if (runExtended) {
     scenariosToRun.push(EXTENDED_SCENARIO);
   }
+  if (runProduction || runAll) {
+    scenariosToRun.push(PRODUCTION_STREET_FOOD_SCENARIO);
+    scenariosToRun.push(SCENARIO_MATCHING_TEST);
+    scenariosToRun.push(MEMORY_INJECTION_TEST);
+  }
 
   const totalMessages = scenariosToRun.reduce((sum, s) => sum + s.messages.length, 0);
 
-  console.log('\nNAVI Live Conversation Test (EXP-041 through EXP-045)');
+  console.log('\nNAVI Live Conversation Test (EXP-041 through EXP-051)');
   console.log(`Model: ${MODEL}`);
   console.log(`Scenarios: ${scenariosToRun.length}`);
   console.log(`Total LLM calls: ${totalMessages}`);
   if (runCompact) console.log(`EXP-044: Compact rules test included (qwen2.5:1.5b)`);
   if (runExtended) console.log(`EXP-045: Extended 12-turn conversation included`);
   if (runChargen) console.log(`EXP-043: Character gen personality_details test included`);
+  if (runProduction || runAll) console.log(`EXP-047/048/049: Production avatar tests included`);
 
   const results: ScenarioResult[] = [];
 
@@ -549,16 +696,51 @@ async function main() {
     console.log(`     Score: ${(r.avgScore * 5).toFixed(1)}/5.0 | hooks ${hooks}/${r.scores.length} | lang ${targetLang}/${r.scores.length} | syc-free ${sycFree}/${r.scores.length} | personality ${personality}/${r.scores.length} | sensory ${sensory}/${r.scores.length}`);
   }
 
-  // Overall averages (for standard 4 scenarios only)
-  const standardResults = results.filter(r => !r.name.includes('Compact') && !r.name.includes('Extended'));
+  // Overall averages (for standard 4 hand-crafted scenarios only)
+  const standardResults = results.filter(r => !r.name.includes('Compact') && !r.name.includes('Extended') && !r.name.includes('EXP-04'));
   if (standardResults.length > 0) {
     const overallAvg = standardResults.reduce((sum, r) => sum + r.avgScore, 0) / standardResults.length;
     const totalSensory = standardResults.reduce((sum, r) => sum + r.scores.filter(s => s.hasSensory).length, 0);
     const totalTargetLang = standardResults.reduce((sum, r) => sum + r.scores.filter(s => s.hasTargetLang).length, 0);
     const totalMsgs = standardResults.reduce((sum, r) => sum + r.scores.length, 0);
-    console.log(`\n   STANDARD 4-SCENARIO OVERALL: ${(overallAvg * 5).toFixed(1)}/5.0`);
-    console.log(`     Sensory: ${totalSensory}/${totalMsgs} (${Math.round(totalSensory / totalMsgs * 100)}%) — was 50% (10/20)`);
+    console.log(`\n   HAND-CRAFTED 4-SCENARIO OVERALL: ${(overallAvg * 5).toFixed(1)}/5.0`);
+    console.log(`     Sensory: ${totalSensory}/${totalMsgs} (${Math.round(totalSensory / totalMsgs * 100)}%)`);
     console.log(`     Target lang: ${totalTargetLang}/${totalMsgs} (${Math.round(totalTargetLang / totalMsgs * 100)}%)`);
+  }
+
+  // EXP-047/048/049: Production avatar scenario averages
+  const productionResults = results.filter(r => r.name.includes('EXP-04'));
+  if (productionResults.length > 0) {
+    const prodAvg = productionResults.reduce((sum, r) => sum + r.avgScore, 0) / productionResults.length;
+    const prodSensory = productionResults.reduce((sum, r) => sum + r.scores.filter(s => s.hasSensory).length, 0);
+    const prodTargetLang = productionResults.reduce((sum, r) => sum + r.scores.filter(s => s.hasTargetLang).length, 0);
+    const prodPersonality = productionResults.reduce((sum, r) => sum + r.scores.filter(s => s.hasPersonality).length, 0);
+    const prodMsgs = productionResults.reduce((sum, r) => sum + r.scores.length, 0);
+    console.log(`\n   PRODUCTION 3-SCENARIO OVERALL: ${(prodAvg * 5).toFixed(1)}/5.0`);
+    console.log(`     Sensory: ${prodSensory}/${prodMsgs} (${Math.round(prodSensory / prodMsgs * 100)}%)`);
+    console.log(`     Target lang: ${prodTargetLang}/${prodMsgs} (${Math.round(prodTargetLang / prodMsgs * 100)}%)`);
+    console.log(`     Personality: ${prodPersonality}/${prodMsgs} (${Math.round(prodPersonality / prodMsgs * 100)}%)`);
+
+    // Compare production vs hand-crafted
+    if (standardResults.length > 0) {
+      const handcraftedAvg = standardResults.reduce((sum, r) => sum + r.avgScore, 0) / standardResults.length;
+      const delta = (prodAvg - handcraftedAvg) * 5;
+      console.log(`\n   PRODUCTION vs HAND-CRAFTED: ${delta > 0 ? '+' : ''}${delta.toFixed(1)} point difference`);
+      if (delta >= -0.3) {
+        console.log('   STATUS: PRODUCTION PROMPT STACK IS WORKING — gap within acceptable range');
+      } else {
+        console.log('   STATUS: PRODUCTION GAP DETECTED — production prompts underperform hand-crafted');
+      }
+    }
+  }
+
+  // EXP-049: Memory injection analysis
+  for (const r of results) {
+    const matchingScenario = [PRODUCTION_STREET_FOOD_SCENARIO, SCENARIO_MATCHING_TEST, MEMORY_INJECTION_TEST]
+      .find(s => s.name === r.name);
+    if (matchingScenario) {
+      checkMemoryInjection(r, matchingScenario);
+    }
   }
 }
 

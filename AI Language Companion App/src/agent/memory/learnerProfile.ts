@@ -293,6 +293,28 @@ export class LearnerProfileStore {
     await this.save();
   }
 
+  // ── Scenario Completion Tracking ─────────────────────────────
+
+  /**
+   * Record that a scenario was completed. Increments the completedScenarios
+   * counter which feeds into getCurrentStage() for learning stage progression.
+   */
+  async recordScenarioCompletion(scenarioKey: string): Promise<void> {
+    if (!this.loaded) await this.load();
+    this.profile.stats.completedScenarios = (this.profile.stats.completedScenarios ?? 0) + 1;
+    agentBus.emit('learner:milestone', {
+      type: 'scenario_completed',
+      scenario: scenarioKey,
+      count: this.profile.stats.completedScenarios,
+    });
+    await this.save();
+  }
+
+  /** Get the number of completed scenarios */
+  get completedScenarios(): number {
+    return this.profile.stats.completedScenarios ?? 0;
+  }
+
   // ── Prompt Formatting ────────────────────────────────────────
 
   /** Format learner context for injection into system prompt */

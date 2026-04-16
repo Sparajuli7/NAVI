@@ -215,6 +215,7 @@ export class ConversationDirector {
       userNativeLanguage?: string;
       completedScenarios?: number;
       activeScenario?: string;
+      previousScenario?: string;
     },
   ): DirectorContext {
     const goals: ConversationGoal[] = [];
@@ -549,14 +550,95 @@ export class ConversationDirector {
     if (this.working) {
       const sessionMsgCount = (this.working.get('session_message_count') as number) ?? 0;
       if (sessionMsgCount > 8) {
-        const sessionPacingText = promptLoader.get('conversationSkills.skills.inside_joke_plant.injection');
-        // Use a dedicated pacing instruction — session_pacing skill doesn't have an injection
-        // field in conversationSkills.json, so we use a compact inline instruction.
         goalInstructions.push(
           'SESSION PACING: This conversation has been going for a while (8+ exchanges). Start wrapping up naturally — plant a seed for the next session (a story to continue, a challenge to report back on, something to try before next time). Do NOT announce you are wrapping up. Just let the energy wind down naturally. If the user is still highly engaged, override this and keep going.',
         );
         console.log(`[NAVI:director] session_pacing triggered (${sessionMsgCount} messages in session)`);
       }
+    }
+
+    // ── EXP-050: Wire Remaining Conversation Skills ───────────────
+
+    // expansion — when postProcess detected correct target language production
+    // (flag set in WorkingMemory by postProcess, consumed here)
+    if (this.working?.has('expansion_flag')) {
+      const expansionText = promptLoader.get('conversationSkills.skills.expansion.injection');
+      if (expansionText) {
+        goalInstructions.push(expansionText);
+        console.log('[NAVI:director] expansion triggered (user produced correct target language)');
+      }
+      this.working.remove('expansion_flag');
+    }
+
+    // elicitation — when a phrase is due for review AND learner is functional+, 30% chance
+    // Use elicitation instead of direct review to make the user produce the phrase themselves
+    if (goals.includes('review_due_phrases') && isFunctionalOrHigher && Math.random() < 0.30) {
+      const elicitationText = promptLoader.get('conversationSkills.skills.contextual_repetition.injection', {
+        phrase: this.learner.getPhrasesForReview(1)[0]?.phrase ?? '',
+        originalContext: (this.learner.getPhrasesForReview(1)[0] as TrackedPhrase & { context?: string })?.context || 'an earlier conversation',
+      });
+      if (elicitationText) {
+        goalInstructions.push(elicitationText);
+        console.log('[NAVI:director] contextual_repetition/elicitation triggered (review_due + functional+, 30% roll)');
+      }
+    }
+
+    // open_loop — inject on EVERY message (standing instruction)
+    const openLoopText = promptLoader.get('conversationSkills.skills.open_loop.injection');
+    if (openLoopText) {
+      goalInstructions.push(openLoopText);
+    }
+
+    // sensory_anchor — inject every 3rd message (tracked via WorkingMemory counter)
+    if (this.working) {
+      const sensoryCount = ((this.working.get('sensory_anchor_counter') as number) ?? 0) + 1;
+      this.working.set('sensory_anchor_counter', sensoryCount, 2 * 60 * 60 * 1000);
+      if (sensoryCount % 3 === 0) {
+        const sensoryText = promptLoader.get('conversationSkills.skills.sensory_anchor.injection');
+        if (sensoryText) {
+          goalInstructions.push(sensoryText);
+          console.log(`[NAVI:director] sensory_anchor triggered (message #${sensoryCount}, every 3rd)`);
+        }
+      }
+    }
+
+    // tblt_pretask — inject when a scenario just started (activeScenario present but previousScenario was empty/different)
+    const previousScenario = options?.previousScenario;
+    if (activeScenario && activeScenario !== previousScenario && this.working) {
+      const pretaskKey = `tblt_pretask_${activeScenario}`;
+      if (!this.working.has(pretaskKey)) {
+        const pretaskText = promptLoader.get('conversationSkills.skills.tblt_pretask.injection');
+        if (pretaskText) {
+          goalInstructions.push(pretaskText);
+          this.working.set(pretaskKey, true, 2 * 60 * 60 * 1000);
+          console.log(`[NAVI:director] tblt_pretask triggered (scenario started: ${activeScenario})`);
+        }
+      }
+    }
+
+    // tblt_posttask — inject when a scenario just ended (previousScenario present but activeScenario is empty/different)
+    if (previousScenario && previousScenario !== activeScenario) {
+      const posttaskText = promptLoader.get('conversationSkills.skills.tblt_posttask.injection');
+      if (posttaskText) {
+        goalInstructions.push(posttaskText);
+        console.log(`[NAVI:director] tblt_posttask triggered (scenario ended: ${previousScenario})`);
+      }
+    }
+
+    // code_switch_scaffold — inject when learning stage differs from last known stage
+    if (this.working && !isGuideMode) {
+      const lastStage = this.working.get('last_known_stage') as string | undefined;
+      if (lastStage && lastStage !== stageInfo.stage) {
+        const comfortTierForScaffold = wmTier !== undefined ? wmTier : this.learner.languageComfortTier;
+        const scaffoldText = promptLoader.get('conversationSkills.skills.code_switch_scaffold.injection', {
+          tier: String(comfortTierForScaffold),
+        });
+        if (scaffoldText) {
+          goalInstructions.push(scaffoldText);
+          console.log(`[NAVI:director] code_switch_scaffold triggered (stage changed: ${lastStage} -> ${stageInfo.stage})`);
+        }
+      }
+      this.working.set('last_known_stage', stageInfo.stage, 24 * 60 * 60 * 1000);
     }
 
     // Build context strings
@@ -673,7 +755,19 @@ export class ConversationDirector {
       }
     }
 
-    // 8. Memorable moment detection — flag for inside joke callbacks
+    // 8. EXP-050: Expansion detection — if user produced correct minimal target language
+    // (at least 2 non-ASCII chars, message under 30 chars = correct but basic)
+    // flag in WorkingMemory so next preProcess injects expansion skill
+    if (this.working) {
+      const nonAsciiCount = (userMessage.match(/[^\x00-\x7F]/g) ?? []).length;
+      const msgLen = userMessage.trim().length;
+      if (nonAsciiCount >= 2 && msgLen < 30 && msgLen > 2) {
+        this.working.set('expansion_flag', true, 2 * 60 * 1000);
+        console.log(`[NAVI:director] expansion_flag set (correct minimal target language, ${nonAsciiCount} non-ASCII, ${msgLen} chars)`);
+      }
+    }
+
+    // 9. Memorable moment detection — flag for inside joke callbacks
     if (this.working) {
       const emotionalState = detectEmotionalState(userMessage);
       const hasPhraseMistake = detectedPhrases.length > 0 && llmResponse.toLowerCase().includes('actually');
