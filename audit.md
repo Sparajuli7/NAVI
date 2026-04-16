@@ -360,3 +360,16 @@ Added target language onboarding step (step 0 before native language picker); sa
 |---|---|
 | OpenRouter invoked without explicit user choice | `agent/index.ts:325` — changed routing condition from `llmBackend !== 'webllm'` to `llmBackend === 'openrouter'`. Env key alone no longer activates cloud inference; user must pick OpenRouter explicitly. |
 | Proactive message repeats and poisons context | `ProactiveEngine.ts` — added `firedThisSession` flag so message fires at most once per session. `ConversationScreen.tsx` — proactive messages tagged `metadata.isProactive=true` and filtered from LLM history slice at line 232. |
+
+## Resolved Gaps (2026-04-16)
+
+| Gap | Resolution |
+|---|---|
+| City picker limited to 15 hardcoded dialectMap cities | `AvatarSelectScreen.tsx` rewritten with `CityPicker` component backed by `cities.json` (321 deduplicated world cities). Searchable autocomplete with GPS detect, country flag emojis, debounced filtering. |
+| Language tied to city (no override) | `LanguagePicker` component + `supportedLanguages.ts` (45 languages). Language is independent of city: user in Barcelona can pick Catalan, Spanish, or any language. Auto-suggests default for country but allows override. |
+| Settings panel location section was bare text input | SettingsPanel Location tab replaced with full `CityPicker` + `LanguagePicker`. Changes persist to `LocationContext`, character `target_language`, and user preferences. |
+| `AvatarSelectScreen.onSelect` did not accept language | Callback signature extended to `(template, location, languageCode?)`. `App.tsx` `handleAvatarSelected` stores `target_language` on character, user prefs, and agent profile memory. |
+| Open loop compliance inconsistent (Tokyo 4/5, Barcelona 2/5) | EXP-082: coreRules.json OPEN LOOPS section rewritten with 5 NAMED patterns (unfinished story, teaser, callback question, challenge preview, curiosity hook) + enforcement check + 3 new few-shot examples. conversationSkills.json open_loop skill strengthened with same 5 patterns. |
+| No retention test for phrase resurfacing across sessions | EXP-083: 2-session retention proxy test added to liveConversationTest.ts. Session 1 teaches 3 phrases; Session 2 has ConversationDirector review injection. analyzeRetention() checks for contextual resurfacing vs quiz-style review. |
+| No cross-session variety test | EXP-084: testConversationVariety() added — runs same scenario 3x with fresh history, measures Jaccard similarity to detect repetitive openings. |
+| Emotional anchors (victory/comfort/laughter) untested | EXP-085: 3 anchor test scenarios added with pre-injected skills. scoreEmotionalAnchor() + analyzeEmotionalAnchors() verify phrase teaching during emotional peaks. |

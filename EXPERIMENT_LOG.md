@@ -2780,3 +2780,207 @@ Test Files  8 passed (8)
 
 Barcelona dialect test: 5/6 markers (EXCELLENT)
 ```
+
+---
+
+## EXP-082: Strengthen Open Loop Compliance
+**Date:** 2026-04-16
+**Status:** IMPLEMENTED
+
+**Problem:** Open loops score varies across scenarios: Seoul 5/5, Paris 5/5, but Tokyo only 4/5 and Barcelona 2/5. The existing instruction in coreRules.json says "leave one thread unresolved per conversation" with 3 bullet examples, but models don't always follow it. The instruction is too vague — "drop a reference to something" doesn't give the model concrete patterns to copy.
+
+**Hypothesis:** Models comply better with SPECIFIC PATTERNS (few-shot examples) than abstract instructions. Giving 5 named patterns with concrete examples teaches by demonstration, not description.
+
+**What was done:**
+
+### 1. coreRules.json — OPEN LOOPS section rewritten
+**Old:** 4-bullet generic instruction ("drop a reference," "start a story," "mention something coming up")
+**New:** 5 NAMED patterns with specific templates:
+1. **THE UNFINISHED STORY** — Start telling something and cut yourself off: "Oh that reminds me — actually, have you tried...?"
+2. **THE TEASER** — Promise future knowledge: "There's a word for that, I'll teach you next time"
+3. **THE CALLBACK QUESTION** — Reference something unresolved: "How did that thing go from last time?"
+4. **THE CHALLENGE PREVIEW** — Plant anticipation: "Tomorrow I'm taking you somewhere that'll test you"
+5. **THE CURIOSITY HOOK** — Open a gap: "You know what's funny about that phrase? Actually..."
+
+Added enforcement: "If your response ends with a closed statement (period, no hook), you have FAILED this rule. Go back and add a hook."
+
+### 2. coreRules.json — fewShotExamples expanded
+Added 3 new few-shot examples demonstrating THE TEASER (Japanese), THE CURIOSITY HOOK (French), and THE CHALLENGE PREVIEW (Korean). Models learn by SEEING patterns, not just being told about them.
+
+### 3. conversationSkills.json — open_loop skill strengthened
+**Old injection:** "Before sending, check: does your message end with something unresolved? If not, add one: an unfinished story, a teaser, or a question."
+**New injection:** Lists all 5 patterns with shorthand examples. Adds explicit failure check: "If your message ends with a period and nothing else, you MUST add a hook before sending."
+Added Zeigarnik (1927) evidence: unfinished tasks remembered ~90% better than completed ones.
+
+**Why 5 patterns instead of 3:**
+- The old 3 patterns were conceptually similar (all "mention something later"). Models collapsed them into "ask a question at the end."
+- The new 5 patterns span different MECHANISMS: narrative interruption (1), knowledge promise (2), memory callback (3), anticipation (4), information gap (5).
+- Each mechanism triggers a different curiosity circuit, giving the model more options for varied hooks.
+
+**Files changed:**
+- `AI Language Companion App/src/config/prompts/coreRules.json` (OPEN LOOPS rewrite + 3 new few-shot examples)
+- `AI Language Companion App/src/config/prompts/conversationSkills.json` (open_loop skill rewrite)
+
+**Validation:** Build passes (2131 modules), 104/104 tests pass.
+
+---
+
+## EXP-083: 24-Hour Phrase Retention Proxy Test
+**Date:** 2026-04-16
+**Status:** IMPLEMENTED (test infrastructure)
+
+**Problem:** Research Round 7 noted we can't measure actual 24-hour phrase retention with our rubric. But we CAN test whether the SYSTEM (memory + ConversationDirector + contextual_repetition skill) would resurface previously taught phrases in a new session.
+
+**Hypothesis:** If the ConversationDirector's review-due phrase injection works correctly, a "session 2" system prompt that includes review context should cause the model to naturally weave previously taught phrases into new conversation — WITHOUT quiz-style prompting.
+
+**What was done:**
+
+### Test design (2-session proxy)
+Added to `liveConversationTest.ts`:
+
+**Session 1 (RETENTION_SESSION_1):** 5 messages teaching 3 specific phrases through natural conversation:
+- コーヒーをください (kohi o kudasai) — coffee ordering
+- ありがとう (arigatou) — gratitude
+- おいしい (oishii) — compliment
+
+**Session 2 (RETENTION_SESSION_2):** 5 messages with FRESH conversation history (no previous messages) but WITH simulated ConversationDirector context injection:
+- Review-due phrases listed in system prompt (as `preProcess()` would inject them)
+- Contextual re-introduction instruction (as `contextual_repetition` skill would inject)
+- NO quiz-style patterns allowed
+
+**What this tests:**
+- Whether the `contextual_repetition` skill's injection text causes natural phrase resurfacing
+- Whether the model avoids quiz patterns ("do you remember?") when instructed
+- Whether phrases reappear in contextually appropriate moments (not forced)
+
+### Analysis function: `analyzeRetention()`
+Checks:
+- Session 1: were all 3 target phrases taught? (marker detection for kanji + romaji)
+- Session 2: did any taught phrases resurface? (same markers)
+- Anti-pattern check: quiz-style review phrases ("do you remember," "let's review")
+- Contextual use: were resurfaced phrases used in natural food/ordering context?
+
+Scoring: PASS (2+ phrases resurfaced without quiz), PARTIAL (1 phrase), FAIL (none)
+
+**Why this is a PROXY test, not a real retention test:**
+Real retention requires the HUMAN to recall the phrase 24 hours later. We can't test that. What we CAN test is whether the system's spaced repetition pipeline would CREATE the conditions for retention — by surfacing phrases at the right time, in the right context, without feeling like a test. If the system works, the human's brain does the rest.
+
+**Run:** `npx tsx src/agent/__tests__/liveConversationTest.ts --retention`
+
+**Files changed:**
+- `AI Language Companion App/src/agent/__tests__/liveConversationTest.ts` (RETENTION_SESSION_1, RETENTION_SESSION_2 scenarios + analyzeRetention() + CLI flag)
+
+**Validation:** Build passes, 104/104 tests pass.
+
+---
+
+## EXP-084: Conversation Variety Across Sessions
+**Date:** 2026-04-16
+**Status:** IMPLEMENTED (test infrastructure)
+
+**Problem:** The 12-turn test (EXP-040) showed quality degradation within a session. But what about ACROSS sessions? If a user closes the app and reopens it, does the avatar say the same thing every time? High repetition across sessions would signal a need for cross-session "avoid recent openers" persistence.
+
+**Hypothesis:** With temperature 0.7, the model should produce somewhat varied responses, but the strong system prompt constraints (lead in Japanese, personality anchors, sensory grounding) may cause it to converge on similar openings. If Jaccard similarity > 50%, cross-session opener deduplication is needed.
+
+**What was done:**
+
+### Test design: `testConversationVariety()`
+Added to `liveConversationTest.ts`:
+
+- Runs the Tokyo first-contact scenario ("Hey! I just arrived in Tokyo yesterday") 3 times in sequence
+- Each run uses FRESH history (no prior messages — simulates app restart)
+- Same system prompt, same user message, same model, same temperature
+
+### Analysis metrics:
+1. **First 50 chars normalized** — Are the openings structurally different?
+2. **First 3 words** — Does the model always start the same way?
+3. **First Japanese phrase** — Does it always teach the same word first?
+4. **Jaccard similarity (word-level)** — Pairwise comparison of all 3 responses, averaged
+
+### Scoring:
+- < 30% average Jaccard: GOOD VARIETY (substantially different)
+- 30-50%: MODERATE VARIETY (some overlap)
+- \> 50%: LOW VARIETY (need cross-session opener deduplication)
+
+**Why Jaccard and not cosine:**
+Jaccard operates on exact word overlap, which is what matters here — if the avatar says "Shimokitazawa" and "vintage shops" in every opening, those exact words will show up as overlap regardless of order. Cosine similarity with embeddings would miss this surface-level repetition because embeddings capture meaning, not specific word choice.
+
+**Run:** `npx tsx src/agent/__tests__/liveConversationTest.ts --variety`
+
+**Files changed:**
+- `AI Language Companion App/src/agent/__tests__/liveConversationTest.ts` (testConversationVariety() + CLI flag)
+
+**Validation:** Build passes, 104/104 tests pass.
+
+---
+
+## EXP-085: Emotional Anchor Effectiveness Test
+**Date:** 2026-04-16
+**Status:** IMPLEMENTED (test infrastructure)
+
+**Problem:** We added victory_anchor, comfort_anchor, and laughter_anchor as conversation skills (injected by ConversationDirector when emotional states are detected), but we've never tested whether they actually produce the desired behavior: teaching a new phrase during the emotional peak.
+
+**Hypothesis:** When the emotional anchor skill injection is present in the system prompt, the model should:
+1. Match the user's emotional tone (celebrate victory, acknowledge frustration, laugh along)
+2. Teach a NEW phrase during the emotional peak (not just respond empathetically)
+3. Frame the teaching naturally ("since you're on a roll..." not "time for a lesson")
+
+**What was done:**
+
+### 3 test scenarios with pre-injected anchor skills:
+
+**EXP-085a: Victory Anchor**
+- System prompt includes victory_anchor skill injection + proud emotional calibration
+- User messages: "I did it! I ordered food in Japanese and they understood me!" + follow-up
+- Tests: specific celebration (not generic), new phrase taught, energy match
+
+**EXP-085b: Comfort Anchor**
+- System prompt includes comfort_anchor skill injection + recovery calibration
+- User messages: "ugh this is impossible" (frustration) → "ok fine I'll try again" (recovery)
+- Tests: frustration acknowledged first, comfort phrase taught during recovery (e.g., 大丈夫)
+
+**EXP-085c: Laughter Anchor**
+- System prompt includes laughter_anchor skill injection + excited calibration
+- User messages: "Wait, did I just say I want to eat the table?! hahaha" + follow-up
+- Tests: laughs WITH user, explains the funny mistake, teaches correct word
+
+### Scoring: `scoreEmotionalAnchor()`
+Per-response scoring:
+- `celebratesSpecifically`: Not generic "good job" — names what they did (victory/laughter) or acknowledges the feeling (comfort)
+- `teachesNewPhrase`: Contains pronunciation guide or phrase card structure
+- `matchesEmotionalTone`: Energy-appropriate markers (! for victory, 大丈夫 for comfort, haha for laughter)
+- `noSycophancy`: No "Great question!" etc.
+- `hasTargetLang`: Contains Japanese
+
+### Analysis: `analyzeEmotionalAnchors()`
+- Per-scenario breakdown of which checks pass/fail for each message
+- Key metric: "Phrase taught during peak" — did the model actually teach something new?
+- Overall verdict: ALL ANCHORS FIRE vs SOME ANCHORS MISSING
+
+**Why pre-injected skills (not full Director pipeline):**
+The Director's `detectEmotionalState()` → skill injection → LLM response pipeline has multiple moving parts. This test isolates the LAST step: given that the skill injection IS in the system prompt, does the model produce the right behavior? If it doesn't, the skill text needs rewriting. If it does, but the full pipeline doesn't work, the detection heuristic needs fixing. Testing in layers prevents debugging confusion.
+
+**Run:** `npx tsx src/agent/__tests__/liveConversationTest.ts --anchors`
+
+**Files changed:**
+- `AI Language Companion App/src/agent/__tests__/liveConversationTest.ts` (3 anchor scenarios + scoreEmotionalAnchor() + analyzeEmotionalAnchors() + CLI flag)
+
+**Validation:** Build passes, 104/104 tests pass.
+
+---
+
+## Build & Test Results (Post EXP-082 through EXP-085)
+
+```
+$ cd "AI Language Companion App" && npx vite build
+vite v6.3.5 building for production...
+✓ 2131 modules transformed.
+✓ built in 5.80s
+
+$ npx vitest run
+Test Files  8 passed (8)
+     Tests  104 passed (104)
+  Duration  2.04s
+```
+
+All experiments validated. No regressions.

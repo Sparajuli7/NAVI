@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { X, RefreshCw, Trash2, MapPin, Save, ChevronDown } from 'lucide-react';
+import { X, RefreshCw, Trash2, MapPin, Save, ChevronDown, Globe } from 'lucide-react';
 import { useCharacterStore } from '../../stores/characterStore';
 import { useAppStore } from '../../stores/appStore';
 import { saveMemories, savePreferences, saveLocation, saveCharacterMemories, saveAvatarImage, saveCharacter } from '../../utils/storage';
@@ -9,6 +9,10 @@ import { useNaviAgent } from '../../agent/react/useNaviAgent';
 import { updateGeminiApiKey } from '../../agent/models/geminiEmbedding';
 import { LLM_PRESETS, OPENROUTER_FREE_MODELS, OPENROUTER_PAID_MODELS } from '../../agent/models';
 import { generateAvatarImage } from '../../utils/generateAvatarImage';
+import { CityPicker } from './CityPicker';
+import { LanguagePicker } from './LanguagePicker';
+import { getLanguageByCode } from '../../config/supportedLanguages';
+import type { CityEntry } from './CityPicker';
 import type { UserPreferences, Character } from '../../types/character';
 
 function countryFlag(code: string): string {
@@ -81,6 +85,22 @@ export function SettingsPanel({ onClose, onRegenerate, onDeleteCompanion, onUpda
   const [backendSwitchError, setBackendSwitchError] = useState<string | null>(null);
   const [isRegeneratingPortrait, setIsRegeneratingPortrait] = useState(false);
   const [portraitRegenStatus, setPortraitRegenStatus] = useState<'idle' | 'success' | 'fail'>('idle');
+
+  // Location & Language picker state
+  const [locationCity, setLocationCity] = useState<CityEntry | null>(() => {
+    if (!currentLocation) return null;
+    return {
+      city: currentLocation.city,
+      country: currentLocation.country,
+      countryCode: currentLocation.countryCode,
+      lat: currentLocation.lat,
+      lng: currentLocation.lng,
+    };
+  });
+  const [locationLanguage, setLocationLanguage] = useState<string | null>(
+    () => activeCharacter?.target_language ?? userPreferences.target_language ?? null
+  );
+  const [locationSaved, setLocationSaved] = useState(false);
 
   // Fetch available Ollama models when the model tab is opened (regardless of current backend)
   const fetchOllamaModels = (url?: string) => {
@@ -230,7 +250,7 @@ export function SettingsPanel({ onClose, onRegenerate, onDeleteCompanion, onUpda
     { key: 'companion',   label: '👤 Companion' },
     { key: 'profile',     label: '🧍 Profile' },
     { key: 'preferences', label: '⚙️ Prefs' },
-    { key: 'location',    label: '📍 Location' },
+    { key: 'location',    label: '📍 Location & Language' },
     { key: 'memory',      label: '🧠 Memory' },
     { key: 'model',       label: '🤖 Model' },
   ];
@@ -640,68 +660,85 @@ export function SettingsPanel({ onClose, onRegenerate, onDeleteCompanion, onUpda
             </div>
           )}
 
-          {/* D) Location */}
+          {/* D) Location & Language */}
           {activeSection === 'location' && (
             <div className="space-y-4">
-              <div className="bg-card border border-border rounded-xl p-4 space-y-3">
-                <div className="flex items-start gap-2">
-                  <MapPin className="w-4 h-4 text-secondary mt-0.5 flex-shrink-0" />
-                  <div>
-                    <p className="text-sm font-medium text-foreground">
-                      {currentLocation
-                        ? `${currentLocation.city}, ${currentLocation.country}`
-                        : 'Not detected'}
-                    </p>
-                    {currentLocation?.dialectInfo && (
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        {countryFlag(currentLocation.countryCode)} {currentLocation.dialectInfo.dialect}
-                      </p>
-                    )}
-                  </div>
+              {/* City picker */}
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-1.5 px-1">
+                  <MapPin className="w-3.5 h-3.5 text-primary" />
+                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">City</span>
                 </div>
-                <button
-                  onClick={handleDetectLocation}
-                  disabled={isDetectingLocation}
-                  className="w-full px-4 py-2 border border-border rounded-lg text-sm text-foreground hover:border-primary/40 transition-colors disabled:opacity-50"
-                >
-                  {isDetectingLocation ? 'Detecting...' : 'Update via GPS'}
-                </button>
-                {locationError && <p className="text-xs text-destructive">{locationError}</p>}
+                <CityPicker
+                  value={locationCity}
+                  onChange={(city) => {
+                    setLocationCity(city);
+                    setLocationSaved(false);
+                  }}
+                  placeholder="Search any city..."
+                  showGPS={true}
+                />
               </div>
 
-              <div className="space-y-2">
-                <p className="text-xs text-muted-foreground uppercase tracking-wide">Manual override</p>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={manualCity}
-                    onChange={(e) => setManualCity(e.target.value)}
-                    placeholder="Enter city name..."
-                    className="flex-1 px-3 py-2 bg-card border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
-                  />
-                  <button
-                    onClick={async () => {
-                      if (!manualCity.trim()) return;
-                      const updated = {
-                        city: manualCity.trim(),
-                        country: currentLocation?.country ?? '',
-                        countryCode: currentLocation?.countryCode ?? '',
-                        lat: currentLocation?.lat ?? 0,
-                        lng: currentLocation?.lng ?? 0,
-                        dialectKey: currentLocation?.dialectKey ?? null,
-                        dialectInfo: currentLocation?.dialectInfo ?? null,
-                      };
-                      setCurrentLocation(updated);
-                      await saveLocation(updated);
-                      await onUpdateCharacter({ location_city: manualCity.trim() });
-                      setManualCity('');
+              {/* Language picker */}
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-1.5 px-1">
+                  <Globe className="w-3.5 h-3.5 text-primary" />
+                  <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Learning language</span>
+                  {locationLanguage && (
+                    <span className="text-xs text-primary ml-auto">
+                      {getLanguageByCode(locationLanguage)?.name ?? locationLanguage}
+                    </span>
+                  )}
+                </div>
+                <div className="bg-card border border-border rounded-xl p-3">
+                  <LanguagePicker
+                    value={locationLanguage}
+                    onChange={(code) => {
+                      setLocationLanguage(code);
+                      setLocationSaved(false);
                     }}
-                    className="px-3 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium"
-                  >
-                    Set
-                  </button>
+                    cityContext={locationCity}
+                  />
                 </div>
               </div>
+
+              {/* Save button */}
+              <button
+                onClick={async () => {
+                  if (!locationCity) return;
+                  const updatedLocation = {
+                    city: locationCity.city,
+                    country: locationCity.country,
+                    countryCode: locationCity.countryCode,
+                    lat: locationCity.lat,
+                    lng: locationCity.lng,
+                    dialectKey: currentLocation?.dialectKey ?? null,
+                    dialectInfo: currentLocation?.dialectInfo ?? null,
+                  };
+                  setCurrentLocation(updatedLocation);
+                  await saveLocation(updatedLocation);
+                  await onUpdateCharacter({
+                    location_city: locationCity.city,
+                    location_country: locationCity.country,
+                    target_language: locationLanguage ?? undefined,
+                  });
+                  if (locationLanguage) {
+                    setUserPreferences({ target_language: locationLanguage });
+                    await savePreferences(useAppStore.getState().userPreferences);
+                    try { await agent.memory.profile.setTargetLanguage(locationLanguage); } catch { /* ok */ }
+                  }
+                  setLocationSaved(true);
+                }}
+                disabled={!locationCity}
+                className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-primary text-primary-foreground rounded-xl text-sm font-medium disabled:opacity-30 transition-opacity"
+              >
+                <Save className="w-4 h-4" />
+                {locationSaved ? 'Saved!' : 'Save location & language'}
+              </button>
+              {locationSaved && (
+                <p className="text-xs text-green-400 text-center">Location and language updated. Changes take effect on the next message.</p>
+              )}
             </div>
           )}
 

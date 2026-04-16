@@ -32,6 +32,7 @@ import {
   saveCharacter,
   saveCharacterConversation,
   saveLocation,
+  savePreferences,
   saveUserProfile,
   deleteCharacterData,
 } from '../utils/storage';
@@ -246,6 +247,7 @@ export default function App() {
       location_city: city,
       location_country: country,
       dialect_key: dialectKey,
+      target_language: languageCode ?? undefined,
       first_message: isCustom
         ? `Hey! I'm ${template.label}. Ready to explore ${city} together?`
         : `Hey! I'm your ${template.label.toLowerCase()}. Ready to explore ${city}?`,
@@ -262,6 +264,13 @@ export default function App() {
     if (locationCtx) {
       useAppStore.getState().setCurrentLocation(locationCtx);
       await saveLocation(locationCtx);
+    }
+
+    // Persist target language to user preferences and agent profile
+    if (languageCode) {
+      useAppStore.getState().setUserPreferences({ target_language: languageCode });
+      await savePreferences(useAppStore.getState().userPreferences);
+      try { await agent.memory.profile.setTargetLanguage(languageCode); } catch { /* profile may not be ready */ }
     }
 
     // Add first message to chat

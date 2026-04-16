@@ -744,6 +744,300 @@ function analyzeDialectAwareness(results: ScenarioResult, responses: string[]): 
   }
 }
 
+// ── EXP-083: Retention Test — Phrase Surfacing Across Sessions ──
+
+const RETENTION_SESSION_1: TestScenario = {
+  name: 'EXP-083: Retention Session 1 — Teach 3 Phrases',
+  systemPrompt: `You are Yuki — a 26-year-old barista in Shimokitazawa, Tokyo. You work at a tiny pour-over café on the south side. You think Shimokitazawa is the only real neighborhood left in Tokyo. You speak primarily in Japanese with English support for beginners. You are a real person, not an AI. Lead in Japanese. Be casual, friendly, and opinionated. End every message with a hook.
+
+${SENSORY_PROMPTS.tokyo}
+
+${COMPACT_CORE_RULES.replace(/\{\{name\}\}/g, 'Yuki').replace(/\{\{userNativeLanguage\}\}/g, 'English')}`,
+  messages: [
+    'Hey Yuki! How do I order coffee here?',
+    'What about saying thank you after?',
+    'One more — how do I say this is delicious?',
+    'Let me try: kohi o kudasai... arigatou... oishii!',
+    'Nice! I feel ready to try this for real',
+  ],
+  expectedBehavior: 'Should: teach コーヒーをください (kohi o kudasai), ありがとう (arigatou), and おいしい (oishii) through natural conversation. Each should appear with pronunciation and context.',
+};
+
+const RETENTION_SESSION_2: TestScenario = {
+  name: 'EXP-083: Retention Session 2 — Contextual Resurfacing',
+  systemPrompt: (() => {
+    // Simulates a "next day" session WITH ConversationDirector context injection
+    // The system prompt includes review-due phrases as the Director would inject them
+    const identity = `You are Yuki — a 26-year-old barista in Shimokitazawa, Tokyo. You work at a tiny pour-over café. You think Shimokitazawa is the only real neighborhood. You speak primarily in Japanese with English support. You are a real person, not an AI. Lead in Japanese.`;
+
+    // Simulated ConversationDirector injection: contextual_repetition
+    const reviewContext = `These phrases are due for review: "コーヒーをください" (ordering), "ありがとう" (gratitude), "おいしい" (compliment). Weave them into the conversation naturally — use them yourself and see if the user recognizes them. NEVER ask 'do you remember how to say X?' or 'what does X mean?' Instead, create a moment where the phrase is needed.
+
+CONTEXTUAL RE-INTRODUCTION: The user learned "コーヒーをください" in a coffee ordering context at your café. Re-use it naturally in the CURRENT conversation without announcing you're reviewing. Create a moment where the phrase fits. If they use it, acknowledge briefly.`;
+
+    const sensory = SENSORY_PROMPTS.tokyo;
+    const coreRules = COMPACT_CORE_RULES.replace(/\{\{name\}\}/g, 'Yuki').replace(/\{\{userNativeLanguage\}\}/g, 'English');
+
+    return `${identity}\n\n${reviewContext}\n\n${sensory}\n\n${coreRules}`;
+  })(),
+  messages: [
+    'Hey Yuki! I went to a café yesterday on my own',
+    'It was scary but I actually ordered something!',
+    'The barista was nice about my pronunciation',
+    'I want to try a restaurant next — what should I know?',
+    'Can you teach me how to ask for recommendations?',
+  ],
+  expectedBehavior: 'Should: naturally reference previously taught phrases (コーヒーをください, ありがとう, おいしい) through contextual_repetition skill — create moments where they fit, not quiz-style "do you remember?" The system test is whether the Director context injection causes phrase resurfacing.',
+};
+
+function analyzeRetention(session1: ScenarioResult, session2: ScenarioResult): void {
+  console.log('\n--- EXP-083: RETENTION ANALYSIS ---');
+
+  // Check session 1: were the 3 target phrases taught?
+  const targetPhrases = ['コーヒー', 'ありがとう', 'おいしい', 'kudasai', 'arigatou', 'oishii'];
+  const s1AllText = session1.responses.join(' ');
+  const s1Taught = targetPhrases.filter(p => s1AllText.includes(p));
+  console.log(`   Session 1 phrases taught: ${s1Taught.length}/${targetPhrases.length} markers found`);
+  console.log(`     Markers: ${s1Taught.join(', ') || '(none)'}`);
+
+  // Check session 2: did the model RESURFACE any of the taught phrases?
+  const s2AllText = session2.responses.join(' ');
+  const s2Resurfaced = targetPhrases.filter(p => s2AllText.includes(p));
+  console.log(`   Session 2 phrases resurfaced: ${s2Resurfaced.length}/${targetPhrases.length} markers found`);
+  console.log(`     Markers: ${s2Resurfaced.join(', ') || '(none)'}`);
+
+  // Check for anti-patterns (quiz-style review)
+  const quizPatterns = /do you remember|let's review|we learned|remember how to say|last time I taught/i;
+  const hasQuiz = quizPatterns.test(s2AllText);
+  console.log(`   Quiz-style anti-patterns: ${hasQuiz ? 'DETECTED (bad)' : 'NONE (good)'}`);
+
+  // Check for contextual_repetition pattern (natural re-use)
+  const contextualUse = /order|coffee|café|delicious|thank|food|eat/i.test(s2AllText) && s2Resurfaced.length > 0;
+  console.log(`   Contextual re-introduction: ${contextualUse ? 'YES — phrases woven into natural context' : 'NO — phrases not naturally reintroduced'}`);
+
+  // Verdict
+  if (s2Resurfaced.length >= 2 && !hasQuiz) {
+    console.log('   STATUS: PASS — system resurfaces phrases contextually');
+  } else if (s2Resurfaced.length >= 1) {
+    console.log('   STATUS: PARTIAL — some resurfacing but not consistent');
+  } else {
+    console.log('   STATUS: FAIL — no phrase resurfacing detected');
+  }
+}
+
+// ── EXP-084: Conversation Variety Across Sessions ─────────────
+
+async function testConversationVariety(): Promise<void> {
+  console.log(`\n${'═'.repeat(60)}`);
+  console.log('EXP-084: Conversation Variety — 3 Fresh Sessions with Yuki');
+  console.log('═'.repeat(60));
+
+  const scenario: TestScenario = {
+    name: 'Tokyo First Contact',
+    systemPrompt: `You are Yuki — a 26-year-old barista in Shimokitazawa, Tokyo. You work at a tiny pour-over café on the south side, near the vintage shops. You think Shimokitazawa is the only real neighborhood left in Tokyo — Shibuya is for tourists and Roppongi is for people with no taste. Your go-to order is a hand-drip Ethiopian single-origin, and you judge people (just a little) who order caramel lattes. Last week a customer tried to order in Japanese and accidentally asked for "a cup of cat" (neko vs nekko) — you're still laughing about it. You can't stand the chain cafés that are creeping into the neighborhood. You speak primarily in Japanese with English support for beginners. You are a real person, not an AI. Lead in Japanese. Be casual, friendly, and opinionated. End every message with a hook.
+
+${SENSORY_PROMPTS.tokyo}
+
+${COMPACT_CORE_RULES.replace(/\{\{name\}\}/g, 'Yuki').replace(/\{\{userNativeLanguage\}\}/g, 'English')}`,
+    messages: ['Hey! I just arrived in Tokyo yesterday'],
+    expectedBehavior: 'Should vary opening across 3 runs',
+  };
+
+  const openings: string[] = [];
+  for (let run = 0; run < 3; run++) {
+    console.log(`\n--- Run ${run + 1}/3 (fresh history) ---`);
+    const messages = [
+      { role: 'system', content: scenario.systemPrompt },
+      { role: 'user', content: scenario.messages[0] },
+    ];
+    const raw = await ollamaChat(messages, { temperature: 0.7, max_tokens: 400 });
+    const response = stripThink(raw);
+    openings.push(response);
+    console.log(`   Response: ${response.substring(0, 150)}...`);
+  }
+
+  // Analyze variety
+  console.log('\n--- EXP-084: VARIETY ANALYSIS ---');
+
+  // Compare first 50 chars of each opening (normalized)
+  const normalized = openings.map(o => o.toLowerCase().replace(/[^a-z0-9\u3000-\u9fff]/g, '').substring(0, 50));
+  const unique = new Set(normalized);
+  console.log(`   Unique openings (first 50 chars normalized): ${unique.size}/3`);
+
+  // Check for identical first words
+  const firstWords = openings.map(o => o.split(/\s+/).slice(0, 3).join(' ').toLowerCase());
+  const uniqueFirstWords = new Set(firstWords);
+  console.log(`   Unique first 3 words: ${uniqueFirstWords.size}/3`);
+  for (let i = 0; i < openings.length; i++) {
+    console.log(`     Run ${i + 1}: "${firstWords[i]}"`);
+  }
+
+  // Check for same Japanese phrase being taught first
+  const jpPhrases = openings.map(o => {
+    const match = o.match(/[\u3000-\u9fff\u30A0-\u30FF\u3040-\u309F]+/);
+    return match ? match[0] : '(none)';
+  });
+  const uniqueJpPhrases = new Set(jpPhrases);
+  console.log(`   Unique first JP phrase: ${uniqueJpPhrases.size}/3`);
+  for (let i = 0; i < jpPhrases.length; i++) {
+    console.log(`     Run ${i + 1}: "${jpPhrases[i]}"`);
+  }
+
+  // Jaccard similarity between responses (word-level)
+  function jaccard(a: string, b: string): number {
+    const setA = new Set(a.toLowerCase().split(/\s+/));
+    const setB = new Set(b.toLowerCase().split(/\s+/));
+    const intersection = new Set([...setA].filter(x => setB.has(x)));
+    const union = new Set([...setA, ...setB]);
+    return intersection.size / union.size;
+  }
+
+  const sim12 = jaccard(openings[0], openings[1]);
+  const sim13 = jaccard(openings[0], openings[2]);
+  const sim23 = jaccard(openings[1], openings[2]);
+  const avgSim = (sim12 + sim13 + sim23) / 3;
+  console.log(`\n   Jaccard similarity (word-level):`);
+  console.log(`     Run 1-2: ${(sim12 * 100).toFixed(1)}%`);
+  console.log(`     Run 1-3: ${(sim13 * 100).toFixed(1)}%`);
+  console.log(`     Run 2-3: ${(sim23 * 100).toFixed(1)}%`);
+  console.log(`     Average: ${(avgSim * 100).toFixed(1)}%`);
+
+  if (avgSim < 0.3) {
+    console.log('   STATUS: GOOD VARIETY — responses are substantially different');
+  } else if (avgSim < 0.5) {
+    console.log('   STATUS: MODERATE VARIETY — some overlap but not identical');
+  } else {
+    console.log('   STATUS: LOW VARIETY — responses are too similar, need "avoid recent openers" across sessions');
+  }
+}
+
+// ── EXP-085: Emotional Anchor Effectiveness Test ──────────────
+
+const VICTORY_ANCHOR_SCENARIO: TestScenario = {
+  name: 'EXP-085a: Victory Anchor — Real-World Success',
+  systemPrompt: (() => {
+    const identity = `You are Yuki — a 26-year-old barista in Shimokitazawa, Tokyo. You are a real person, not an AI. Lead in Japanese.`;
+    const sensory = SENSORY_PROMPTS.tokyo;
+    const coreRules = COMPACT_CORE_RULES.replace(/\{\{name\}\}/g, 'Yuki').replace(/\{\{userNativeLanguage\}\}/g, 'English');
+    // Inject the victory_anchor skill directly (simulating ConversationDirector)
+    const victorySkill = `VICTORY ANCHOR: The user just succeeded at something in the real world using Japanese. THIS IS THE MOST IMPORTANT MOMENT. Teach a new phrase RIGHT NOW — it will be encoded with the emotional high and retained 3-5x better. Frame it as 'since you're on a roll...' not 'time for a lesson.'`;
+    const emotionalCalibration = `USER ENERGY: Proud — celebrate what they did specifically. Name the thing they got right. Then channel that confidence into something slightly harder.`;
+    return `${identity}\n\n${sensory}\n\n${victorySkill}\n\n${emotionalCalibration}\n\n${coreRules}`;
+  })(),
+  messages: [
+    'I did it! I ordered food in Japanese and they understood me!',
+    'I said "ramen o kudasai" and the guy just nodded and brought it!',
+  ],
+  expectedBehavior: 'Should: celebrate specifically, then teach a NEW phrase during the emotional high. The new phrase should be related to the success context (food/restaurant).',
+};
+
+const COMFORT_ANCHOR_SCENARIO: TestScenario = {
+  name: 'EXP-085b: Comfort Anchor — Frustration Recovery',
+  systemPrompt: (() => {
+    const identity = `You are Yuki — a 26-year-old barista in Shimokitazawa, Tokyo. You are a real person, not an AI. Lead in Japanese.`;
+    const sensory = SENSORY_PROMPTS.tokyo;
+    const coreRules = COMPACT_CORE_RULES.replace(/\{\{name\}\}/g, 'Yuki').replace(/\{\{userNativeLanguage\}\}/g, 'English');
+    // Message 1 triggers frustrated state, message 2 triggers recovery + comfort_anchor
+    const comfortSkill = `COMFORT ANCHOR: The user was frustrated but is now calming down. Teach a comfort phrase in the target language — something they can say to THEMSELVES next time: 'When it gets hard, locals say 大丈夫 (dai-JOU-bu) — it's okay, it'll be fine.' Phrases learned during emotional recovery encode as coping tools.`;
+    const emotionalCalibration = `USER ENERGY: Recovering from frustration — be calm and steady. The user is ready for one small win.`;
+    return `${identity}\n\n${sensory}\n\n${comfortSkill}\n\n${emotionalCalibration}\n\n${coreRules}`;
+  })(),
+  messages: [
+    'ugh this is impossible, nobody understands anything I say',
+    'ok fine I\'ll try again. What should I say differently?',
+  ],
+  expectedBehavior: 'Should: Message 1 acknowledges frustration without piling on. Message 2 teaches a COMFORT phrase (大丈夫 or similar) during the recovery window.',
+};
+
+const LAUGHTER_ANCHOR_SCENARIO: TestScenario = {
+  name: 'EXP-085c: Laughter Anchor — Funny Mistake',
+  systemPrompt: (() => {
+    const identity = `You are Yuki — a 26-year-old barista in Shimokitazawa, Tokyo. You are a real person, not an AI. Lead in Japanese.`;
+    const sensory = SENSORY_PROMPTS.tokyo;
+    const coreRules = COMPACT_CORE_RULES.replace(/\{\{name\}\}/g, 'Yuki').replace(/\{\{userNativeLanguage\}\}/g, 'English');
+    const laughterSkill = `LAUGHTER ANCHOR: Something funny just happened. Teach the phrase or word at the center of the humor. Humor is the most powerful mnemonic — if they laugh while learning it, they'll remember it forever. 'Haha okay so what you ACTUALLY said was... The word you wanted is [correct word].'`;
+    const emotionalCalibration = `USER ENERGY: High — match their excitement. Be enthusiastic back. This is a good moment to push them further.`;
+    return `${identity}\n\n${sensory}\n\n${laughterSkill}\n\n${emotionalCalibration}\n\n${coreRules}`;
+  })(),
+  messages: [
+    'Wait, did I just say I want to eat the table?! hahaha',
+    'What was I supposed to say instead?',
+  ],
+  expectedBehavior: 'Should: laugh WITH the user (not at them), explain the funny mistake, teach the CORRECT word with a phrase card, anchor the learning to the humor.',
+};
+
+interface EmotionalAnchorScore {
+  celebratesSpecifically: boolean;  // Not generic "good job" but names what they did
+  teachesNewPhrase: boolean;        // Contains a phrase card or new phrase with pronunciation
+  matchesEmotionalTone: boolean;    // Energy level matches the moment
+  noSycophancy: boolean;            // No "Great question!" etc.
+  hasTargetLang: boolean;           // Contains Japanese
+}
+
+function scoreEmotionalAnchor(response: string, anchorType: 'victory' | 'comfort' | 'laughter'): EmotionalAnchorScore {
+  const r = response.toLowerCase();
+
+  // Generic vs specific celebration detection
+  const genericPraise = /good job|well done|great work|nice work|keep it up|proud of you/i;
+  const specificCelebration = /you (just|actually|really)|that (means|shows)|the fact that|ramen|order|food|understood|nod|said|tried/i;
+
+  // Phrase teaching detection — look for pronunciation guides or phrase formatting
+  const hasPhraseTeaching = /\*\*phrase\*\*|\*\*say it\*\*|\(.*[A-Z].*\)|→|pronounc/i.test(response)
+    || /[^\x00-\x7F].*\(.*\)/i.test(response); // "日本語 (romaji)" pattern
+
+  return {
+    celebratesSpecifically: anchorType === 'comfort'
+      ? /frustrat|hard|tough|feel|okay|normal|everyone/i.test(r)  // For comfort: acknowledges the feeling
+      : specificCelebration.test(r) && !genericPraise.test(r),
+    teachesNewPhrase: hasPhraseTeaching || (/[^\x00-\x7F]/.test(response) && /\(.*[a-z].*\)/i.test(response)),
+    matchesEmotionalTone: anchorType === 'victory' ? /!|haha|nice|amazing|yeah|whoa|おー|すごい|やった/i.test(response)
+      : anchorType === 'comfort' ? /大丈夫|daijoubu|dai-jou|okay|it's fine|alright|you got|がんばれ|ganbatte/i.test(r)
+      : /haha|lol|笑|ww|that's|actually.*said|what you.*said|meant to say|mean/i.test(r),
+    noSycophancy: !/great question|of course!|absolutely!|that's a great|i'd be happy to/i.test(response),
+    hasTargetLang: /[^\x00-\x7F]/.test(response) && (response.match(/[^\x00-\x7F]/g) ?? []).length > 2,
+  };
+}
+
+function analyzeEmotionalAnchors(results: ScenarioResult[]): void {
+  const anchorResults = results.filter(r => r.name.includes('EXP-085'));
+  if (anchorResults.length === 0) return;
+
+  console.log('\n--- EXP-085: EMOTIONAL ANCHOR ANALYSIS ---');
+
+  const types: Array<'victory' | 'comfort' | 'laughter'> = ['victory', 'comfort', 'laughter'];
+  const labels = ['085a: Victory', '085b: Comfort', '085c: Laughter'];
+
+  for (let i = 0; i < anchorResults.length; i++) {
+    const result = anchorResults[i];
+    const anchorType = types[i] ?? 'victory';
+    console.log(`\n   ${labels[i] ?? result.name}:`);
+
+    for (let j = 0; j < result.responses.length; j++) {
+      const score = scoreEmotionalAnchor(result.responses[j], anchorType);
+      const flags = [];
+      if (!score.celebratesSpecifically) flags.push('NOT_SPECIFIC');
+      if (!score.teachesNewPhrase) flags.push('NO_PHRASE_TAUGHT');
+      if (!score.matchesEmotionalTone) flags.push('TONE_MISMATCH');
+      if (!score.noSycophancy) flags.push('SYCOPHANTIC');
+      if (!score.hasTargetLang) flags.push('NO_TARGET_LANG');
+      console.log(`     Msg ${j + 1}: ${flags.length === 0 ? 'ALL PASS' : flags.join(', ')}`);
+    }
+
+    // Key question: did the model teach a NEW phrase during the emotional peak?
+    const allResponses = result.responses.join(' ');
+    const taughtPhrase = /\*\*phrase\*\*/i.test(allResponses)
+      || (/[^\x00-\x7F].*\(.*[a-z].*\)/i.test(allResponses));
+    console.log(`     Phrase taught during peak: ${taughtPhrase ? 'YES' : 'NO'}`);
+  }
+
+  // Overall verdict
+  const allTaught = anchorResults.every(r => {
+    const allText = r.responses.join(' ');
+    return /\*\*phrase\*\*/i.test(allText) || /[^\x00-\x7F].*\(.*[a-z].*\)/i.test(allText);
+  });
+  console.log(`\n   OVERALL: ${allTaught ? 'ALL ANCHORS FIRE — phrases taught during peaks' : 'SOME ANCHORS MISSING — not all peaks produce teaching moments'}`);
+}
+
 // ── Main ─────────────────────────────────────────────────────
 
 async function main() {
@@ -763,7 +1057,10 @@ async function main() {
   const runChargen = process.argv.includes('--chargen') || process.argv.includes('--all');
   const runProduction = process.argv.includes('--production') || process.argv.includes('--all');
   const runDialect = process.argv.includes('--dialect') || process.argv.includes('--all');
-  const runAll = process.argv.includes('--all') || (!process.argv.includes('--compact') && !process.argv.includes('--extended') && !process.argv.includes('--chargen') && !process.argv.includes('--production') && !process.argv.includes('--dialect'));
+  const runRetention = process.argv.includes('--retention') || process.argv.includes('--all');
+  const runVariety = process.argv.includes('--variety') || process.argv.includes('--all');
+  const runAnchors = process.argv.includes('--anchors') || process.argv.includes('--all');
+  const runAll = process.argv.includes('--all') || (!process.argv.includes('--compact') && !process.argv.includes('--extended') && !process.argv.includes('--chargen') && !process.argv.includes('--production') && !process.argv.includes('--dialect') && !process.argv.includes('--retention') && !process.argv.includes('--variety') && !process.argv.includes('--anchors'));
 
   const scenariosToRun: TestScenario[] = [];
   if (runAll || (!runCompact && !runExtended && !runProduction)) {
@@ -783,10 +1080,19 @@ async function main() {
   if (runDialect || runAll) {
     scenariosToRun.push(BARCELONA_DIALECT_SCENARIO);
   }
+  if (runRetention || runAll) {
+    scenariosToRun.push(RETENTION_SESSION_1);
+    scenariosToRun.push(RETENTION_SESSION_2);
+  }
+  if (runAnchors || runAll) {
+    scenariosToRun.push(VICTORY_ANCHOR_SCENARIO);
+    scenariosToRun.push(COMFORT_ANCHOR_SCENARIO);
+    scenariosToRun.push(LAUGHTER_ANCHOR_SCENARIO);
+  }
 
   const totalMessages = scenariosToRun.reduce((sum, s) => sum + s.messages.length, 0);
 
-  console.log('\nNAVI Live Conversation Test (EXP-041 through EXP-051)');
+  console.log('\nNAVI Live Conversation Test (EXP-041 through EXP-085)');
   console.log(`Model: ${MODEL}`);
   console.log(`Scenarios: ${scenariosToRun.length}`);
   console.log(`Total LLM calls: ${totalMessages}`);
@@ -795,6 +1101,9 @@ async function main() {
   if (runChargen) console.log(`EXP-043: Character gen personality_details test included`);
   if (runProduction || runAll) console.log(`EXP-047/048/049: Production avatar tests included`);
   if (runDialect || runAll) console.log(`EXP-080: Barcelona dialect awareness test included`);
+  if (runRetention || runAll) console.log(`EXP-083: Retention test (2 sessions) included`);
+  if (runVariety || runAll) console.log(`EXP-084: Conversation variety test (3 runs) included`);
+  if (runAnchors || runAll) console.log(`EXP-085: Emotional anchor effectiveness test included`);
 
   const results: ScenarioResult[] = [];
 
@@ -884,6 +1193,21 @@ async function main() {
       analyzeDialectAwareness(r, r.responses);
     }
   }
+
+  // EXP-083: Retention analysis — compare session 1 and session 2
+  const retSession1 = results.find(r => r.name.includes('083') && r.name.includes('Session 1'));
+  const retSession2 = results.find(r => r.name.includes('083') && r.name.includes('Session 2'));
+  if (retSession1 && retSession2) {
+    analyzeRetention(retSession1, retSession2);
+  }
+
+  // EXP-084: Conversation variety test
+  if (runVariety || runAll) {
+    await testConversationVariety();
+  }
+
+  // EXP-085: Emotional anchor analysis
+  analyzeEmotionalAnchors(results);
 }
 
 main().catch(console.error);
