@@ -2095,3 +2095,192 @@ Build passes. 104/104 tests pass.
 When the user switches companions, the warmth/callbacks correctly reset to the target companion's values because each companion has a separate entry in the `relationships` record keyed by their unique avatar ID.
 
 **Conclusion:** No fix needed. The relationship store was already correctly scoped per-avatar from the beginning.
+
+---
+
+## EXP-056: Mid-Conversation Reinforcement Injection
+**Date:** 2026-04-16
+**Status:** IMPLEMENTED
+
+**Hypothesis:** Quality degrades -0.7 points in the second half of 12-turn conversations. Sensory details and open loops collapse after turn 6 because behavioral instructions scroll out of the context window attention span. A brief (~30 token) reinforcement reminder injected after turn 6 should refresh the model's attention to key behaviors without significant token budget impact.
+
+**What was done:**
+- In `ConversationDirector.preProcess()`, added a check after the existing `session_message_count` tracking (which already uses WorkingMemory with 2h TTL).
+- When `session_message_count > 6`, a reinforcement instruction is appended to `goalInstructions`:
+  > "REMINDER: Stay in character. Include a sensory detail. End with a hook or question. Keep it short."
+- This fires on turns 7, 8, 9, ... (every turn after 6, not just once), because the degradation is continuous — the model needs ongoing refreshment, not a one-time boost.
+- Positioned BEFORE the existing `session_pacing` check (which fires at turn 8+), so reinforcement starts 2 turns earlier than wind-down.
+
+**Why these specific 4 instructions:**
+1. "Stay in character" — addresses personality collapse (the avatar starts sounding generic)
+2. "Include a sensory detail" — directly targets the measured sensory collapse
+3. "End with a hook or question" — directly targets the measured open loop collapse
+4. "Keep it short" — prevents the model from compensating by writing longer responses (which is a common degradation pattern: as the model loses focus, it pads with generic content)
+
+**Token cost:** ~30 tokens per injection. At turn 7+, the context window is already full, so these 30 tokens displace the least-priority content via the existing token budget enforcement. A trivial tradeoff for behavioral persistence.
+
+**File changed:** `AI Language Companion App/src/agent/director/ConversationDirector.ts`
+
+**Validation:** Build passes, 104/104 tests pass.
+
+---
+
+## EXP-057: Scenario Coach-on-the-Side Prompt
+**Date:** 2026-04-16
+**Status:** IMPLEMENTED
+
+**Hypothesis:** Research R5 recommended "coach-on-the-side" for non-fluent stages. When a survival or functional learner enters a scenario, the avatar should NOT role-play as the NPC (shopkeeper, waiter, official) — it should stand beside the user as their friend and coach them through the interaction. This reduces cognitive load: the user gets real-time coaching in their native language while the scenario happens around them, instead of being thrown into a role-play they can't sustain.
+
+**What was done:**
+
+1. **New template in `systemLayers.json`:**
+   Added `scenarioCoach` template:
+   > "SCENARIO COACHING MODE: You are {{characterName}}, the user's companion. A {{scenarioLabel}} situation is happening around you. DO NOT play the role of the shopkeeper/waiter/official — instead, COACH the user through it. Describe what the other person is saying or doing, then help the user respond. 'The waiter just asked what you want — say **je voudrais** (zhuh voo-DRAY) and point at what you want.' You are their friend standing next to them, whispering advice."
+
+2. **New `learningStage` option in `buildSystemPrompt()`:**
+   Added `learningStage?: string` to the options parameter of `AvatarContextController.buildSystemPrompt()`.
+
+3. **Coach vs Lock routing in contextController:**
+   When `learningStage` is `'survival'` or `'functional'`, the scenario layer uses `buildScenarioCoachLayer()` (which uses the `scenarioCoach` template) instead of `buildScenarioLayer()` (which uses `scenarioLock`). Conversational and fluent learners still get the full `scenarioLock` behavior.
+
+4. **New `buildScenarioCoachLayer()` method:**
+   Takes `scenario` and `characterName`, looks up the scenario config, and interpolates the `scenarioCoach` template. Falls back to `buildScenarioLayer()` if the coach template is not found.
+
+5. **Plumbing through the agent:**
+   - `NaviAgent.handleMessage()` now passes `directorCtx.learningStage.stage` to the context params.
+   - `chatTool.ts` accepts and forwards the `learningStage` parameter to `buildSystemPrompt()`.
+
+**Why only survival + functional:**
+- Survival learners (0-50 interactions, <5 mastered phrases) genuinely cannot sustain a role-play. They need someone narrating what's happening and telling them what to say.
+- Functional learners (50-120 interactions, 5-15 mastered phrases) can handle some phrases but still benefit from coaching over immersion in high-stakes scenarios.
+- Conversational learners (120+ interactions, 15+ mastered phrases) are ready for full scenario immersion — role-playing IS their learning method at this point.
+- Fluent learners get the peer role-play (already handled by `scenarioLock_fluent`).
+
+**Files changed:**
+- `AI Language Companion App/src/config/prompts/systemLayers.json` (1 template added)
+- `AI Language Companion App/src/agent/avatar/contextController.ts` (3 changes: option type, routing logic, new method)
+- `AI Language Companion App/src/agent/tools/chatTool.ts` (param schema + forwarding)
+- `AI Language Companion App/src/agent/index.ts` (pass learningStage to context params)
+
+**Validation:** Build passes, 104/104 tests pass.
+
+---
+
+## EXP-058: Working Memory Session State TTL Audit
+**Date:** 2026-04-16
+**Status:** AUDITED + 2 FIXES APPLIED
+
+**Hypothesis:** Several features depend on WorkingMemory for session state, but WorkingMemory has TTLs that could expire prematurely, causing features to silently break mid-session.
+
+**Full audit of all `working.set()` calls:**
+
+| Key | TTL | Expected Lifetime | Verdict |
+|---|---|---|---|
+| `session_message_count` | 2h | Session length | CORRECT |
+| `register_awareness_${scenario}` | 2h | Once per scenario session | CORRECT |
+| `sensory_anchor_counter` | 2h | Session length | CORRECT |
+| `tblt_pretask_${scenario}` | 2h | Once per scenario session | CORRECT |
+| `last_known_stage` | 24h | Slow-changing | CORRECT |
+| `calibration_tier` | 30min | Dynamic recalibration | CORRECT |
+| `surprise_competence` | 2min | One turn | CORRECT |
+| `expansion_flag` | 2min | One turn | CORRECT |
+| `session_goal_${avatarId}` | 2h | Session length | CORRECT |
+| `last_user_message` | **10min (DEFAULT)** | Session length | **WRONG — FIXED to 2h** |
+| `last_response` | **10min (DEFAULT)** | Session length | **WRONG — FIXED to 2h** |
+| `memoryTools working.set(key, value)` | 10min (DEFAULT) | User-controlled (generic) | ACCEPTABLE |
+
+**Problem found:** `chatTool.ts` called `working.set('last_user_message', message)` and `working.set('last_response', response)` without specifying a TTL, causing them to use `DEFAULT_TTL_MS = 10 * 60 * 1000` (10 minutes). If a user pauses for 10 minutes mid-session and then resumes, these values would be gone. Components that reference `last_user_message` or `last_response` (e.g., post-processing, memory extraction) would get `undefined` instead of the actual last exchange.
+
+**Fix:** Added explicit `2 * 60 * 60 * 1000` (2h) TTL to all four `working.set()` calls in `chatTool.ts` (2 in the listen path, 2 in the standard chat path).
+
+**Why not infinite TTL:** WorkingMemory is a ring buffer with fixed capacity (32 slots). Long TTLs don't cause memory pressure because the buffer size is constant. But 2h is sufficient — if a user hasn't interacted in 2 hours, the session is effectively over and these values should be evicted to make room for the next session.
+
+**File changed:** `AI Language Companion App/src/agent/tools/chatTool.ts`
+
+**Validation:** Build passes, 104/104 tests pass.
+
+---
+
+## EXP-059: Verify characterGen Personality Details in Production
+**Date:** 2026-04-16
+**Status:** VERIFIED (analysis only)
+
+**Question:** Does `personality_details` from `characterGen.json` actually reach the system prompt for template characters?
+
+**Trace for TEMPLATE characters** (selected from AvatarSelectScreen):
+
+1. `AvatarSelectScreen` shows tiles from `avatarTemplates.json` (8 templates).
+2. User taps a tile → `handleAvatarSelected(template, locationCtx)` in `App.tsx` (line 228).
+3. `newChar.summary = template.base_personality` (line 238) — the FULL rich personality from `avatarTemplates.json`.
+4. For non-custom templates: `agent.createAvatarFromTemplate(template.id, city, dialectKey)` (line 288) → `this.avatar.createFromTemplate(templateId, loc, dialectKey)` → sets `profile.personality = template.base_personality` (contextController.ts line 78).
+5. Then `avatarProfile.personality = newChar.summary` (App.tsx line 295) — redundant but correct (both are `template.base_personality`).
+6. `buildIdentityLayer(profile)` (contextController.ts line 348) interpolates `profile.personality` into `{{personality}}` in the `identity.template` from `systemLayers.json`.
+
+**Result:** The full rich `base_personality` from `avatarTemplates.json` flows through to the identity layer. For example, the `street_food` template's personality:
+> "Lives for the night market. Thinks the stall by the bridge has the best pho in the city and will argue about it passionately..."
+
+This entire multi-sentence personality description reaches the LLM system prompt via `{{personality}}` in the identity template.
+
+**Trace for CUSTOM characters** (Create Your Own):
+
+1. User types a description → LLM generates character via `characterGen.json` prompts.
+2. LLM response includes `personality_details` (if `characterGen.json` requests it).
+3. Generated character stored as `newChar.summary` or `newChar.detailed`.
+4. `agent.avatar.createFromDescription(newChar.summary, profileParams, city)` → sets `profile.personality = description` (contextController.ts line 112), then spread of `llmGeneratedProfile` can override.
+5. Same `buildIdentityLayer()` path as above.
+
+**Conclusion:** Template characters do NOT use `characterGen.json` at all — they bypass LLM generation entirely and use `avatarTemplates.json` directly. The `personality_details` field in `characterGen.json` only affects custom "Create Your Own" characters. However, this is correct by design: template characters already have rich, hand-crafted personalities in `avatarTemplates.json` that are superior to what the LLM would generate. The `characterGen.json` prompts serve as a fallback for when the user creates a character from scratch.
+
+**Files examined (no changes):**
+- `AI Language Companion App/src/app/App.tsx` (handleAvatarSelected, lines 228-312)
+- `AI Language Companion App/src/agent/avatar/contextController.ts` (createFromTemplate, buildIdentityLayer)
+- `AI Language Companion App/src/config/avatarTemplates.json` (template data)
+- `AI Language Companion App/src/config/prompts/systemLayers.json` (identity template)
+
+---
+
+## EXP-060: Add Scenario Vocabulary to TBLT Pre-Task
+**Date:** 2026-04-16
+**Status:** IMPLEMENTED
+
+**Problem:** The `tblt_pretask` template in `systemLayers.json` says "preview 2-3 key phrases" but doesn't provide the actual vocabulary list. The model has to guess what vocabulary is relevant to the scenario. Meanwhile, `scenarioContexts.json` has a carefully curated `vocabulary_focus` array for each scenario (e.g., restaurant: `["ordering", "menu items", "dietary restrictions", "tipping", "asking for check", "how it's cooked", "without/with"]`).
+
+**What was done:**
+
+1. **Updated `tblt_pretask` template** in `systemLayers.json`:
+   - Added `Focus vocabulary: {{vocabulary}}.` after the scenario label
+   - Changed step (1) to explicitly reference the focus vocabulary: "From the focus vocabulary, pick 2-3 key phrases..."
+   - Changed step (2) to reference it: "Pick the single most critical phrase from the focus vocabulary..."
+
+2. **Updated `contextController.ts`** TBLT pretask injection:
+   - The `promptLoader.get('systemLayers.scenario.tblt_pretask', ...)` call now passes `vocabulary: scenarioConfig.vocabulary_focus.join(', ')` alongside `label`.
+
+**Before:** The pretask said "preview 2-3 key phrases for this Ordering Food situation" — the model might pick generic phrases like "hello" and "thank you."
+
+**After:** The pretask says "preview 2-3 key phrases for this Ordering Food situation. Focus vocabulary: ordering, menu items, dietary restrictions, tipping, asking for check, how it's cooked, without/with." — the model now has the specific vocabulary domains to draw from.
+
+**Why this matters:** The pretask is the user's first encounter with a scenario. If the model picks the wrong phrases (too generic, too advanced, or irrelevant), the user enters the task phase unprepared. The vocabulary list constrains the model to domain-relevant phrases, dramatically improving the quality of the pretask preview.
+
+**Files changed:**
+- `AI Language Companion App/src/config/prompts/systemLayers.json` (template updated)
+- `AI Language Companion App/src/agent/avatar/contextController.ts` (vocabulary injection)
+
+**Validation:** Build passes, 104/104 tests pass.
+
+---
+
+## Build & Test Results (Post EXP-056 through EXP-060)
+
+```
+$ cd "AI Language Companion App" && npx vite build
+vite v6.3.5 building for production...
+✓ 2127 modules transformed.
+✓ built in 9.18s
+
+$ npx vitest run
+Test Files  8 passed (8)
+     Tests  104 passed (104)
+  Duration  3.85s
+```
+
+All experiments validated. No regressions.
