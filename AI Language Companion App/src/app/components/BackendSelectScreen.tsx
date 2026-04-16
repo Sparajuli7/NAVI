@@ -90,6 +90,7 @@ export function BackendSelectScreen({ onDone }: BackendSelectScreenProps) {
       } else if (selected.type === 'ollama') {
         await switchOllamaModel(selected.model);
         localStorage.setItem('navi_backend_pref', 'ollama');
+        localStorage.setItem('navi_ollama_model', selected.model);
       } else {
         await switchBackend('webllm', { webllmPreset: selected.presetKey });
       }

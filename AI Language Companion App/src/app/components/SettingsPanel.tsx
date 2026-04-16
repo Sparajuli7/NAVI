@@ -71,8 +71,9 @@ export function SettingsPanel({ onClose, onRegenerate, onDeleteCompanion, onUpda
   const [geminiKeyDraft, setGeminiKeyDraft] = useState(geminiApiKey);
   const [geminiKeySaved, setGeminiKeySaved] = useState(false);
   // Backend selector state
-  type BackendCard = 'webllm' | 'cloud-free' | 'cloud-paid';
+  type BackendCard = 'webllm' | 'cloud-free' | 'cloud-paid' | 'ollama';
   const [selectedCard, setSelectedCard] = useState<BackendCard>(() => {
+    if (backend === 'ollama') return 'ollama';
     if (backend === 'openrouter') return openRouterTier === 'paid' ? 'cloud-paid' : 'cloud-free';
     return 'webllm';
   });
@@ -142,6 +143,8 @@ export function SettingsPanel({ onClose, onRegenerate, onDeleteCompanion, onUpda
     setModelSwitchError(null);
     try {
       await switchOllamaModel(model);
+      localStorage.setItem('navi_backend_pref', 'ollama');
+      localStorage.setItem('navi_ollama_model', model);
     } catch (err) {
       setModelSwitchError(err instanceof Error ? err.message : 'Failed to switch model');
     } finally {
@@ -819,9 +822,10 @@ export function SettingsPanel({ onClose, onRegenerate, onDeleteCompanion, onUpda
               <div className="flex bg-muted/50 rounded-xl p-1 gap-1">
                 {(
                   [
-                    { key: 'webllm' as const, label: 'On-Device' },
                     { key: 'cloud-free' as const, label: 'Cloud Free' },
                     { key: 'cloud-paid' as const, label: 'Cloud Paid' },
+                    ...(ollamaConnected || ollamaModels.length > 0 || backend === 'ollama' ? [{ key: 'ollama' as const, label: 'Ollama' }] : []),
+                    { key: 'webllm' as const, label: 'On-Device' },
                   ] as Array<{ key: BackendCard; label: string }>
                 ).map(({ key, label }) => (
                   <button
@@ -896,16 +900,105 @@ export function SettingsPanel({ onClose, onRegenerate, onDeleteCompanion, onUpda
                 </div>
               )}
 
-              {/* Apply */}
-              <button
-                onClick={handleApplyBackend}
-                disabled={isSwitchingBackend}
-                className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-primary text-primary-foreground rounded-xl text-sm font-medium disabled:opacity-50 transition-opacity"
-              >
-                {isSwitchingBackend ? (
-                  <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> Switching…</>
-                ) : 'Apply'}
-              </button>
+              {selectedCard === 'ollama' && (
+                <div className="space-y-3">
+                  {/* Ollama URL */}
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={ollamaUrlDraft}
+                      onChange={(e) => setOllamaUrlDraft(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && handleOllamaUrlSave()}
+                      placeholder="http://localhost:11434"
+                      className="flex-1 px-3 py-2.5 bg-card border border-border rounded-xl text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                    />
+                    <button
+                      onClick={handleOllamaUrlSave}
+                      disabled={isLoadingModels}
+                      className="px-3 py-2.5 bg-primary text-primary-foreground rounded-xl text-sm font-medium disabled:opacity-50"
+                    >
+                      {isLoadingModels ? '...' : 'Connect'}
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-1.5 px-1">
+                    <div className={`w-2 h-2 rounded-full ${ollamaConnected ? 'bg-green-400' : 'bg-red-400'}`} />
+                    <p className="text-xs text-muted-foreground">
+                      {isLoadingModels ? 'Connecting...' : ollamaConnected ? `Connected (${ollamaModels.length} model${ollamaModels.length !== 1 ? 's' : ''})` : 'Not connected'}
+                    </p>
+                  </div>
+
+                  {/* CORS hint when not connected */}
+                  {!ollamaConnected && !isLoadingModels && (
+                    <div className="bg-card border border-border rounded-xl px-4 py-3">
+                      <p className="text-xs text-muted-foreground leading-relaxed mb-2">
+                        If Ollama is running but not connecting, restart it with CORS enabled:
+                      </p>
+                      <div className="bg-background border border-border rounded-lg px-3 py-2">
+                        <code className="text-xs text-foreground break-all">OLLAMA_ORIGINS=* ollama serve</code>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Model list */}
+                  {ollamaConnected && ollamaModels.length > 0 && (
+                    <div className="space-y-1.5">
+                      {ollamaModels.map((m) => {
+                        const active = ollamaModel === m.name && backend === 'ollama';
+                        return (
+                          <button
+                            key={m.name}
+                            onClick={() => handleSwitchOllamaModel(m.name)}
+                            disabled={isSwitchingModel}
+                            className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border text-left transition-all disabled:opacity-50 ${
+                              active
+                                ? 'border-emerald-500 bg-emerald-500/10'
+                                : 'border-border bg-card hover:border-emerald-500/40'
+                            }`}
+                          >
+                            <div>
+                              <span className={`text-sm font-medium ${active ? 'text-foreground' : 'text-muted-foreground'}`}>
+                                {m.name}
+                              </span>
+                              <span className="text-xs text-muted-foreground ml-2">
+                                {(m.size / 1e9).toFixed(1)} GB · local · private
+                              </span>
+                            </div>
+                            <div className={`w-3.5 h-3.5 rounded-full border-2 shrink-0 ml-3 ${
+                              active ? 'border-emerald-500 bg-emerald-500' : 'border-border'
+                            }`} />
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                  {ollamaConnected && ollamaModels.length === 0 && (
+                    <div className="bg-card border border-border rounded-xl px-4 py-3">
+                      <p className="text-xs text-muted-foreground leading-relaxed">
+                        No models pulled yet. Pull one with:
+                      </p>
+                      <div className="bg-background border border-border rounded-lg px-3 py-2 mt-2">
+                        <code className="text-xs text-foreground">ollama pull qwen2.5:3b</code>
+                      </div>
+                    </div>
+                  )}
+                  {isSwitchingModel && <p className="text-xs text-muted-foreground px-1 animate-pulse">Switching model...</p>}
+                  {modelSwitchError && <p className="text-xs text-destructive px-1">{modelSwitchError}</p>}
+                  <p className="text-xs text-muted-foreground px-1">Runs on your machine · no cloud · private</p>
+                </div>
+              )}
+
+              {/* Apply — not needed for Ollama (model click switches immediately) */}
+              {selectedCard !== 'ollama' && (
+                <button
+                  onClick={handleApplyBackend}
+                  disabled={isSwitchingBackend}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-primary text-primary-foreground rounded-xl text-sm font-medium disabled:opacity-50 transition-opacity"
+                >
+                  {isSwitchingBackend ? (
+                    <><RefreshCw className="w-3.5 h-3.5 animate-spin" /> Switching…</>
+                  ) : 'Apply'}
+                </button>
+              )}
               {backendSwitchError && (
                 <p className="text-xs text-destructive px-1">{backendSwitchError}</p>
               )}
@@ -919,67 +1012,6 @@ export function SettingsPanel({ onClose, onRegenerate, onDeleteCompanion, onUpda
                   Re-run model setup →
                 </button>
               )}
-
-              {/* Ollama (local server) */}
-              <div className="bg-card border border-border rounded-xl p-4 space-y-4">
-                <div>
-                  <p className="text-xs text-muted-foreground uppercase tracking-wide mb-2">Ollama (Local Server)</p>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={ollamaUrlDraft}
-                      onChange={(e) => setOllamaUrlDraft(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && handleOllamaUrlSave()}
-                      placeholder="http://localhost:11434"
-                      className="flex-1 px-3 py-2 bg-background border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
-                    />
-                    <button
-                      onClick={handleOllamaUrlSave}
-                      disabled={isLoadingModels}
-                      className="px-3 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium disabled:opacity-50"
-                    >
-                      {isLoadingModels ? '...' : 'Connect'}
-                    </button>
-                  </div>
-                  <div className="flex items-center gap-1.5 mt-2">
-                    <div className={`w-2 h-2 rounded-full ${ollamaConnected ? 'bg-green-400' : 'bg-red-400'}`} />
-                    <p className="text-xs text-muted-foreground">
-                      {isLoadingModels ? 'Connecting...' : ollamaConnected ? (ollamaModels.length > 0 ? `Connected (${ollamaModels.length} models)` : 'Connected — no models pulled yet') : 'Not connected'}
-                    </p>
-                  </div>
-                </div>
-                {!ollamaConnected && !isLoadingModels && (
-                  <div className="border-t border-border pt-4">
-                    <p className="text-xs text-muted-foreground leading-relaxed mb-2">
-                      If Ollama is running but not connecting, restart it with CORS enabled:
-                    </p>
-                    <div className="bg-background border border-border rounded-lg px-3 py-2">
-                      <code className="text-xs text-foreground break-all">OLLAMA_ORIGINS=* ollama serve</code>
-                    </div>
-                  </div>
-                )}
-                {ollamaConnected && (
-                  <div className="border-t border-border pt-4">
-                    <p className="text-xs text-muted-foreground uppercase tracking-wide mb-2">Select Model</p>
-                    <div className="relative">
-                      <select
-                        value={ollamaModel ?? ''}
-                        onChange={(e) => handleSwitchOllamaModel(e.target.value)}
-                        disabled={isSwitchingModel}
-                        className="w-full appearance-none px-3 py-2.5 pr-8 bg-background border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50 cursor-pointer"
-                      >
-                        {backend !== 'ollama' && <option value="" disabled>Select a model...</option>}
-                        {ollamaModels.map((m) => (
-                          <option key={m.name} value={m.name}>{m.name} ({(m.size / 1e9).toFixed(1)} GB)</option>
-                        ))}
-                      </select>
-                      <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
-                    </div>
-                    {isSwitchingModel && <p className="text-xs text-muted-foreground mt-2 animate-pulse">Switching model...</p>}
-                    {modelSwitchError && <p className="text-xs text-destructive mt-2">{modelSwitchError}</p>}
-                  </div>
-                )}
-              </div>
 
               {/* Gemini API key */}
               <div className="bg-card border border-border rounded-xl p-4 space-y-3">
