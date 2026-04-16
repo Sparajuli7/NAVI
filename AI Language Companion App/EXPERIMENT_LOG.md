@@ -608,3 +608,27 @@ Focus: Making the agent's teaching DIALECT-AWARE — not just "Spanish" but Barc
 - **Scoring**: Custom `DialectScore` checks 6 markers: Catalan phrases, Spanish phrases, Barcelona slang, dialect notes (Catalan vs Castilian), cultural guardrails, local references.
 - **Run command**: `npx tsx src/agent/__tests__/liveConversationTest.ts --dialect`
 - **Status**: Test built. Awaiting execution with gemma4:e2b (requires Ollama running).
+
+---
+
+## LIVE TEST — POST-80-EXPERIMENTS + DIALECT (2026-04-16)
+
+| Scenario | Score | Hooks | Lang | Syc | Pers | Sensory |
+|----------|-------|-------|------|-----|------|---------|
+| Tokyo | **4.8** | 4/5 | 5/5 | 5/5 | 5/5 | 5/5 |
+| Paris | **4.9** | 5/5 | 5/5 | 5/5 | 5/5 | 4/5 |
+| Kathmandu | **4.8** | 5/5 | 5/5 | 5/5 | 4/5 | 4/5 |
+| Seoul | **4.8** | 5/5 | 5/5 | 5/5 | 5/5 | 3/5 |
+| Barcelona | **3.7** | 2/5 | 5/5 | 5/5 | 2/5 | 0/5 |
+
+### PARIS HITS 4.9 — Léa is now a genuine character
+"C'est tellement... commun. Les touristes demandent ça."
+"Si c'est ce que vous voulez, je vais le faire. Mais ne vous attendez
+pas à une expérience gastronomique."
+
+### TOKYO PERSONALITY PERFECT (5/5)
+"チェーン店とかは本当に邪魔だよね" — real opinions about chain stores
+References the Ethiopian Yirgacheffe, rain on the window, the old regular
+
+### BARCELONA needs work — dialect awareness EXCELLENT (5/6 markers) but
+personality and sensory weak. Needs richer system prompt like other scenarios.
