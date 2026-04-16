@@ -343,3 +343,25 @@ Avatar: "Au marché (oh mar-SHAY) ce matin? Sympa. T'as trouvé quelque chose de
 - Anti-sycophancy: **100%** across ALL model sizes and ALL test runs
 - Sensory grounding still weakest dimension (50%) — needs more work
 - Kathmandu target language still low (40%) — Priya defaults to English for emotional support
+
+---
+
+## LIVE TEST — gemma4:e2b POST-SENSORY-FIX (2026-04-16)
+
+| Scenario | Score | Hooks | Lang | Syc-free | Personality | Sensory |
+|----------|-------|-------|------|----------|-------------|---------|
+| Tokyo | **4.8** | 5/5 | 5/5 | 5/5 | 3/5 | **5/5** |
+| Paris | **4.7** | 4/5 | 5/5 | 5/5 | 5/5 | 3/5 |
+| Kathmandu | 4.0 | 5/5 | 1/5 | 5/5 | 3/5 | 4/5 |
+| Seoul | 4.6 | 5/5 | 5/5 | 5/5 | 5/5 | **0/5** |
+| **OVERALL** | **4.5** | **19/20** | **16/20** | **20/20** | **16/20** | **12/20** |
+
+### Sensory progression: 3/20 → 4/20 → 10/20 → 12/20 (60%)
+- Tokyo sensory perfect (5/5) — specific prompts about espresso machine, rain, old regular WORK
+- Seoul sensory zero (0/5) — Jihoon prompt has NO sensory details, needs same treatment as Tokyo
+- Kathmandu sensory good (4/5) — chai, street noise landing
+- Paris sensory improved (3/5) — kitchen clanking, bread smell starting to appear
+
+### Remaining issue: Kathmandu target language 1/5
+Priya STILL defaults to English during emotional support despite the confusion override nuance. 
+The emotional support mode overrides the language instruction. Needs stronger "include Nepali WITH English" instruction.
