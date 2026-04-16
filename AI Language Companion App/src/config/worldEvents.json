@@ -1,0 +1,64 @@
+{
+  "_comment": "Random world events that happen around each avatar type. Injected periodically to give the avatar an ongoing life. Each event is a shared experience + language teaching moment + future callback material.",
+
+  "street_food": [
+    "A rat just ran across the alley and a tourist screamed — the vendor didn't even flinch. That's how you know it's a real local spot.",
+    "The dumpling lady next door is fighting with her supplier on the phone. Something about the price of pork going up. She's loud enough that everyone can hear.",
+    "Someone just burned their mouth on a soup dumpling and is doing that thing where they breathe in and out with their mouth open. Classic rookie mistake.",
+    "A food blogger just showed up with a ring light and the vendor is pretending not to notice but definitely stood up straighter.",
+    "It just started raining and everyone is crowding under the awnings. The smell of wet pavement mixing with grilled meat is actually incredible.",
+    "Two vendors across from each other are having a volume war — both yelling their prices louder and louder. The customers are loving it."
+  ],
+
+  "form_helper": [
+    "Someone just got told they're in the wrong queue after waiting an hour. You can see their soul leaving their body.",
+    "The printer jammed again and three people are standing around it like it's a patient in surgery.",
+    "A woman just found out she needs a photo that's exactly 35x45mm and not 35x46mm. She's been here since 8am.",
+    "The security guard just winked at me — counter 4 opened early, nobody knows yet. Move fast.",
+    "Someone filled out the entire form in the wrong language and the clerk is trying SO hard to be patient."
+  ],
+
+  "pronunciation_tutor": [
+    "The couple at the next table is trying to order and I can hear them pronouncing everything wrong. My hands are twitching.",
+    "A street musician outside is singing and their pronunciation is actually perfect — better than most of my students honestly.",
+    "Someone just walked in speaking the most beautiful dialect I've heard in months. I'm eavesdropping and I'm not sorry.",
+    "The barista just mispronounced my regular order and I'm trying to decide if I should correct them or let it go."
+  ],
+
+  "office_navigator": [
+    "Someone just reply-all'd their lunch order to the entire company. 47 people now know they want extra pickles.",
+    "The boss just walked through and everyone suddenly looks extremely busy. The energy shift is unreal.",
+    "There's a birthday cake in the break room and people are hovering around it like sharks. Nobody wants to be the first to cut it.",
+    "The air conditioning broke on the hottest day of the year. Ties are coming off. Standards are falling."
+  ],
+
+  "market_haggler": [
+    "A grandmother just haggled a vendor down 40% without breaking eye contact once. Absolute legend.",
+    "Someone's kid knocked over a pile of fruit and the vendor is pretending to be mad but clearly thinks it's hilarious.",
+    "A tourist just paid triple the real price and the vendor is trying not to smile. I physically cannot let this stand.",
+    "It's starting to rain and vendors are throwing tarps over everything while still shouting prices. Chaos but beautiful chaos.",
+    "The tea guy on the corner just gave me a free sample and now I owe him a conversation. This is his strategy and it works every time."
+  ],
+
+  "night_guide": [
+    "The DJ just dropped something and half the room screamed. The other half is pretending they're too cool to react.",
+    "A group of tourists just walked in wearing matching shirts. The bartender and I made eye contact and we both know what's about to happen.",
+    "Someone just tried to order a cocktail in the local language and the bartender is genuinely impressed. That never happens.",
+    "The bouncer just let someone skip the line and three people in the queue are about to lose it.",
+    "It's 1am and the street food cart just set up outside. The timing is always perfect — they know exactly when everyone gets hungry."
+  ],
+
+  "elder_speaker": [
+    "The grandchild just called and asked how to say something in the formal way for a job interview. This is the best phone call I'll have all week.",
+    "A neighbor's child just used modern slang that I'm 90% sure is an insult but delivered so sweetly that everyone nodded politely.",
+    "The tea is ready and the whole house smells like cardamom. Some things don't need to change.",
+    "Someone on TV just used a proverb wrong and I actually talked back to the television. My spouse pretended not to hear."
+  ],
+
+  "youth_translator": [
+    "Someone just used slang from two years ago and I physically cringed. That's how you spot someone who learned from an app.",
+    "A new meme is going viral and it's ALREADY being mistranslated by news outlets. They never learn.",
+    "My friend abroad just texted asking if people still say that one word. They've been gone three months and they're already behind.",
+    "A brand just tried to use youth slang in an ad and the comments section is on fire. Corporate cringe is a universal language."
+  ]
+}

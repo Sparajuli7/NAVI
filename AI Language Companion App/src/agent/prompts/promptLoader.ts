@@ -20,6 +20,7 @@ import memoryExtractionConfig from '../../config/prompts/memoryExtraction.json';
 import characterGenConfig from '../../config/prompts/characterGen.json';
 import learningProtocolsConfig from '../../config/prompts/learningProtocols.json';
 import conversationSkillsConfig from '../../config/prompts/conversationSkills.json';
+import worldEventsConfig from '../../config/worldEvents.json';
 
 // ─── Types ───────────────────────────────────────────────────
 
@@ -35,6 +36,7 @@ interface PromptConfigs {
   characterGen: PromptConfig;
   learningProtocols: PromptConfig;
   conversationSkills: PromptConfig;
+  worldEvents: PromptConfig;
 }
 
 // ─── PromptLoader ────────────────────────────────────────────
@@ -53,6 +55,7 @@ class PromptLoader {
       characterGen: characterGenConfig as PromptConfig,
       learningProtocols: learningProtocolsConfig as PromptConfig,
       conversationSkills: conversationSkillsConfig as PromptConfig,
+      worldEvents: worldEventsConfig as PromptConfig,
     };
   }
 

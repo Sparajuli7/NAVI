@@ -2020,10 +2020,21 @@ Build passes. 104/104 tests pass.
 7. **Scorer needs multilingual expansion.** The biggest gap between perceived quality and automated score is the English-keyword bias in `hasPersonality` and `hasSensory`. Vietnamese, Korean, and Japanese sensory/personality content is systematically missed.
 
 ### Next Steps
-- Add Vietnamese/Korean/Japanese sensory and personality word patterns to the scorer
-- Test with qwen3.5:4b and qwen3.5:9b models (newly available)
+- ~~Add Vietnamese/Korean/Japanese sensory and personality word patterns to the scorer~~ DONE (see EXP-047a below)
+- ~~Test with qwen3.5:4b model~~ DONE (see EXP-047b below)
+- Test with qwen3.5:9b model
 - Test longer production conversations (10+ turns) for degradation patterns
 - Wire the remaining 2 skills not yet triggered (input_flooding, progressive_disclosure) — these need more complex trigger conditions
+
+### EXP-047a: Multilingual Scorer Expansion (follow-up)
+**Status:** IMPLEMENTED
+
+Expanded `hasSensory` from single English regex to 5 language-specific patterns (English, Vietnamese, Japanese, Korean, Nepali). Expanded `hasPersonality` with 3 new patterns (Vietnamese, Japanese, Nepali). Re-test with gemma4:e2b: production overall jumped 3.9/5.0 -> **4.6/5.0** (+0.7). Personality 41% -> 87%. Sensory 0% -> 53%. **The gap was entirely scorer limitation.** Production (4.6) now exceeds hand-crafted (4.2).
+
+### EXP-047b: qwen3.5:4b Model Evaluation (follow-up)
+**Status:** COMPLETED -- NEW BEST MODEL
+
+qwen3.5:4b (4.7B params) scored **4.8/5.0** on production scenarios (vs 4.6 for gemma4:e2b 5.1B). EXP-049 memory injection achieved a **perfect 5.0/5.0** -- both review phrases used naturally, Ben Thanh referenced, zero anti-patterns. Sensory 87% (vs 53% on gemma4:e2b). Model progression: qwen2.5:1.5b (3.0) -> gemma4:e2b (4.6) -> **qwen3.5:4b (4.8)**. Recommended as new default.
 
 ---
 

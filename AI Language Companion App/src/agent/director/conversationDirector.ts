@@ -426,6 +426,27 @@ export class ConversationDirector {
       );
     }
 
+    // 0g. World event injection — give the avatar an ongoing life (25% chance per message)
+    // This makes the avatar feel like a real person with things happening around them
+    if (Math.random() < 0.25) {
+      const templateId = this.relationships.getRelationship(avatarId).avatarId;
+      try {
+        const worldEvents = promptLoader.getRaw('worldEvents') as Record<string, string[]> | undefined;
+        // Try to match avatar template to world events, fall back to any category
+        const categories = worldEvents ? Object.keys(worldEvents).filter(k => k !== '_comment') : [];
+        const matchedCategory = categories.find(c => templateId?.includes(c)) ?? categories[Math.floor(Math.random() * categories.length)];
+        if (matchedCategory && worldEvents) {
+          const events = worldEvents[matchedCategory];
+          if (events && events.length > 0) {
+            const event = events[Math.floor(Math.random() * events.length)];
+            goalInstructions.push(
+              `WORLD EVENT (happening right now around you — react to it naturally, use it as a conversation starter or teaching moment): ${event}`,
+            );
+          }
+        }
+      } catch { /* worldEvents config not loaded */ }
+    }
+
     // Learning goals — only active in 'learn' mode or blended (null) mode. Skipped in guide/friend.
     if (!isGuideMode) {
       // 1. Check for phrases due for review (spaced repetition + contextual re-introduction)
