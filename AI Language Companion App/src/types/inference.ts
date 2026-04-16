@@ -1,4 +1,4 @@
-export type ModelStatus = 'not_loaded' | 'downloading' | 'loading' | 'ready' | 'error';
+export type ModelStatus = 'not_loaded' | 'downloading' | 'loading' | 'ready' | 'error' | 'unloaded';
 
 export interface InferenceConfig {
   temperature: number;
@@ -19,4 +19,14 @@ export const INFERENCE_CONFIGS: Record<string, InferenceConfig> = {
 export interface LLMMessage {
   role: 'system' | 'user' | 'assistant';
   content: string;
+}
+
+/** Result of an OCR text extraction operation */
+export interface OCRResult {
+  text: string;
+  blocks: string[];
+  blockCount: number;
+  avgBlockLength: number;
+  /** OCR confidence score (0-1). Present when using VisionProvider, absent in legacy service. */
+  confidence?: number;
 }

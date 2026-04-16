@@ -510,20 +510,8 @@ export class NaviAgent {
     const currentMode = this.modeClassifier.getCurrentMode()
       ?? (this.memory.profile.getUserMode() ?? null);
 
-    let directorCtx: ReturnType<typeof this.director.preProcess>;
-    try {
-      directorCtx = this.director.preProcess(message, avatarId, { isSessionStart, userMode: currentMode });
-      agentBus.emit('director:goals_set', { goals: directorCtx.goals });
-    } catch (err) {
-      console.error('[NaviAgent] Director preProcess error:', err);
-      directorCtx = {
-        goals: [],
-        promptInjection: '',
-        learningContext: '',
-        warmthInstruction: '',
-        situationContext: '',
-      };
-    }
+    const directorCtx = this.director.preProcess(message, avatarId, { isSessionStart, userMode: currentMode });
+    agentBus.emit('director:goals_set', { goals: directorCtx.goals });
 
     // 1b. Sub-agent context gathering (runs in parallel with director)
     const profile = this.avatar.getActiveProfile();
@@ -533,60 +521,47 @@ export class NaviAgent {
     const currentScenario = profile?.scenario || '';
 
     // Memory Retrieval Agent — get graph-based context
-    let memoryContext: ContextPacket = {
-      promptInjection: '', relatedTerms: [], engagementHints: [],
-      bridgeMemories: [], struggleTerms: [], relevanceScore: 0,
-    };
-    try {
-      memoryContext = this.memoryRetrieval.retrieve({
-        userMessage: message,
-        currentTopics: [],
-        currentScenario,
-        currentLocation: locationCtx?.city || '',
-        currentAvatarId: avatarId,
-        language: currentLanguage,
-        queryType: isSessionStart ? 'session_start' : 'turn_context',
-      });
-    } catch (err) {
-      console.error('[NaviAgent] MemoryRetrieval error:', err);
-    }
+    const memoryContext: ContextPacket = this.memoryRetrieval.retrieve({
+      userMessage: message,
+      currentTopics: [],
+      currentScenario,
+      currentLocation: locationCtx?.city || '',
+      currentAvatarId: avatarId,
+      language: currentLanguage,
+      queryType: isSessionStart ? 'session_start' : 'turn_context',
+    });
 
     // Research Agent — get protocol recommendations
-    let researchContext: ResearchRecommendation = { protocols: [], promptInjection: '', adjustments: {} };
-    try {
-      // Detect frustration signals
-      const lower = message.toLowerCase();
-      const frustrationSignals = /frustrated|confused|don't understand|i can't|this is hard|ugh|stuck|lost/i;
-      const userShowingFrustration = frustrationSignals.test(lower);
+    // Detect frustration signals
+    const lower = message.toLowerCase();
+    const frustrationSignals = /frustrated|confused|don't understand|i can't|this is hard|ugh|stuck|lost/i;
+    const userShowingFrustration = frustrationSignals.test(lower);
 
-      // Detect target language output
-      const hasTargetLangOutput = /[^\x00-\x7F]/.test(message) && message.length > 3;
-      if (hasTargetLangOutput) {
-        this.turnsWithoutOutput = 0;
-      } else {
-        this.turnsWithoutOutput++;
-      }
-
-      const researchQuery: ResearchQuery = {
-        userMessage: message,
-        currentTier: this.memory.learner.languageComfortTier,
-        userMode: currentMode,
-        recentEngagement: 0.5,
-        termsInSession: this.termsInSession,
-        turnsWithoutOutput: this.turnsWithoutOutput,
-        userShowingFrustration,
-        struggleTerms: memoryContext.struggleTerms,
-        activeScenario: currentScenario,
-        language: currentLanguage,
-        script: '',
-        location: locationCtx?.city || '',
-        encounterContext: currentScenario || 'general conversation',
-        inferredReason: '',
-      };
-      researchContext = this.research.getRecommendation(researchQuery);
-    } catch (err) {
-      console.error('[NaviAgent] Research error:', err);
+    // Detect target language output
+    const hasTargetLangOutput = /[^\x00-\x7F]/.test(message) && message.length > 3;
+    if (hasTargetLangOutput) {
+      this.turnsWithoutOutput = 0;
+    } else {
+      this.turnsWithoutOutput++;
     }
+
+    const researchQuery: ResearchQuery = {
+      userMessage: message,
+      currentTier: this.memory.learner.languageComfortTier,
+      userMode: currentMode,
+      recentEngagement: 0.5,
+      termsInSession: this.termsInSession,
+      turnsWithoutOutput: this.turnsWithoutOutput,
+      userShowingFrustration,
+      struggleTerms: memoryContext.struggleTerms,
+      activeScenario: currentScenario,
+      language: currentLanguage,
+      script: '',
+      location: locationCtx?.city || '',
+      encounterContext: currentScenario || 'general conversation',
+      inferredReason: '',
+    };
+    const researchContext: ResearchRecommendation = this.research.getRecommendation(researchQuery);
 
     // Build combined context injection (merge all sub-agent outputs)
     const subAgentInjections: string[] = [];
@@ -594,15 +569,11 @@ export class NaviAgent {
     if (researchContext.promptInjection) subAgentInjections.push(researchContext.promptInjection);
     const combinedSubAgentContext = subAgentInjections.join('\n\n');
 
-    // Pronunciation reference bank — gives ALL tools (including chat) factual IPA data
-    // so the LLM can generate accurate reader-friendly pronunciations naturally in conversation
-    let pronunciationBank = '';
-    try {
-      pronunciationBank = await buildPronunciationBank(
-        currentLanguage,
-        this.memory.learner.phrases.slice(0, 5),
-      );
-    } catch { /* non-blocking — pronunciation is best-effort */ }
+    // Pronunciation reference bank — external API + IndexedDB, must not break message flow
+    const pronunciationBank = await buildPronunciationBank(
+      currentLanguage,
+      this.memory.learner.phrases.slice(0, 5),
+    ).catch(() => '');
 
     // Merge director goals + sub-agent context + pronunciation bank
     const fullConversationGoals = [

@@ -20,6 +20,8 @@
  */
 
 import type { AvatarProfile, AvatarContextOverride } from '../core/types';
+import type { AvatarTemplate } from '../../types/character';
+import type { ScenarioContext, DialectInfo } from '../../types/config';
 import { agentBus } from '../core/eventBus';
 import { promptLoader } from '../prompts/promptLoader';
 import { estimateTokens } from '../../utils/tokenEstimator';
@@ -30,38 +32,12 @@ import scenarioContextsRaw from '../../config/scenarioContexts.json';
 import dialectMapRaw from '../../config/dialectMap.json';
 import userPreferenceSchemaRaw from '../../config/userPreferenceSchema.json';
 
-// ─── Config Types (matching existing JSON shapes) ──────────────
+// ─── Config Types ──────────────────────────────────────────────
+// AvatarTemplate, ScenarioContext, and DialectInfo are imported from
+// src/types/character.ts and src/types/config.ts respectively.
 
-interface AvatarTemplate {
-  id: string;
-  emoji: string;
-  label: string;
-  base_personality: string;
-  default_style: string;
-  default_formality: string;
-  vocabulary_focus: string[];
-  scenario_hint: string;
-}
-
-interface ScenarioConfig {
-  label: string;
-  emoji?: string;
-  vocabulary_focus: string[];
-  tone_shift: string;
-  formality_adjustment: number;
-  tone_guidance?: string;
-  cultural_guardrails?: string;
-  debrief_focus?: string;
-  auto_suggestions: string[];
-  pronunciation_priority: string[];
-}
-
-interface DialectConfig {
-  language: string;
-  dialect: string;
-  formality_default: string;
-  cultural_notes: string;
-  slang_era: Record<string, string>;
+/** Extended dialect config with optional scripts field (used by contextController) */
+interface DialectConfig extends DialectInfo {
   scripts?: string[];
 }
 
@@ -73,7 +49,7 @@ export class AvatarContextController {
 
   // Config registries — loaded from JSON, swappable at runtime
   private templates: AvatarTemplate[] = avatarTemplatesRaw as AvatarTemplate[];
-  private scenarios: Record<string, ScenarioConfig> = scenarioContextsRaw as Record<string, ScenarioConfig>;
+  private scenarios: Record<string, ScenarioContext> = scenarioContextsRaw as Record<string, ScenarioContext>;
   private dialects: Record<string, DialectConfig> = dialectMapRaw as Record<string, DialectConfig>;
   private prefSchema: Record<string, unknown> = userPreferenceSchemaRaw;
 
@@ -228,13 +204,11 @@ export class AvatarContextController {
 
     // L3.5: Language enforcement (MUST — hard locks avatar language)
     if (dialectConfig) {
-      try {
-        const enforcement = promptLoader.get('systemLayers.languageEnforcement.template', {
-          language: dialectConfig.language,
-          dialect: dialectConfig.dialect,
-        });
-        layerDefs.push([enforcement, 0]);
-      } catch { /* skip */ }
+      const enforcement = promptLoader.get('systemLayers.languageEnforcement.template', {
+        language: dialectConfig.language,
+        dialect: dialectConfig.dialect,
+      });
+      layerDefs.push([enforcement, 0]);
     }
 
     // L4: Scenario (HIGH)
@@ -268,38 +242,30 @@ export class AvatarContextController {
 
     // L11.5: Mode instruction (MEDIUM)
     if (options?.userMode) {
-      try {
-        const modeLayer = promptLoader.get(`systemLayers.modeInstructions.${options.userMode}`, {
-          userNativeLanguage: userLang,
-        });
-        layerDefs.push([modeLayer, 2]);
-      } catch { /* mode key not in config */ }
+      const modeLayer = promptLoader.get(`systemLayers.modeInstructions.${options.userMode}`, {
+        userNativeLanguage: userLang,
+      });
+      layerDefs.push([modeLayer, 2]);
     }
 
     // L11.6: Scenario opener (MEDIUM — only on first message with active scenario)
     if (options?.isFirstEverMessage && effectiveScenario) {
       const scenarioConfig = this.scenarios[effectiveScenario];
       if (scenarioConfig) {
-        try {
-          const openerLayer = promptLoader.get('systemLayers.modeInstructions.scenarioOpener', {
-            scenarioLabel: scenarioConfig.label,
-          });
-          layerDefs.push([openerLayer, 2]);
-        } catch { /* skip */ }
+        const openerLayer = promptLoader.get('systemLayers.modeInstructions.scenarioOpener', {
+          scenarioLabel: scenarioConfig.label,
+        });
+        layerDefs.push([openerLayer, 2]);
       }
     }
 
     // L11.7: Conversation naturalness (MEDIUM)
-    try {
-      const naturalnessLayer = promptLoader.get('systemLayers.conversationNaturalness') as string;
-      if (naturalnessLayer) layerDefs.push([naturalnessLayer, 2]);
-    } catch { /* skip */ }
+    const naturalnessLayer = promptLoader.get('systemLayers.conversationNaturalness') as string;
+    if (naturalnessLayer) layerDefs.push([naturalnessLayer, 2]);
 
     // L12: Few-shot examples (LOW)
-    try {
-      const fewShot = promptLoader.get('coreRules.fewShotExamples') as string;
-      if (fewShot) layerDefs.push([fewShot, 3]);
-    } catch { /* skip */ }
+    const fewShot = promptLoader.get('coreRules.fewShotExamples') as string;
+    if (fewShot) layerDefs.push([fewShot, 3]);
 
     // L13: Core rules (MUST)
     layerDefs.push([this.buildCoreRules(userLang), 0]);
@@ -479,7 +445,7 @@ export class AvatarContextController {
   }
 
   /** Get available scenarios */
-  getScenarios(): Record<string, ScenarioConfig> {
+  getScenarios(): Record<string, ScenarioContext> {
     return { ...this.scenarios };
   }
 
@@ -494,7 +460,7 @@ export class AvatarContextController {
   }
 
   /** Hot-swap scenarios at runtime */
-  loadScenarios(scenarios: Record<string, ScenarioConfig>): void {
+  loadScenarios(scenarios: Record<string, ScenarioContext>): void {
     this.scenarios = scenarios;
   }
 

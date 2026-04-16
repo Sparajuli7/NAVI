@@ -3,13 +3,7 @@ import { ArrowLeft, Search, LayoutList } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { PhraseDetailSheet } from './PhraseDetailSheet';
 import type { PhraseMastery, TrackedPhrase } from '../../agent/core/types';
-
-interface GeneratedCharacter {
-  name: string;
-  personality: string;
-  colors: { primary: string; secondary: string; accent: string };
-  accessory?: string;
-}
+import type { GeneratedCharacter } from '../../types/character';
 
 interface GraphPhrase {
   id: string;

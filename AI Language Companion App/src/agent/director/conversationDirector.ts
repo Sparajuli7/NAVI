@@ -167,11 +167,9 @@ export class ConversationDirector {
     const comfortTier = wmTier !== undefined ? wmTier : this.learner.languageComfortTier;
     const tierKey = `tier_${comfortTier}_${['unknown', 'beginner', 'early', 'intermediate', 'advanced'][comfortTier]}`;
     if (!isGuideMode) {
-      try {
-        const calibrationInstruction = promptLoader.get(`systemLayers.languageCalibration.${tierKey}`);
+      const calibrationInstruction = promptLoader.get(`systemLayers.languageCalibration.${tierKey}`);
+      if (calibrationInstruction) {
         goalInstructions.push(calibrationInstruction);
-      } catch {
-        // Tier key not found in config — skip calibration injection
       }
     }
 

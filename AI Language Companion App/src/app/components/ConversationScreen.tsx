@@ -20,19 +20,8 @@ import { saveCharacterConversation } from '../../utils/storage';
 import { startRecording, stopRecording, isSTTSupported, getSTTLangCode } from '../../services/stt';
 import type { Message, PhraseCardData } from '../../types/chat';
 import type { ScenarioKey } from '../../types/config';
-import type { Character } from '../../types/character';
+import type { Character, GeneratedCharacter } from '../../types/character';
 import scenarioContexts from '../../config/scenarioContexts.json';
-
-interface GeneratedCharacter {
-  name: string;
-  personality: string;
-  colors: {
-    primary: string;
-    secondary: string;
-    accent: string;
-  };
-  accessory?: string;
-}
 
 interface ConversationScreenProps {
   character: GeneratedCharacter;

@@ -22,6 +22,11 @@ export interface MessageMetadata {
   isStreaming?: boolean;
 }
 
+export interface PhraseHighlight {
+  text: string;
+  phonetic: string;
+}
+
 export interface Message {
   id: string;
   role: MessageRole;
@@ -30,10 +35,7 @@ export interface Message {
   metadata?: MessageMetadata;
   timestamp: number;
   showAvatar?: boolean;
-  phraseHighlight?: {
-    text: string;
-    phonetic: string;
-  };
+  phraseHighlight?: PhraseHighlight;
 }
 
 export interface Conversation {

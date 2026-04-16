@@ -6,6 +6,10 @@
  * to swap implementations without changing consumers.
  */
 
+// Re-export ModelStatus from the canonical location so agent consumers
+// can keep importing from this file without breakage.
+export type { ModelStatus } from '../../types/inference';
+
 // ─── Execution Types ───────────────────────────────────────────
 
 export type ToolName =
@@ -76,8 +80,6 @@ export interface ExecutionContext {
 // ─── Model Abstraction Types ───────────────────────────────────
 
 export type ModelCapability = 'llm' | 'embedding' | 'tts' | 'stt' | 'vision' | 'translation';
-
-export type ModelStatus = 'not_loaded' | 'downloading' | 'loading' | 'ready' | 'error' | 'unloaded';
 
 export interface ModelInfo {
   /** Unique identifier for this model */

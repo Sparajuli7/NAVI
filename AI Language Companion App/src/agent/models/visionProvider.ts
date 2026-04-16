@@ -15,15 +15,10 @@
  */
 
 import type { ModelInfo, ModelProvider, ModelStatus } from '../core/types';
+import type { OCRResult } from '../../types/inference';
 import Tesseract from 'tesseract.js';
 
-export interface OCRResult {
-  text: string;
-  blocks: string[];
-  blockCount: number;
-  avgBlockLength: number;
-  confidence: number;
-}
+export type { OCRResult } from '../../types/inference';
 
 export class VisionProvider implements ModelProvider<null> {
   private status: ModelStatus = 'ready'; // Tesseract loads on demand

@@ -9,8 +9,9 @@ import { ScenarioLauncher, buildContextSummary } from './components/ScenarioLaun
 import { Navbar } from './components/Navbar';
 import { SettingsPanel } from './components/SettingsPanel';
 import { AnimatePresence } from 'motion/react';
-import type { ScenarioKey, ParsedScenarioContext, LocationContext, DialectInfo } from '../types/config';
-import type { AvatarTemplate } from '../types/character';
+import type { ScenarioKey, ParsedScenarioContext, LocationContext } from '../types/config';
+import type { AvatarTemplate, Character, GeneratedCharacter } from '../types/character';
+import { mapCharacterToUI } from '../types/character';
 import type { Message } from '../types/chat';
 import { isWebGPUSupported } from '../services/modelManager';
 import { useNaviAgent } from '../agent/react/useNaviAgent';
@@ -34,30 +35,8 @@ import {
   saveUserProfile,
   deleteCharacterData,
 } from '../utils/storage';
-import type { Character } from '../types/character';
-import dialectMapRaw from '../config/dialectMap.json';
-
-interface GeneratedCharacter {
-  name: string;
-  personality: string;
-  colors: {
-    primary: string;
-    secondary: string;
-    accent: string;
-  };
-  accessory?: string;
-}
-
-function mapCharacterToUI(c: Character): GeneratedCharacter {
-  return {
-    name: c.name,
-    personality: c.summary,
-    colors: (c.avatar_color && typeof c.avatar_color === 'object')
-      ? c.avatar_color
-      : { primary: '#4A5568', secondary: '#F6AD55', accent: '#48BB78' },
-    accessory: c.avatar_accessory || undefined,
-  };
-}
+import { resolveDialectKey, getDialectInfo, buildLocationContext } from '../utils/locationHelpers';
+import { buildAvatarProfileParams } from '../utils/avatarProfileHelpers';
 
 type AppPhase = 'init' | 'no_webgpu' | 'backend_select' | 'downloading' | 'home' | 'onboarding' | 'chat';
 
@@ -300,28 +279,9 @@ export default function App() {
 
     // Set up agent avatar
     if (isCustom) {
+      const profileParams = buildAvatarProfileParams(newChar, dialectKey);
       const avatarProfile = agent.avatar.createFromDescription(
-        newChar.summary,
-        {
-          name: newChar.name,
-          personality: newChar.summary,
-          speaksLike: 'warm and conversational',
-          energyLevel: 'medium',
-          humorStyle: 'warm',
-          slangLevel: 0.5,
-          dialect: dialectKey,
-          culturalContext: '',
-          location: city,
-          scenario: '',
-          visual: {
-            primaryColor: '#6BBAA7',
-            secondaryColor: '#D4A853',
-            accentColor: '#F5F0EB',
-            accessory: '✨',
-            emoji: '✨',
-          },
-        },
-        city,
+        newChar.summary, profileParams, city,
       );
       agent.setAvatar(avatarProfile);
     } else {
@@ -367,57 +327,19 @@ export default function App() {
     useChatStore.setState({ messages: msgs });
 
     // Update agent avatar for the selected companion
-    // Resolve dialect key: prefer stored value, fall back to dialectMap scan
-    const dialectMap = dialectMapRaw as Record<string, unknown>;
-    const storedDialectKey = char.dialect_key ?? '';
-    const scannedDialectKey = storedDialectKey
-      ? storedDialectKey
-      : Object.keys(dialectMap).find(
-          (k) => k.split('/')[1]?.toLowerCase() === char.location_city.toLowerCase(),
-        ) ?? '';
-    const dialectKey = scannedDialectKey;
-    const dialectInfo = dialectKey
-      ? (dialectMap as Record<string, DialectInfo>)[dialectKey] ?? null
-      : null;
+    const dialectKey = resolveDialectKey(char.dialect_key, char.location_city);
+    const dialectInfo = getDialectInfo(dialectKey);
 
+    const profileParams = buildAvatarProfileParams(
+      char, dialectKey, dialectInfo?.cultural_notes, dialectInfo?.dialect,
+    );
     const avatarProfile = agent.avatar.createFromDescription(
-      char.detailed || char.summary,
-      {
-        name: char.name,
-        personality: char.detailed || char.summary,
-        speaksLike: char.speaks_like || 'a friendly local',
-        energyLevel: (['energetic', 'playful'].includes(char.style) ? 'high'
-          : ['mysterious', 'dry-humor'].includes(char.style) ? 'low'
-          : 'medium') as 'low' | 'medium' | 'high',
-        humorStyle: (['playful', 'dry-humor'].includes(char.style) ? char.style : 'warm') as string,
-        slangLevel: (['casual', 'streetwise', 'energetic', 'playful'].includes(char.style) ? 0.7 : 0.4),
-        dialect: dialectInfo?.dialect ?? dialectKey,
-        culturalContext: dialectInfo?.cultural_notes ?? '',
-        location: char.location_city,
-        scenario: '',
-        visual: {
-          primaryColor: char.avatar_color?.primary ?? '#6BBAA7',
-          secondaryColor: char.avatar_color?.secondary ?? '#D4A853',
-          accentColor: char.avatar_color?.accent ?? '#F5F0EB',
-          accessory: char.avatar_accessory ?? char.emoji ?? '🌍',
-          emoji: char.emoji ?? '🌍',
-        },
-      },
-      char.location_city,
+      char.detailed || char.summary, profileParams, char.location_city,
     );
     agent.setAvatar(avatarProfile);
 
     // Always sync agent's internal location context — even if no dialect mapping exists
-    const countryCode = dialectKey ? dialectKey.split('/')[0] : '';
-    const locCtx: LocationContext = {
-      city: char.location_city,
-      country: char.location_country,
-      countryCode,
-      lat: 0,
-      lng: 0,
-      dialectKey,
-      dialectInfo: dialectInfo ?? null,
-    };
+    const locCtx = buildLocationContext(char.location_city, char.location_country, dialectKey);
     agent.location.setLocation(locCtx, 'manual');
     useAppStore.getState().setCurrentLocation(locCtx);
 
@@ -477,23 +399,8 @@ export default function App() {
     agent.avatar.applyOverride({ location: updated.location_city });
 
     // Resolve dialect for updated city and sync agent location
-    const updatedDialectKey = updated.dialect_key
-      ?? Object.keys(dialectMapRaw as Record<string, unknown>).find(
-        (k) => k.split('/')[1]?.toLowerCase() === updated.location_city.toLowerCase()
-      ) ?? '';
-    const updatedDialectInfo = updatedDialectKey
-      ? (dialectMapRaw as Record<string, DialectInfo>)[updatedDialectKey] ?? null
-      : null;
-    const updatedCountryCode = updatedDialectKey ? updatedDialectKey.split('/')[0] : '';
-    const updatedLocCtx: LocationContext = {
-      city: updated.location_city,
-      country: updated.location_country,
-      countryCode: updatedCountryCode,
-      lat: 0,
-      lng: 0,
-      dialectKey: updatedDialectKey,
-      dialectInfo: updatedDialectInfo,
-    };
+    const updatedDialectKey = resolveDialectKey(updated.dialect_key, updated.location_city);
+    const updatedLocCtx = buildLocationContext(updated.location_city, updated.location_country, updatedDialectKey);
     agent.location.setLocation(updatedLocCtx, 'manual');
     useAppStore.getState().setCurrentLocation(updatedLocCtx);
   };

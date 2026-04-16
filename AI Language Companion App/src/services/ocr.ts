@@ -1,11 +1,7 @@
 import Tesseract from 'tesseract.js';
+import type { OCRResult } from '../types/inference';
 
-export interface OCRResult {
-  text: string;
-  blocks: string[];
-  blockCount: number;
-  avgBlockLength: number;
-}
+export type { OCRResult } from '../types/inference';
 
 export async function extractText(
   image: File | Blob | string,

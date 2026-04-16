@@ -10,17 +10,7 @@ import { useCharacterStore } from '../../stores/characterStore';
 import { useAppStore } from '../../stores/appStore';
 import { useChatStore } from '../../stores/chatStore';
 import { FALLBACKS } from '../../utils/fallbacks';
-
-interface GeneratedCharacter {
-  name: string;
-  personality: string;
-  colors: {
-    primary: string;
-    secondary: string;
-    accent: string;
-  };
-  accessory?: string;
-}
+import type { GeneratedCharacter } from '../../types/character';
 
 interface CameraOverlayProps {
   character: GeneratedCharacter;

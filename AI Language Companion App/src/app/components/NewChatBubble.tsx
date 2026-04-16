@@ -3,24 +3,9 @@ import { CharacterAvatar } from './CharacterAvatar';
 import { Volume2 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { speakPhrase } from '../../services/tts';
-import type { ParsedSegment, PhraseCardData, Message } from '../../types/chat';
+import type { ParsedSegment, PhraseCardData, Message, PhraseHighlight } from '../../types/chat';
+import type { GeneratedCharacter } from '../../types/character';
 import { stripInlineMarkdown } from '../../utils/responseParser';
-
-interface PhraseHighlight {
-  text: string;
-  phonetic: string;
-}
-
-interface GeneratedCharacter {
-  name: string;
-  personality: string;
-  colors: {
-    primary: string;
-    secondary: string;
-    accent: string;
-  };
-  accessory?: string;
-}
 
 interface NewChatBubbleProps {
   type: 'user' | 'character';

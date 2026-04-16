@@ -61,3 +61,33 @@ export interface MemoryEntry {
   value: string;
   created_at: number;
 }
+
+/** Lightweight UI representation of a character, used across multiple components */
+export interface GeneratedCharacter {
+  name: string;
+  personality: string;
+  colors: {
+    primary: string;
+    secondary: string;
+    accent: string;
+  };
+  accessory?: string;
+}
+
+/** Map a rich Character to the simplified GeneratedCharacter UI shape. */
+export function mapCharacterToUI(c: Character): GeneratedCharacter {
+  return {
+    name: c.name,
+    personality: c.summary,
+    colors: (c.avatar_color && typeof c.avatar_color === 'object')
+      ? c.avatar_color
+      : { primary: '#4A5568', secondary: '#F6AD55', accent: '#48BB78' },
+    accessory: c.avatar_accessory || undefined,
+  };
+}
+
+/** Visual state of the avatar animation */
+export type AvatarState = 'idle' | 'generating' | 'speaking' | 'success' | 'thinking';
+
+/** Type alias for the dialect map JSON shape */
+export type DialectMap = Record<string, import('./config').DialectInfo>;

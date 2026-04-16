@@ -15,9 +15,10 @@ import { useChatStore } from '../../stores/chatStore';
 import { useAppStore } from '../../stores/appStore';
 import type { LocationContext } from '../../types/config';
 import type { Message } from '../../types/chat';
-import type { Character } from '../../types/character';
-import type { DialectInfo } from '../../types/config';
-import dialectMap from '../../config/dialectMap.json';
+import type { Character, GeneratedCharacter } from '../../types/character';
+import { mapCharacterToUI } from '../../types/character';
+import { getPresetCities, buildLocationFromPreset } from '../../utils/locationHelpers';
+import { buildAvatarProfileParams } from '../../utils/avatarProfileHelpers';
 
 const placeholders = [
   "a chill surfer who loves street food...",
@@ -26,31 +27,10 @@ const placeholders = [
   "a mysterious cat who speaks 12 languages...",
 ];
 
-// Simplified shape consumed by existing UI components
-interface GeneratedCharacter {
-  name: string;
-  personality: string;
-  colors: {
-    primary: string;
-    secondary: string;
-    accent: string;
-  };
-  accessory?: string;
-}
-
 interface NewOnboardingScreenProps {
   onComplete: (character: GeneratedCharacter, location: string) => void;
   onRetryLoadModel?: () => Promise<void>;
 }
-
-const COUNTRY_NAMES: Record<string, string> = {
-  JP: 'Japan',
-  VN: 'Vietnam',
-  FR: 'France',
-  MX: 'Mexico',
-  KR: 'South Korea',
-  NP: 'Nepal',
-};
 
 const NATIVE_LANGUAGES = [
   'English', 'Spanish', 'Portuguese', 'French', 'Hindi',
@@ -69,47 +49,6 @@ const TARGET_LANGUAGES: Array<{ name: string; countryCodes: string[] }> = [
   { name: 'Mandarin', countryCodes: ['TW', 'CN', 'SG'] },
   { name: 'Other / Unlisted', countryCodes: [] },
 ];
-
-type DialectMapType = Record<string, DialectInfo>;
-
-function getPresetCities(): Array<{ key: string; city: string; country: string }> {
-  const map = dialectMap as DialectMapType;
-  return Object.keys(map).map((key) => {
-    const [countryCode, city] = key.split('/');
-    return {
-      key,
-      city,
-      country: COUNTRY_NAMES[countryCode] ?? countryCode,
-    };
-  });
-}
-
-function buildLocationFromPreset(key: string): LocationContext {
-  const map = dialectMap as DialectMapType;
-  const [countryCode, city] = key.split('/');
-  const info = map[key];
-  return {
-    city,
-    country: COUNTRY_NAMES[countryCode] ?? countryCode,
-    countryCode,
-    lat: 0,
-    lng: 0,
-    dialectKey: key,
-    dialectInfo: info ?? null,
-  };
-}
-
-// Map the rich Character from LLM to the simpler UI shape
-function mapToUI(c: Character): GeneratedCharacter {
-  return {
-    name: c.name,
-    personality: c.summary,
-    colors: (c.avatar_color && typeof c.avatar_color === 'object')
-      ? c.avatar_color
-      : { primary: '#4A5568', secondary: '#F6AD55', accent: '#48BB78' },
-    accessory: c.avatar_accessory || undefined,
-  };
-}
 
 const presetCities = getPresetCities();
 
