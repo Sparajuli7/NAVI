@@ -402,3 +402,26 @@ The emotional support mode overrides the language instruction. Needs stronger "i
 **Result:** Build passes. 104/104 tests pass. All 5 bugs fixed in a single coordinated change.
 
 **Verdict:** SHIPPED. These bugs were all interacting — fixing just one (e.g., the scenarioOpener) without fixing the others (e.g., detectScenario override) would have created new inconsistencies.
+
+---
+
+## LIVE TEST — POST-ALL-PRODUCTION-FIXES (2026-04-16, gemma4:e2b)
+
+### Standard 4 scenarios + 3 production scenarios
+
+| Scenario | Score | Hooks | Lang | Syc-free | Personality | Sensory |
+|----------|-------|-------|------|----------|-------------|---------|
+| Tokyo (Yuki) | 4.0 | — | 5/5 | 5/5 | — | — |
+| Paris (Léa) | **4.8** | 4/5 | 5/5 | 5/5 | 5/5 | 4/5 |
+| Kathmandu (Priya) | **4.9** | 5/5 | 5/5 | 5/5 | 4/5 | 5/5 |
+| Seoul (Jihoon) | **4.9** | 5/5 | 5/5 | 5/5 | 5/5 | 4/5 |
+| Production: Street Food (HCMC) | **4.8** | — | 5/5 | 5/5 | — | — |
+| Production: Restaurant Scenario | **4.9** | — | 5/5 | 5/5 | — | — |
+| Production: Memory Review | — | — | — | 5/5 | — | — |
+
+### Key: Production avatars now match test quality
+- Street Food Guide (production template) scores 4.8 — matching hand-crafted test prompts
+- Scenario mode with TBLT pretask scores 4.9
+- Anti-sycophancy: STILL 100% across all scenarios and all runs
+- Paris jumped from 3.7 → 4.8 with all fixes in place
+- Kathmandu holds at 4.9 — frustration fix + Nepali comfort working perfectly

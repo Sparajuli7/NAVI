@@ -271,6 +271,36 @@ export class ConversationDirector {
       this.working.set('session_message_count', currentCount + 1, 2 * 60 * 60 * 1000); // 2h TTL
     }
 
+    // EXP-061: Scenario phase tracking — increment turn counter when scenario is active
+    if (activeScenario && this.working) {
+      const scenarioTurnKey = `scenario_turn_${activeScenario}`;
+      const currentTurn = ((this.working.get(scenarioTurnKey) as number) ?? 0) + 1;
+      this.working.set(scenarioTurnKey, currentTurn, 2 * 60 * 60 * 1000); // 2h TTL
+
+      let phaseHint: string;
+      if (currentTurn <= 2) {
+        phaseHint = `SCENARIO PHASE: OPENING (turn ${currentTurn}/8) — Set the scene, introduce key phrases for this situation. Ground the user in where they are and what's about to happen.`;
+      } else if (currentTurn <= 5) {
+        phaseHint = `SCENARIO PHASE: MIDDLE (turn ${currentTurn}/8) — This is the core interaction. Let the user practice. Coach them through the real moments. Correct by recasting, not lecturing.`;
+      } else {
+        phaseHint = `SCENARIO PHASE: WRAPPING UP (turn ${currentTurn}/8) — Start closing the scenario naturally. Hint that a debrief is coming. If the user hasn't used a key phrase yet, create one last natural opportunity.`;
+      }
+      goalInstructions.push(phaseHint);
+      console.log(`[NAVI:director] scenario phase: turn ${currentTurn} for ${activeScenario}`);
+    }
+
+    // EXP-064: Auto-suggest scenarios based on user messages
+    // When detectScenario would match but no scenario is active, suggest entering scenario mode
+    if (!activeScenario && !isGuideMode && this.working) {
+      const detectedScenarioType = this.detectScenarioFromMessage(message);
+      if (detectedScenarioType) {
+        goalInstructions.push(
+          `SCENARIO SUGGESTION: The user seems to be in a ${detectedScenarioType} situation. Offer to switch into practice mode naturally: "Want to practice ${detectedScenarioType}? I can walk you through it." Don't force it — if the conversation is flowing, just help them with what they need.`,
+        );
+        console.log(`[NAVI:director] scenario auto-suggestion: ${detectedScenarioType}`);
+      }
+    }
+
     // 0. Extract situation signals from the current message BEFORE building context
     // This ensures urgent messages like "I'm at a restaurant right now" get
     // immediate situation-aware responses, not delayed until post-processing.
@@ -549,6 +579,16 @@ export class ConversationDirector {
         goalInstructions.push(identityText);
         console.log('[NAVI:director] identity_reinforcement triggered (celebrate_progress goal active)');
       }
+    }
+
+    // EXP-065: Milestone celebration — consume flag set by checkMilestones in postProcess
+    if (this.working?.has('milestone_celebration')) {
+      const celebrationInstruction = this.working.get('milestone_celebration') as string;
+      if (celebrationInstruction) {
+        goalInstructions.push(celebrationInstruction);
+        console.log('[NAVI:director] milestone celebration injected');
+      }
+      this.working.remove('milestone_celebration');
     }
 
     // EXP-056: mid-conversation reinforcement — refresh behavioral instructions after turn 6
@@ -929,6 +969,31 @@ export class ConversationDirector {
     return bridgeParts.length > 1 ? bridgeParts.join('. ') : null;
   }
 
+  // ── EXP-064: Scenario Detection From Message ──────────────
+
+  private static readonly SCENARIO_HINTS: Record<string, string[]> = {
+    restaurant: ['restaurant', 'ordering', 'menu', 'waiter', 'eating out', 'dinner', 'lunch', 'cafe'],
+    market: ['market', 'haggling', 'bargain', 'shopping', 'buying', 'vendor', 'stall'],
+    hospital: ['hospital', 'doctor', 'sick', 'pharmacy', 'medicine', 'emergency', 'clinic'],
+    transit: ['taxi', 'bus', 'train', 'metro', 'airport', 'directions', 'getting around'],
+    hotel: ['hotel', 'check in', 'check out', 'room', 'reservation', 'hostel'],
+    nightlife: ['bar', 'club', 'nightlife', 'drinks', 'going out'],
+  };
+
+  private detectScenarioFromMessage(message: string): string | null {
+    const lower = message.toLowerCase();
+    // Require situational context words that suggest the user is IN the situation right now
+    const situationalCues = /\b(i'?m at|i'?m in|i'?m going to|right now|about to|just arrived|heading to|sitting in|walking into)\b/i;
+    if (!situationalCues.test(lower)) return null;
+
+    for (const [scenario, keywords] of Object.entries(ConversationDirector.SCENARIO_HINTS)) {
+      if (keywords.some(k => lower.includes(k))) {
+        return scenario;
+      }
+    }
+    return null;
+  }
+
   // ── Dynamic Calibration Helpers ────────────────────────────
 
   private countTargetLanguageWords(text: string): number {
@@ -1021,6 +1086,7 @@ export class ConversationDirector {
     // First phrase learned
     if (stats.totalPhrases === 1) {
       await this.relationships.addMilestone(avatarId, 'Learned their first phrase!');
+      this.working?.set('milestone_celebration', 'You just learned your first phrase — that\'s the hardest one. Everything after this is easier.', 5 * 60 * 1000);
     }
 
     // Phrase count milestones
@@ -1028,12 +1094,23 @@ export class ConversationDirector {
     for (const count of phraseMilestones) {
       if (stats.totalPhrases === count) {
         await this.relationships.addMilestone(avatarId, `Learned ${count} phrases!`);
+        // EXP-065: Store celebration instruction for next preProcess
+        this.working?.set('milestone_celebration', `The user just hit ${count} phrases. Celebrate this naturally — they sound like someone who's actually been here a while. Frame it as identity, not achievement: "You've got ${count} phrases now — you're not a tourist anymore."`, 5 * 60 * 1000);
       }
     }
 
-    // Mastery milestones
-    if (stats.masteredPhrases === 1) {
-      await this.relationships.addMilestone(avatarId, 'Mastered their first phrase!');
+    // Mastery milestones (EXP-065: celebrate mastery counts)
+    const masteryMilestones = [1, 5, 10, 25, 50, 100];
+    for (const count of masteryMilestones) {
+      if (stats.masteredPhrases === count) {
+        if (count === 1) {
+          await this.relationships.addMilestone(avatarId, 'Mastered their first phrase!');
+          this.working?.set('milestone_celebration', 'The user just MASTERED their first phrase — it\'s locked in. Celebrate briefly: "That one\'s yours now. Nobody can take it back."', 5 * 60 * 1000);
+        } else {
+          await this.relationships.addMilestone(avatarId, `Mastered ${count} phrases!`);
+          this.working?.set('milestone_celebration', `The user has mastered ${count} phrases — these are locked in, not just learned. Frame it as identity: "You've mastered ${count} phrases. That's not a student — that's someone who lives here."`, 5 * 60 * 1000);
+        }
+      }
     }
 
     // Streak milestones
@@ -1041,6 +1118,7 @@ export class ConversationDirector {
     for (const days of streakMilestones) {
       if (stats.currentStreak === days) {
         await this.relationships.addMilestone(avatarId, `${days}-day learning streak!`);
+        this.working?.set('milestone_celebration', `The user has a ${days}-day streak going. Acknowledge it warmly — "${days} days in a row. You're building something real here."`, 5 * 60 * 1000);
       }
     }
 
@@ -1050,6 +1128,26 @@ export class ConversationDirector {
       if (rel.interactionCount === count) {
         await this.relationships.addMilestone(avatarId, `${count} conversations together!`);
       }
+    }
+
+    // EXP-065: Stage change detection — celebrate when the user advances to a new learning stage
+    if (this.working) {
+      const currentStage = this.learner.getCurrentStage(
+        rel.interactionCount,
+        0,
+      ).stage;
+      const lastStage = this.working.get('last_milestone_stage') as string | undefined;
+      if (lastStage && lastStage !== currentStage) {
+        const stageNames: Record<string, string> = {
+          survival: 'getting started',
+          functional: 'functional — you can handle real situations now',
+          conversational: 'conversational — you can actually have conversations here',
+          fluent: 'fluent — you sound like you belong',
+        };
+        const stageName = stageNames[currentStage] || currentStage;
+        this.working.set('milestone_celebration', `STAGE ADVANCEMENT: The user just moved from ${lastStage} to ${currentStage}. This is a BIG moment. Celebrate it: "You've moved to ${stageName}. Seriously — I'm impressed."`, 5 * 60 * 1000);
+      }
+      this.working.set('last_milestone_stage', currentStage, 24 * 60 * 60 * 1000);
     }
   }
 

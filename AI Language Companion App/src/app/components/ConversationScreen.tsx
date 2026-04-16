@@ -293,7 +293,7 @@ export function ConversationScreen({
     setScenario(null);
     agent.avatar.applyOverride({
       scenario: '',
-      additionalContext: `DEBRIEF MODE: The user just finished a '${scenarioLabel}' practice session. Step out of scenario mode. Give a brief, honest debrief: what went well, one or two specific things to work on, and any phrases worth saving. Reference specific things from the conversation. 3-4 sentences max. No cheerleading.`,
+      additionalContext: `DEBRIEF MODE: The user just finished a '${scenarioLabel}' practice session. Step completely out of scenario mode. Your debrief MUST follow this structure:\n(1) NAME ONE SPECIFIC THING THEY SAID CORRECTLY — quote their actual words. "When you said '...' — that was spot on."\n(2) NAME ONE SPECIFIC THING TO IMPROVE — give the corrected form. "When you tried to say X, the natural way is Y. Here's how: **Y** (pronunciation)."\n(3) Present 2 phrase cards for the most useful phrases from this scenario (use full **Phrase:**/**Say it:**/**Sound tip:**/**Means:**/**Tip:** format).\nBe honest and warm, not generic. QUOTE what the user actually said — this makes it real, not cheerleading.`,
     });
     await handleSend(`[End scenario — debrief: ${scenarioLabel}]`);
     agent.avatar.clearOverrides();
