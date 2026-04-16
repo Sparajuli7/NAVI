@@ -604,3 +604,219 @@ Test Files  8 passed (8)
 ```
 
 All experiments validated. No regressions.
+
+---
+
+## EXP-021: Negotiation of Meaning
+**Date:** 2026-04-16
+**Status:** IMPLEMENTED
+
+**Hypothesis:** Long's (1996) Interaction Hypothesis identifies negotiation of meaning as the primary driver of SLA. When communication breaks down, the back-and-forth to resolve the misunderstanding is where acquisition happens. NAVI's current CONFUSION OVERRIDE in `coreRules.json` immediately switches to the user's native language on any confusion signal. This skips the most productive learning moment entirely.
+
+**What was done:**
+
+1. **Modified CONFUSION OVERRIDE in `coreRules.json`:**
+   - Previously: ANY confusion signal -> immediate switch to native language
+   - Now: Two-step process based on willingness assessment
+   - Step 1 (willing confusion: "what?", "huh?"): Try ONE rephrase in SIMPLER target language. Use descriptions ("you know, the thing you drink from"), offer choices ("do you mean X or Y?"), confirm partial understanding ("so you got the first part..."). This negotiation IS the learning.
+   - Step 2 (shutdown signals: "I don't speak [language]", "I give up", repeated confusion after rephrase): THEN switch to native language. Explain, offer one phrase.
+   - The key distinction: "what?" (curious confusion) vs "I give up" (affective shutdown). The first is a learning opportunity; the second requires safety.
+
+2. **Added `negotiation_of_meaning` skill to `conversationSkills.json`:**
+   - Trigger: `communication_breakdown`
+   - Injection text instructs the avatar to rephrase, use simpler words, gesture with descriptions, ask clarifying questions, and confirm partial understanding
+   - Evidence: Long (1996) Interaction Hypothesis
+   - Antipattern: never repeat the same sentence louder/slower, never immediately translate, try one rephrase first
+
+**Why the two-step approach instead of always negotiating:**
+Krashen's affective filter (1982) is real. A user who says "I don't speak Korean" has their filter fully raised -- negotiating with them in Korean at that point is counterproductive. But a user who says "what?" after hearing a phrase is showing curiosity, not shutdown. They WANT to understand -- they just need a different angle. The rephrase gives them that angle while keeping them in the target language.
+
+**Risk:** The LLM may over-negotiate and frustrate users who genuinely just need the translation. The "after your rephrase" escape clause mitigates this -- if the rephrase doesn't work, the native language switch happens. One rephrase maximum, not two or three.
+
+**Files changed:**
+- `AI Language Companion App/src/config/prompts/coreRules.json` (CONFUSION OVERRIDE rewritten)
+- `AI Language Companion App/src/config/prompts/conversationSkills.json` (negotiation_of_meaning skill added)
+
+**Validation:** Build passes, 104/104 tests pass.
+
+---
+
+## EXP-022: Language Play and Humor
+**Date:** 2026-04-16
+**Status:** IMPLEMENTED
+
+**Hypothesis:** Cook (2000) and Bell (2005) show that playful language use (puns, tongue twisters, false friends) activates deeper processing than rote learning. Humor lowers the affective filter and creates emotional encoding -- if a user laughs at a phrase, they'll remember it indefinitely. NAVI has no language play mechanism.
+
+**What was done:**
+
+1. **Added `language_play` skill to `conversationSkills.json`:**
+   - Trigger: `user_comfortable` (tier 2+ comfort)
+   - Injection: introduce tongue twisters, puns, false friends, meme-like phrases that locals find hilarious
+   - Framed as "okay this one's just for fun" -- separates play from instruction
+   - Evidence: Cook (2000), Bell (2005), Lantolf (1997)
+   - Antipattern: never use play during frustration/confusion/urgency; never explain a joke to death
+
+2. **Added `languagePlay` section to `learningProtocols.json`:**
+   Tongue twisters for 3 languages with full metadata:
+
+   **Japanese (3 twisters):**
+   - 生麦生米生卵 (nama-mugi nama-gome nama-tamago) -- rapid な transitions, medium difficulty
+   - 赤巻紙青巻紙黄巻紙 (aka-makigami...) -- まき repetition with vowel shifts, hard
+   - すもももももももものうち (sumomo mo momo...) -- も rhythm and pitch accent, easy
+
+   **French (3 twisters):**
+   - Les chaussettes de l'archiduchesse... -- ch/s alternation + nasal vowels, hard
+   - Un chasseur sachant chasser... -- ch/s minimal pairs, medium
+   - Si six scies scient six cypres... -- s/si homophone chaos, extreme
+
+   **Korean (3 twisters):**
+   - 간장 공장 공장장은... (soy sauce factory) -- 장/공 rapid repetition, hard
+   - 내가 그린 기린 그림은... (giraffe picture) -- 기/그/긴 vowel shifts, medium
+   - 경찰청 쇠창살... (police station bars) -- ㅊ aspirated clusters, extreme
+
+   Each twister includes: text, romanization, meaning, difficulty level, and the specific sound focus it trains. The avatar can select based on user comfort level and the specific sounds they're working on.
+
+**Design decision -- why tongue twisters as structured data, not prompt text:**
+Tongue twisters need to be EXACT. If the LLM generates one from scratch, it might produce something that isn't a real tongue twister, or get the romanization wrong. Storing them as structured data ensures accuracy. The LLM's job is selecting the right one and framing it socially, not inventing them.
+
+**Files changed:**
+- `AI Language Companion App/src/config/prompts/conversationSkills.json` (language_play skill added)
+- `AI Language Companion App/src/config/prompts/learningProtocols.json` (languagePlay section with 9 tongue twisters)
+
+**Validation:** Build passes, 104/104 tests pass.
+
+---
+
+## EXP-023: Input Flooding
+**Date:** 2026-04-16
+**Status:** IMPLEMENTED
+
+**Hypothesis:** Schmidt's (1990) Noticing Hypothesis states that learners acquire what they consciously notice. Input flooding (Wong, 2005) is the technique of using the same grammatical structure repeatedly in natural conversation so the learner notices the pattern without being taught it explicitly. This is fundamentally different from explicit grammar instruction -- the learner discovers the pattern, which creates stronger memory traces.
+
+**What was done:**
+
+**Added `input_flooding` skill to `conversationSkills.json`:**
+- Trigger: `target_structure_identified`
+- Injection: use the target structure 3-4 times in different contexts within the response. Don't teach it -- just USE it. If the user notices and asks, explain briefly. If they don't notice, the repetition is planting the seed.
+- Evidence: Schmidt (1990) Noticing Hypothesis, Wong (2005) input flooding
+- Antipattern: never announce the structure, never use the same sentence 4 times (vary context), never flood more than one structure per conversation
+
+**Example of how this works in practice:**
+Target structure: Japanese past tense (-ta form).
+Instead of: "Let me teach you past tense. In Japanese, you change the verb ending to -ta..."
+The avatar tells a story: "Yesterday I went to Shinjuku. 新宿に行った (itta). I ate ramen at this tiny place. ラーメンを食べた (tabeta). The chef recognized me -- he said 来た来た (kita kita). I stayed until they closed. 閉まるまでいた (ita)."
+Four uses of -ta form, four different verbs, completely natural story. The user notices the pattern or they don't. Either way, the input is doing its work.
+
+**Why 3-4 uses, not more:**
+Wong (2005) found that 4-6 instances of a target structure per text is optimal for noticing. Below 3, the pattern is too sparse to notice. Above 6, it starts to feel unnatural and the learner notices the FLOODING rather than the STRUCTURE. The skill injection says 3-4, leaving room for 1-2 additional natural uses without hitting the uncanny threshold.
+
+**Files changed:**
+- `AI Language Companion App/src/config/prompts/conversationSkills.json` (input_flooding skill added)
+
+**Validation:** Build passes, 104/104 tests pass.
+
+---
+
+## EXP-024: Register Awareness
+**Date:** 2026-04-16
+**Status:** IMPLEMENTED
+
+**Hypothesis:** Bardovi-Harlig (2001) found that pragmatic competence (knowing HOW to use language appropriately in social contexts) is systematically under-taught. Even advanced learners make register errors that native speakers find jarring. A user who says the casual form to their boss, or the formal form to their friend's kid, sounds wrong even if the grammar is perfect. NAVI teaches WHAT to say but not WHEN to use which version.
+
+**Audit of existing formality infrastructure:**
+
+`scenarioContexts.json` already has `formality_adjustment` on every scenario:
+- -2: nightlife, street_food (very casual)
+- -1: restaurant, market, social, taxi, date (casual)
+- 0: directions, transit (neutral)
+- +1: hotel, school, pharmacy, landlord, temple (somewhat formal)
+- +2: government, hospital, office, customs, bank, emergency (very formal)
+
+`avatarTemplates.json` has `default_formality` per template:
+- casual: street_food, market_haggler, night_guide, youth_translator
+- neutral: form_helper, pronunciation_tutor
+- formal: office_navigator, elder_speaker
+
+`dialectMap.json` has `formality_default` per locale:
+- Paris: formal, Tokyo: neutral, Osaka: casual, Seoul: neutral, etc.
+
+So the INFRASTRUCTURE for formality exists. What's missing is the TEACHING of register switching to the user.
+
+**What was done:**
+
+1. **Added `register_awareness` skill to `conversationSkills.json`:**
+   - Trigger: `formality_relevant` (when scenario has a non-zero formality_adjustment, or when the phrase being taught has a register-sensitive equivalent)
+   - Injection: show BOTH versions side by side -- "With friends you'd say X, but in this office situation you want Y"
+   - Evidence: Bardovi-Harlig (2001), Kasper & Rose (2002)
+   - Antipattern: never present register as right-vs-wrong (both are correct for different audiences), never show 3+ variants at once
+
+2. **Added REGISTER SWITCHING instruction to `conversational` learning stage in `systemLayers.json`:**
+   - Inserted between the main conversational instruction and the INTERMEDIATE WALL section
+   - Instruction: "When teaching a phrase, occasionally show BOTH the casual and formal versions side by side. Help them understand that the SAME meaning requires different words depending on who they're talking to. This is pragmatic competence."
+   - Positioned at the conversational stage (not survival or functional) because register awareness requires enough vocabulary to understand that alternatives exist
+
+**Why conversational stage, not earlier:**
+At survival stage, the user needs ONE way to say something. Showing two versions doubles cognitive load for no benefit -- they can't use either yet. At functional stage, they're building core vocabulary and two versions would create confusion about which is "right." At conversational stage, they have enough base vocabulary that seeing "this is for friends / this is for the office" adds depth without confusion. It's also the stage where register errors start to have real social consequences.
+
+**Files changed:**
+- `AI Language Companion App/src/config/prompts/conversationSkills.json` (register_awareness skill added)
+- `AI Language Companion App/src/config/prompts/systemLayers.json` (REGISTER SWITCHING added to conversational learning stage)
+
+**Validation:** Build passes, 104/104 tests pass.
+
+---
+
+## EXP-025: Productive Failure
+**Date:** 2026-04-16
+**Status:** IMPLEMENTED
+
+**Hypothesis:** Bjork's (1994) "desirable difficulties" research shows that making retrieval harder improves long-term retention. Kapur (2008) extended this to "productive failure" -- learners who struggle before receiving instruction outperform those who receive direct instruction first. The felt gap between "I need this word" and "I don't have it yet" creates a powerful encoding moment when the word is finally provided. NAVI currently always gives the answer immediately, which optimizes for short-term fluency but undermines long-term retention.
+
+**What was done:**
+
+1. **Added `productive_failure` skill to `conversationSkills.json`:**
+   - Trigger: `user_at_functional_or_higher` (survival users don't have enough language to struggle productively)
+   - Injection: create a moment where the user needs a word they don't have. Let them feel the gap for ONE exchange. If they can't get it after one try, give it with enthusiasm.
+   - Evidence: Bjork (1994) desirable difficulties, Kapur (2008) productive failure
+   - Antipattern: never use with beginners, never let the gap last more than ONE exchange (two = frustration), never be smug about knowing the word
+
+2. **Added `advanced_technique` to the `elicitation` protocol in `learningProtocols.json`:**
+   - Nested under the existing elicitation protocol as a related but distinct technique
+   - Elicitation is for self-correction (the user made an error they can fix). Productive failure is for stretching (the user needs something they don't have yet).
+   - Instruction: create the gap, let them try, give it with genuine enthusiasm after one failed attempt
+   - Source: Bjork (1994), Kapur (2008)
+
+**The critical design constraint -- ONE exchange maximum:**
+The difference between productive failure and plain failure is timing. One exchange of "hmm, how would you say that..." followed by "THIS is the word!" creates a satisfying reveal. Two exchanges of struggling creates frustration and raises the affective filter. The skill injection and the protocol both explicitly cap the gap at one exchange. This is the single most important guardrail in this experiment.
+
+**Why functional stage minimum, not conversational:**
+At functional stage, the user has enough vocabulary to attempt production and enough confidence to tolerate a brief gap. A survival-stage user asked "how would you say that?" would just feel lost -- they have no vocabulary to draw on. The functional threshold means the user has at least 8+ mastered phrases and can sustain basic exchanges, giving them the foundation to attempt (even if they fail).
+
+**Relationship to elicitation protocol:**
+Elicitation (Lyster & Ranta, 1997): the user made an error -> prompt them to self-correct. The user HAS the knowledge; they just didn't access it correctly.
+Productive failure (Bjork, 1994): the user doesn't have the word yet -> create the gap -> fill it. The user DOESN'T have the knowledge; the gap creates readiness to receive it.
+Both are about retrieval effort, but elicitation is corrective and productive failure is acquisitive.
+
+**Files changed:**
+- `AI Language Companion App/src/config/prompts/conversationSkills.json` (productive_failure skill added)
+- `AI Language Companion App/src/config/prompts/learningProtocols.json` (advanced_technique added to elicitation protocol)
+
+**Validation:** Build passes, 104/104 tests pass.
+
+---
+
+## Build & Test Results (Post EXP-021 through EXP-025)
+
+```
+$ cd "AI Language Companion App" && npx vite build
+vite v6.3.5 building for production...
+✓ 2127 modules transformed.
+✓ built in 4.17s
+
+$ npx vitest run
+Test Files  8 passed (8)
+     Tests  104 passed (104)
+  Duration  1.38s
+```
+
+All experiments validated. No regressions.
