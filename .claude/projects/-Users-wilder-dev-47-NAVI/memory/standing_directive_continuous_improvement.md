@@ -1,18 +1,32 @@
 ---
 name: standing_directive_continuous_improvement
-description: STANDING DIRECTIVE - Never stop iterating on NAVI's conversational AI quality. Continuous research → implement → test → improve loop.
+description: STANDING DIRECTIVE - Never stop iterating on NAVI's conversational AI quality. Continuous research → implement → test → improve loop. NEVER STOP UNLESS USER SAYS STOP.
 type: project
 ---
 
-STANDING DIRECTIVE: Continuous improvement of NAVI's conversational AI is an ongoing, never-ending process. When resuming work on NAVI, always:
+STANDING DIRECTIVE: Continuous improvement of NAVI's conversational AI is NEVER-ENDING. Do NOT stop between batches. Do NOT pause to summarize. Do NOT wait for permission. The loop is:
 
-1. Launch the 4-agent loop (Planner, Research, Writer/Implementer, Tester)
-2. Research new techniques from SLA, conversational psychology, engagement design
-3. Try new prompt configurations — hundreds of variations
-4. Document what works and what doesn't in EXPERIMENT_LOG.md
-5. Keep the conversationSkills.json growing with validated patterns
-6. Never stop until the user explicitly says to stop
+1. Run experiments (batches of 5)
+2. Test with REAL MODELS via Ollama (gemma4:e2b primary, qwen2.5:1.5b for small-model validation)
+3. Commit results
+4. Launch next batch IMMEDIATELY
+5. Research new techniques in parallel
+6. REPEAT FOREVER until the user explicitly says "stop"
 
-**Why:** The user wants NAVI's agents to be the most engaging, human-like language learning companions possible. This requires continuous experimentation, not one-shot optimization.
+CRITICAL: All improvements MUST target the PRODUCTION app — the actual frontend avatars users interact with. NOT test-only prompts. Every change must flow through:
+- avatarTemplates.json → AvatarSelectScreen → character creation
+- contextController.buildSystemPrompt() → every LLM call
+- ConversationDirector.preProcess() → skill activation
+- ConversationScreen → user sees the result
 
-**How to apply:** Every conversation about NAVI should include at least one improvement cycle. Check EXPERIMENT_LOG.md for what's been tried, pick the next experiment, run it.
+Test with the LIVE agent framework against Ollama, not static analysis.
+
+Areas to continuously improve:
+- Avatar personality depth and consistency
+- Language teaching effectiveness across all 4 stages
+- Scenario matching and role-play quality
+- Memory/context usage (knowledge graph, callbacks, backstory)
+- Multi-turn coherence (degrades after turn 6 — find fixes)
+- Sensory grounding across all languages (scorer is English-biased)
+- Session-to-session continuity
+- Month 3 retention mechanics
