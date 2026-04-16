@@ -248,9 +248,17 @@ export interface LearningStageInfo {
   compositeScore: number;
 }
 
-/** Scenario keys grouped by learning stage availability */
+/**
+ * Scenario keys grouped by learning stage availability.
+ *
+ * EXP-014: survival stage now allows restaurant + emergency with extra scaffolding.
+ * A brand-new user who says "I'm at a restaurant right now" should get scenario help
+ * even at survival stage. The survival learningStage prompt instruction already provides
+ * heavy native-language scaffolding (speak primarily in userNativeLanguage with target
+ * phrases EMBEDDED), so these scenarios are safe at survival.
+ */
 export const STAGE_SCENARIO_ACCESS: Record<LearningStage, string[]> = {
-  survival: [],
+  survival: ['restaurant', 'emergency'],
   functional: ['restaurant', 'market', 'directions', 'hotel'],
   conversational: [
     'restaurant', 'market', 'directions', 'hotel',
@@ -357,6 +365,20 @@ export interface SharedMilestone {
   avatarId: string;
 }
 
+/** A shared reference / inside joke with timing metadata for callback scheduling (EXP-012) */
+export interface SharedReference {
+  /** The reference text */
+  text: string;
+  /** When this reference was created (interaction count at creation) */
+  createdAtInteraction: number;
+  /** When this reference was created (timestamp) */
+  createdAt: number;
+  /** How many times this reference has been called back */
+  callbackCount: number;
+  /** Interaction count of the last callback */
+  lastCallbackAtInteraction: number;
+}
+
 export interface RelationshipState {
   /** Which avatar this relationship is with */
   avatarId: string;
@@ -370,8 +392,8 @@ export interface RelationshipState {
   streak: number;
   /** Last interaction timestamp */
   lastInteraction: number;
-  /** Shared references / inside jokes */
-  sharedReferences: string[];
+  /** Shared references / inside jokes (string[] for backward compat, SharedReference[] preferred) */
+  sharedReferences: (string | SharedReference)[];
   /** Milestones reached together */
   milestones: SharedMilestone[];
 }

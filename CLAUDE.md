@@ -315,6 +315,12 @@ The agent framework is fully built. All UI screens still call legacy services di
 - ~~**Error-hiding try-catches**~~ — Removed 5 catches that swallowed errors with console.error + fallback to empty objects (director, memory retrieval, research agent, pronunciation bank, conversationDirector calibration).
 - ~~**Last `any` type**~~ — `expandedPhrase: any` in ConversationScreen replaced with proper typed interface.
 
+### Resolved Feature Gaps (2026-04-16g — Experiments EXP-006 through EXP-010)
+- ~~**Sensory grounding cadence too vague (EXP-006)**~~ — `coreRules.json` SENSORY GROUNDING instruction changed from "at least one per conversation" to "roughly 1 out of every 3-4 messages" with explicit bracketing: "not every message — that's exhausting. Not once per session — that's forgettable."
+- ~~**Emotional detector misses laughter (EXP-007)**~~ — `detectEmotionalState()` in `ConversationDirector.ts` now detects lol/lmao/rofl/haha/hehe/ha-repeats and laughter emoji as 'excited'. Short disengaged messages (<5 chars, no punctuation) explicitly handled. Trailing ellipsis documented as intentionally neutral.
+- ~~**Code-switching density vs style conflict (EXP-009)**~~ — Added `codeSwitchingPriority` instruction to `systemLayers.json`: learning stage controls DENSITY (how much target language), warmth tier controls STYLE (how you switch). When they conflict, DENSITY wins — it reflects actual ability.
+- ~~**Backstory disclosure too slow and not warmth-linked (EXP-010)**~~ — `getBackstoryTier()` in `RelationshipStore.ts` changed from interaction-count-based (every 50 interactions, ~40 sessions to max) to warmth-linked (maps directly to warmth tiers: stranger=0, acquaintance=1, friend=2, close_friend=3, family=4). Surface-level stories now available by session 3 instead of session 10.
+
 ### Known Feature Gaps
 - **CameraOverlay OCR/LLM pipeline not wired** — Prompt 7 incomplete. `CameraOverlay.tsx` still uses a mocked scan flow; `agent.handleImage()` pipeline exists but is not connected.
 - **Cloudflare Worker D1 database ID not set** — `web/wrangler.toml` contains `database_id = "YOUR_D1_DATABASE_ID"` placeholder.

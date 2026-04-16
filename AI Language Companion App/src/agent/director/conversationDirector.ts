@@ -77,12 +77,22 @@ function detectEmotionalState(message: string): EmotionalState {
   const hasPositiveEmoji = /[🎉🔥💪😊👏✨🥳]/.test(trimmed);
   if (pridePatterns.test(trimmed)) return 'proud';
 
-  // Excitement signals
+  // Excitement signals (includes laughter markers)
   const exclamationCount = (trimmed.match(/!/g) ?? []).length;
   const hasExcitedWords = /\bamazing\b|\bwow\b|\boh my\b|\bso cool\b|\blove\b|\bincredible\b|\bawesome\b/i.test(trimmed);
+  const hasLaughter = /\blol\b|\blmao\b|\brofl\b|\bhaha\b|\bhehe\b|\bha{2,}\b|\bhe{2,}\b|😂|🤣/i.test(trimmed);
   if (exclamationCount >= 2 || (hasExcitedWords && hasPositiveEmoji)) return 'excited';
+  if (hasLaughter && len > 10) return 'excited';
   if (len > 100 && exclamationCount >= 1) return 'excited';
   if (hasPositiveEmoji && len > 30) return 'excited';
+
+  // Disengagement signal — very short message with no punctuation or emoji
+  // Suggests the user may be losing interest or just going through the motions
+  if (len <= 4 && !/[!?.…😊🎉👏🔥💪✨🥳😂🤣]/.test(trimmed) && /^[a-zA-Z]*$/.test(trimmed)) return 'neutral';
+
+  // Trailing ellipsis — ambiguous signal; treat as neutral (context-dependent,
+  // could be frustration or trailing thought — we don't want false positives)
+  // Note: "^...+$" (ONLY ellipsis) already triggers 'confused' above
 
   return 'neutral';
 }
@@ -409,6 +419,16 @@ export class ConversationDirector {
       goalInstructions.push(
         promptLoader.get('systemLayers.conversationGoals.free_conversation'),
       );
+    }
+
+    // EXP-011: Variable reward — ~1 in 5 messages, inject a surprise delight moment
+    // Skinner variable ratio schedule: unpredictable rewards create strongest engagement
+    if (Math.random() < 0.2) {
+      const variableRewardText = promptLoader.get('conversationSkills.skills.variable_reward.injection');
+      if (variableRewardText) {
+        goalInstructions.push(variableRewardText);
+        console.log('[NAVI:director] variable reward triggered (1-in-5)');
+      }
     }
 
     // Build context strings

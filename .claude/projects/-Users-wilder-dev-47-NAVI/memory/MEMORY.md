@@ -1,0 +1,1 @@
+- [Standing Directive](standing_directive_continuous_improvement.md) — NEVER STOP iterating on NAVI's conversational AI. Continuous 4-agent loop.
