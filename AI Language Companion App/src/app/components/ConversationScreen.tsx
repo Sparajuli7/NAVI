@@ -269,7 +269,9 @@ export function ConversationScreen({
       }
     } catch (err) {
       console.error('[NAVI:chat] handleSend error:', err);
-      updateLastMessage("Hmm, let me try that again... 🔄", true);
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      const shortError = errorMsg.length > 150 ? errorMsg.slice(0, 150) + '…' : errorMsg;
+      updateLastMessage(`Something went wrong: ${shortError}`, true);
       setLlmError(true);
       setRetryText(msgText);
     } finally {

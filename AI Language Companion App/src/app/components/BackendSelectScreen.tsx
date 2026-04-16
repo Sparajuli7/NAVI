@@ -5,9 +5,9 @@
  * Shown once when no `navi_backend_pref` exists in localStorage.
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { RefreshCw } from 'lucide-react';
+import { RefreshCw, Server } from 'lucide-react';
 import { useNaviAgent } from '../../agent/react/useNaviAgent';
 import { LLM_PRESETS } from '../../agent/models';
 
@@ -20,6 +20,11 @@ interface CloudModel {
   name: string;
   desc: string;
   free: boolean;
+}
+
+interface OllamaModel {
+  name: string;
+  size: number;
 }
 
 const CLOUD_MODELS: CloudModel[] = [
@@ -36,14 +41,34 @@ const CLOUD_MODELS: CloudModel[] = [
 
 type Selection =
   | { type: 'cloud'; model: CloudModel }
-  | { type: 'ondevice'; presetKey: string };
+  | { type: 'ondevice'; presetKey: string }
+  | { type: 'ollama'; model: string };
 
 export function BackendSelectScreen({ onDone }: BackendSelectScreenProps) {
-  const { switchBackend } = useNaviAgent();
+  const { switchBackend, switchOllamaModel } = useNaviAgent();
 
   const [selected, setSelected] = useState<Selection>({ type: 'cloud', model: CLOUD_MODELS[0] });
   const [isSwitching, setIsSwitching] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [ollamaModels, setOllamaModels] = useState<OllamaModel[]>([]);
+  const [ollamaAvailable, setOllamaAvailable] = useState(false);
+
+  // Detect Ollama on mount — fetch installed models
+  useEffect(() => {
+    fetch('http://localhost:11434/api/tags', { signal: AbortSignal.timeout(3000) })
+      .then(r => r.json())
+      .then(data => {
+        const models = (data.models ?? []).map((m: { name: string; size: number }) => ({
+          name: m.name,
+          size: m.size,
+        }));
+        if (models.length > 0) {
+          setOllamaModels(models);
+          setOllamaAvailable(true);
+        }
+      })
+      .catch(() => { /* Ollama not running */ });
+  }, []);
 
   const handleStart = async () => {
     if (isSwitching) return;
@@ -62,6 +87,9 @@ export function BackendSelectScreen({ onDone }: BackendSelectScreenProps) {
           openRouterModels = [selected.model.id];
         }
         await switchBackend('openrouter', { openRouterTier: tier, openRouterModels });
+      } else if (selected.type === 'ollama') {
+        await switchOllamaModel(selected.model);
+        localStorage.setItem('navi_backend_pref', 'ollama');
       } else {
         await switchBackend('webllm', { webllmPreset: selected.presetKey });
       }
@@ -76,6 +104,7 @@ export function BackendSelectScreen({ onDone }: BackendSelectScreenProps) {
     if (s.type !== selected.type) return false;
     if (s.type === 'cloud' && selected.type === 'cloud') return s.model.id === selected.model.id;
     if (s.type === 'ondevice' && selected.type === 'ondevice') return s.presetKey === selected.presetKey;
+    if (s.type === 'ollama' && selected.type === 'ollama') return s.model === selected.model;
     return false;
   };
 
@@ -134,6 +163,48 @@ export function BackendSelectScreen({ onDone }: BackendSelectScreenProps) {
             })}
           </div>
         </div>
+
+        {/* Ollama local models (shown only if Ollama is detected) */}
+        {ollamaAvailable && (
+          <div>
+            <div className="flex items-center gap-2 px-1 mb-2">
+              <Server className="w-3.5 h-3.5 text-emerald-500" />
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                Ollama — local models on your device
+              </p>
+              <span className="text-[10px] text-emerald-500 bg-emerald-500/10 px-1.5 py-0.5 rounded-full">detected</span>
+            </div>
+            <div className="space-y-1.5">
+              {ollamaModels.map((m) => {
+                const sel: Selection = { type: 'ollama', model: m.name };
+                const active = isSelected(sel);
+                return (
+                  <button
+                    key={m.name}
+                    onClick={() => setSelected(sel)}
+                    className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border text-left transition-all ${
+                      active
+                        ? 'border-emerald-500 bg-emerald-500/10'
+                        : 'border-border bg-card hover:border-emerald-500/40'
+                    }`}
+                  >
+                    <div>
+                      <span className={`text-sm font-medium ${active ? 'text-foreground' : 'text-muted-foreground'}`}>
+                        {m.name}
+                      </span>
+                      <span className="text-xs text-muted-foreground ml-2">
+                        {(m.size / 1e9).toFixed(1)} GB · local · private
+                      </span>
+                    </div>
+                    <div className={`w-3.5 h-3.5 rounded-full border-2 shrink-0 ml-3 ${
+                      active ? 'border-emerald-500 bg-emerald-500' : 'border-border'
+                    }`} />
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* On-device models */}
         <div>
