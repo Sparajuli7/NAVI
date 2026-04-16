@@ -59,6 +59,16 @@ export class LearnerProfileStore {
   private profile: LearnerProfile;
   private loaded = false;
 
+  /**
+   * EXP-053: Check if a phrase matches the target language.
+   * Returns true if: no language filter, phrase matches the language,
+   * or phrase has 'unknown' language (backward compat for pre-EXP-053 data).
+   */
+  private matchesLanguage(phrase: TrackedPhrase, language?: string): boolean {
+    if (!language) return true;
+    return phrase.language === language || phrase.language === 'unknown';
+  }
+
   constructor() {
     this.profile = this.defaultProfile();
   }
@@ -169,10 +179,7 @@ export class LearnerProfileStore {
   getPhrasesForReview(limit: number = 5, language?: string): TrackedPhrase[] {
     const now = Date.now();
     return this.profile.phrases
-      .filter((p) => {
-        if (language && p.language !== language) return false;
-        return p.nextReviewAt <= now && p.mastery !== 'mastered';
-      })
+      .filter((p) => this.matchesLanguage(p, language) && p.nextReviewAt <= now && p.mastery !== 'mastered')
       .sort((a, b) => a.nextReviewAt - b.nextReviewAt)
       .slice(0, limit);
   }
@@ -183,10 +190,7 @@ export class LearnerProfileStore {
    */
   getStrugglingPhrases(limit: number = 5, language?: string): TrackedPhrase[] {
     return this.profile.phrases
-      .filter((p) => {
-        if (language && p.language !== language) return false;
-        return p.mastery === 'new' && p.attemptCount >= 2;
-      })
+      .filter((p) => this.matchesLanguage(p, language) && p.mastery === 'new' && p.attemptCount >= 2)
       .sort((a, b) => a.lastPracticed - b.lastPracticed)
       .slice(0, limit);
   }
@@ -200,13 +204,11 @@ export class LearnerProfileStore {
   getUrgentReviewPhrases(limit: number = 5, language?: string): TrackedPhrase[] {
     const now = Date.now();
     return this.profile.phrases
-      .filter(
-        (p) => {
-          if (language && p.language !== language) return false;
-          return p.mastery !== 'mastered' &&
-            (p.struggleCount ?? 0) >= 1 &&
-            p.nextReviewAt <= now;
-        },
+      .filter((p) =>
+        this.matchesLanguage(p, language) &&
+        p.mastery !== 'mastered' &&
+        (p.struggleCount ?? 0) >= 1 &&
+        p.nextReviewAt <= now,
       )
       .sort((a, b) => a.nextReviewAt - b.nextReviewAt)
       .slice(0, limit);
@@ -220,13 +222,11 @@ export class LearnerProfileStore {
   getRoutineReviewPhrases(limit: number = 5, language?: string): TrackedPhrase[] {
     const now = Date.now();
     return this.profile.phrases
-      .filter(
-        (p) => {
-          if (language && p.language !== language) return false;
-          return p.mastery !== 'mastered' &&
-            (p.struggleCount ?? 0) === 0 &&
-            p.nextReviewAt <= now;
-        },
+      .filter((p) =>
+        this.matchesLanguage(p, language) &&
+        p.mastery !== 'mastered' &&
+        (p.struggleCount ?? 0) === 0 &&
+        p.nextReviewAt <= now,
       )
       .sort((a, b) => a.nextReviewAt - b.nextReviewAt)
       .slice(0, limit);
@@ -350,7 +350,7 @@ export class LearnerProfileStore {
 
     // When language is set, compute language-scoped stats for the prompt
     const scopedPhrases = language
-      ? this.profile.phrases.filter((p) => p.language === language)
+      ? this.profile.phrases.filter((p) => this.matchesLanguage(p, language))
       : this.profile.phrases;
     const scopedTotal = scopedPhrases.length;
     const scopedMastered = scopedPhrases.filter((p) => p.mastery === 'mastered').length;
@@ -442,7 +442,7 @@ export class LearnerProfileStore {
     // Count phrases at 'practiced' or 'mastered' level as "functionally mastered"
     // EXP-053: When language is set, only count phrases in that language
     const scopedPhrases = language
-      ? this.profile.phrases.filter((p) => p.language === language)
+      ? this.profile.phrases.filter((p) => this.matchesLanguage(p, language))
       : this.profile.phrases;
     const masteredCount = scopedPhrases.filter(
       (p) => p.mastery === 'practiced' || p.mastery === 'mastered',
@@ -524,9 +524,13 @@ export class LearnerProfileStore {
    * Get phrases filtered by language.
    * EXP-053: Use this when displaying phrases for a specific companion
    * to avoid showing Nepali phrases in a French companion's context.
+   * Includes 'unknown'-language phrases for backward compatibility
+   * (phrases recorded before language tagging was fixed).
    */
   getPhrasesForLanguage(language: string): TrackedPhrase[] {
-    return this.profile.phrases.filter((p) => p.language === language);
+    return this.profile.phrases.filter(
+      (p) => p.language === language || p.language === 'unknown',
+    );
   }
 
   get topics(): TopicProficiency[] {

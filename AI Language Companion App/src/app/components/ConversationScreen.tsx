@@ -597,7 +597,7 @@ export function ConversationScreen({
               character={character}
               location={location}
               countryCode={currentLocation?.countryCode}
-              trackedPhrases={agent.memory.learner.phrases}
+              trackedPhrases={languageName ? agent.memory.learner.getPhrasesForLanguage(languageName) : agent.memory.learner.phrases}
               languageLabel={languageName}
               onPracticePhrase={(phrase) => {
                 setShowKnowledgeGraph(false);
@@ -620,7 +620,7 @@ export function ConversationScreen({
             transition={{ duration: 0.2 }}
           >
             <FlashcardDeck
-              phrases={agent.memory.learner.phrases}
+              phrases={languageName ? agent.memory.learner.getPhrasesForLanguage(languageName) : agent.memory.learner.phrases}
               onClose={() => setShowFlashcards(false)}
               onPractice={(phrase) => {
                 setShowFlashcards(false);

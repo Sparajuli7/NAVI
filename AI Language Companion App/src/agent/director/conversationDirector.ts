@@ -551,6 +551,19 @@ export class ConversationDirector {
       }
     }
 
+    // EXP-056: mid-conversation reinforcement — refresh behavioral instructions after turn 6
+    // The model forgets behavioral instructions (sensory details, open loops, staying in character)
+    // when they scroll out of the context window attention span. A ~30-token reminder refreshes them.
+    if (this.working) {
+      const sessionMsgCountForReinforce = (this.working.get('session_message_count') as number) ?? 0;
+      if (sessionMsgCountForReinforce > 6) {
+        goalInstructions.push(
+          'REMINDER: Stay in character. Include a sensory detail. End with a hook or question. Keep it short.',
+        );
+        console.log(`[NAVI:director] mid-conversation reinforcement injected (turn ${sessionMsgCountForReinforce})`);
+      }
+    }
+
     // session_pacing — when session message count exceeds 8
     if (this.working) {
       const sessionMsgCount = (this.working.get('session_message_count') as number) ?? 0;
@@ -682,6 +695,8 @@ export class ConversationDirector {
     llmResponse: string,
     toolUsed: string,
     avatarId: string,
+    /** EXP-053: Current target language — stored with detected phrases */
+    language?: string,
   ): Promise<void> {
     // Rolling window calibration
     this.messageWindow.push(userMessage);
@@ -699,7 +714,8 @@ export class ConversationDirector {
     for (const detected of detectedPhrases) {
       await this.learner.recordPhraseAttempt({
         phrase: detected.phrase,
-        language: detected.language ?? 'unknown',
+        // EXP-053: Use actual current language instead of always 'unknown'
+        language: detected.language ?? language ?? 'unknown',
         timestamp: Date.now(),
         context: toolUsed,
         outcome: 'learned',

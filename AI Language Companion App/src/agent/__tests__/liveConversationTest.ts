@@ -80,7 +80,19 @@ function scoreResponse(response: string): Score {
     hasTargetLang: /[^\x00-\x7F]/.test(response) && (response.match(/[^\x00-\x7F]/g) ?? []).length > 2,
     shortEnough: response.split(/\s+/).length < 200,
     noMetaLang: !/as your.*companion|as an ai|language model|i'm here to help|how can i assist/i.test(response),
-    hasSensory: /smell|hear|rain|cold|hot|loud|quiet|taste|feel|wind|sun|noise|crowded|empty|hiss|steam|incense|bread|coffee|espresso|neon|clank|horn|motorbike|keyboard|tapping|music|pavement|awning|humid|chill|breeze|warm|drizzle/i.test(r),
+    hasSensory: (() => {
+      // English sensory keywords
+      const enSensory = /smell|hear|rain|cold|hot|loud|quiet|taste|feel|wind|sun|noise|crowded|empty|hiss|steam|incense|bread|coffee|espresso|neon|clank|horn|motorbike|keyboard|tapping|music|pavement|awning|humid|chill|breeze|warm|drizzle/i;
+      // Vietnamese sensory keywords
+      const viSensory = /mùi|nghe|mưa|nóng|lạnh|ồn|yên tĩnh|nếm|gió|nắng|tiếng|đông|trống|hơi nước|khói|hương|bánh mì|cà phê|neon|xe máy|nhạc|ẩm|mát|sôi|thơm|cháy|rang|xào|chiên/i;
+      // Japanese sensory keywords
+      const jaSensory = /匂|聞こ|雨|寒|暑|熱|うるさ|静か|味|風|太陽|音|混|空|蒸気|香|パン|コーヒー|ネオン|バイク|キーボード|音楽|湿|涼|温|エスプレ|豆|焙煎|淹れ/;
+      // Korean sensory keywords
+      const koSensory = /냄새|듣|비|추|더|뜨거|시끄|조용|맛|바람|햇|소리|붐비|네온|오토바이|음악|습|시원|따뜻|커피|빵|볶|끓/;
+      // Nepali/Devanagari sensory keywords
+      const neSensory = /गर्मी|चिसो|मुसम|बारिश|सुगन्ध|ध्वनि|स्वाद|हावा|रोधन|शान्त|चिया|अगरबत्ती|steam|incense/;
+      return enSensory.test(r) || viSensory.test(response) || jaSensory.test(response) || koSensory.test(response) || neSensory.test(response);
+    })(),
     hasPersonality: (() => {
       // Classic first-person opinion markers (English)
       const opinionMarkers = /i think|i love|i hate|honestly|my favorite|i remember|reminds me|i always|personally|skip that|don't bother|best in the city|overrated|underrated|can't stand|i prefer|my go-to|not worth|you gotta|you have to try|trust me|between you and me|i wouldn't|the real|the actual/i;
@@ -94,7 +106,13 @@ function scoreResponse(response: string): Score {
       const opinionPatterns = /진짜|완전|솔직히|빡[세치]|헐|대박|honestly|frankly|seriously|look,|listen,|attention|pas mal|sympa|pas terrible|c'est pas|c'est le|certainement pas|Mon ami|vous savez|particulière|franchement/i;
       // Direct address / character voice patterns
       const voiceMarkers = /mon ami|vous savez|tu sais|allons|regarde[z]?|écoute[z]?|봐|들어봐|너|야|ㅋㅋ|ㅎㅎ|잖아|지\?|거든|ne\?|でしょ|じゃん|だよ|よね/;
-      return opinionMarkers.test(r) || emotionalMarkers.test(response) || stagingMarkers.test(response) || expressiveEmoji.test(response) || opinionPatterns.test(response) || voiceMarkers.test(response);
+      // Vietnamese personality markers (opinions, direct address, slang)
+      const viPersonality = /bá đạo|đỉnh|ghê|vãi|dữ vậy|xỉu|tao|mày|đừng có|phải|ngon nhất|thôi|lắm luôn|trời ơi|ối dồi|thật sự|chắc chắn|chẳng|đảm bảo|menu paparazzi|tourist|đừng|cứ|luôn đó/;
+      // Japanese personality markers (opinions, emphatic speech)
+      const jaPersonality = /思う|好き|嫌い|最高|ダメ|絶対|まじ|やばい|本当に|実は|正直|チェーン|観光客|地元|味わ|淹れたて|ちょっと|もう少し/;
+      // Nepali personality markers
+      const nePersonality = /चिन्ता नलिनु|हुन्छ|तर|सानो कुरा होइन|एकदमै|साँच्चै|दाल भात|रामो|धन्यवाद/;
+      return opinionMarkers.test(r) || emotionalMarkers.test(response) || stagingMarkers.test(response) || expressiveEmoji.test(response) || opinionPatterns.test(response) || voiceMarkers.test(response) || viPersonality.test(response) || jaPersonality.test(response) || nePersonality.test(response);
     })(),
     recasts: !(/actually.*should be|the correct.*is|close!? but|good try/i.test(response)),
   };

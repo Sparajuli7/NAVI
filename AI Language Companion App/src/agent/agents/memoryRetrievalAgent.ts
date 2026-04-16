@@ -64,7 +64,8 @@ export class MemoryRetrievalAgent {
 
   private buildTurnContext(query: MemoryQuery): ContextPacket {
     const relatedTerms = this.getRelatedTerms(query.currentTopics, query.language);
-    const struggleTerms = this.getStrugglingTermPhrases();
+    // EXP-054: Scope struggle terms to current language
+    const struggleTerms = this.getStrugglingTermPhrases(query.language);
     const bridgeMemories = this.getBridgeMemories(query.currentLocation, query.language);
     const engagementHints = this.getEngagementHints(query.currentAvatarId);
 
@@ -115,7 +116,8 @@ export class MemoryRetrievalAgent {
     }
 
     const relatedTerms = this.getRelatedTerms(recap.unfinishedTopics, query.language);
-    const struggleTerms = this.getStrugglingTermPhrases();
+    // EXP-054: Scope struggle terms to current language
+    const struggleTerms = this.getStrugglingTermPhrases(query.language);
 
     return {
       promptInjection: sections.length > 0 ? sections.join('\n') : '',
@@ -172,7 +174,11 @@ export class MemoryRetrievalAgent {
 
   private buildTeachingContext(query: MemoryQuery): ContextPacket {
     const relatedTerms = this.getRelatedTerms(query.currentTopics, query.language);
-    const struggleCtx = this.graph.getStrugglingTermsWithContext();
+    // EXP-054: Filter struggling terms by current language
+    const allStruggleCtx = this.graph.getStrugglingTermsWithContext();
+    const struggleCtx = query.language
+      ? allStruggleCtx.filter(s => s.term.language === query.language)
+      : allStruggleCtx;
 
     const sections: string[] = [];
 

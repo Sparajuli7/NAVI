@@ -34,6 +34,7 @@ export function createChatTool(
       dialectKey: { type: 'string', required: false, description: 'Explicit dialect key to override city string matching' },
       isFirstEverMessage: { type: 'boolean', required: false, description: 'True when this is the very first message in the conversation' },
       isFirstScenarioMessage: { type: 'boolean', required: false, description: 'True when the active scenario just changed (first message in a new scenario)' },
+      learningStage: { type: 'string', required: false, description: 'Current learning stage (survival/functional/conversational/fluent)' },
     },
     requiredModels: ['llm'],
     costTier: 'heavy',
@@ -51,6 +52,7 @@ export function createChatTool(
       const dialectKey = params.dialectKey as string | undefined;
       const isFirstEverMessage = params.isFirstEverMessage as boolean | undefined;
       const isFirstScenarioMessage = params.isFirstScenarioMessage as boolean | undefined;
+      const learningStage = params.learningStage as string | undefined;
 
       // Build system prompt from avatar context + memory + relationship + learning + situation
       const memoryContext = memoryManager.buildContextForPrompt({
@@ -76,6 +78,7 @@ export function createChatTool(
         dialectKey,
         isFirstEverMessage,
         isFirstScenarioMessage,
+        learningStage,
       });
 
       // In 'listen' translation mode, use the listenAndTranslate template instead of chat
@@ -100,8 +103,8 @@ export function createChatTool(
           stream: !!onToken,
           onToken,
         });
-        memoryManager.working.set('last_user_message', message);
-        memoryManager.working.set('last_response', listenResponse);
+        memoryManager.working.set('last_user_message', message, 2 * 60 * 60 * 1000); // EXP-058: 2h session TTL
+        memoryManager.working.set('last_response', listenResponse, 2 * 60 * 60 * 1000); // EXP-058: 2h session TTL
         return { response: listenResponse };
       }
 
@@ -129,9 +132,9 @@ export function createChatTool(
         onToken,
       });
 
-      // Store in working memory
-      memoryManager.working.set('last_user_message', message);
-      memoryManager.working.set('last_response', response);
+      // Store in working memory (EXP-058: 2h session TTL instead of default 10min)
+      memoryManager.working.set('last_user_message', message, 2 * 60 * 60 * 1000);
+      memoryManager.working.set('last_response', response, 2 * 60 * 60 * 1000);
 
       return { response };
     },

@@ -173,6 +173,8 @@ export class AvatarContextController {
     dialectKey?: string;
     isFirstEverMessage?: boolean;
     isFirstScenarioMessage?: boolean;
+    /** EXP-057: Learning stage for scenario coach-on-the-side */
+    learningStage?: string;
   }): string {
     if (!this.activeProfile) {
       return 'You are a helpful language assistant.';
@@ -213,8 +215,13 @@ export class AvatarContextController {
     }
 
     // L4: Scenario (HIGH)
+    // EXP-057: Use coach-on-the-side mode for survival/functional learners
     if (effectiveScenario) {
-      const scenarioLayer = this.buildScenarioLayer(effectiveScenario, override.formalityShift);
+      const learningStage = options?.learningStage;
+      const useCoachMode = learningStage === 'survival' || learningStage === 'functional';
+      const scenarioLayer = useCoachMode
+        ? this.buildScenarioCoachLayer(effectiveScenario, profile.name)
+        : this.buildScenarioLayer(effectiveScenario, override.formalityShift);
       if (scenarioLayer) layerDefs.push([scenarioLayer, 1]);
     }
 
@@ -263,9 +270,12 @@ export class AvatarContextController {
 
         // Bug fix (EXP-052): inject TBLT pretask on first scenario message
         // so the user gets key phrases and scene-setting before the task phase
+        // EXP-060: inject vocabulary_focus from scenarioContexts.json so the model
+        // has the actual vocabulary list to draw from during the pretask
         try {
           const pretaskLayer = promptLoader.get('systemLayers.scenario.tblt_pretask', {
             label: scenarioConfig.label,
+            vocabulary: scenarioConfig.vocabulary_focus.join(', '),
           });
           if (pretaskLayer) layerDefs.push([pretaskLayer, 1]);
         } catch {
@@ -428,6 +438,22 @@ export class AvatarContextController {
     }
 
     return layer;
+  }
+
+  /** EXP-057: Coach-on-the-side scenario layer for survival/functional learners */
+  private buildScenarioCoachLayer(scenario: string, characterName: string): string {
+    const config = this.scenarios[scenario];
+    if (!config) return '';
+
+    try {
+      return promptLoader.get('systemLayers.scenarioCoach', {
+        characterName,
+        scenarioLabel: config.label,
+      });
+    } catch {
+      // Fall back to regular scenario layer if coach template not found
+      return this.buildScenarioLayer(scenario);
+    }
   }
 
   private buildScenarioLayer(scenario: string, formalityShift?: number): string {

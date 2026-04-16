@@ -618,6 +618,8 @@ export class NaviAgent {
       dialectKey: this.avatar.getActiveProfile()?.dialect || undefined,
       isFirstEverMessage: historyLen === 0,
       isFirstScenarioMessage,
+      // EXP-057: Pass learning stage for scenario coach-on-the-side
+      learningStage: directorCtx.learningStage.stage,
     };
 
     if (options?.history) {
@@ -641,8 +643,9 @@ export class NaviAgent {
     }
 
     // 3. Director post-processing — detect phrases, update learner, record interaction
+    // EXP-053: Pass current language so phrases are stored with correct language tag
     this.director
-      .postProcess(message, response, decision.tool, avatarId)
+      .postProcess(message, response, decision.tool, avatarId, currentLanguage || undefined)
       .catch((err) => console.error('[NaviAgent] Director postProcess error:', err));
 
     // 4. Knowledge Graph update via MemoryMaker (fire-and-forget)
