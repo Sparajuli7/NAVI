@@ -53,6 +53,9 @@ export function createChatTool(
       const isFirstEverMessage = params.isFirstEverMessage as boolean | undefined;
       const isFirstScenarioMessage = params.isFirstScenarioMessage as boolean | undefined;
       const learningStage = params.learningStage as string | undefined;
+      const targetLanguage = (params.targetLanguage as string | undefined)
+        ?? memoryManager.profile.getProfile().targetLanguage
+        ?? undefined;
 
       // Build system prompt from avatar context + memory + relationship + learning + situation
       const memoryContext = memoryManager.buildContextForPrompt({
@@ -79,6 +82,7 @@ export function createChatTool(
         isFirstEverMessage,
         isFirstScenarioMessage,
         learningStage,
+        targetLanguage,
       });
 
       // In 'listen' translation mode, use the listenAndTranslate template instead of chat

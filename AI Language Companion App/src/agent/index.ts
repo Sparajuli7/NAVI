@@ -647,7 +647,16 @@ export class NaviAgent {
     let response = '';
     if (result.success && result.data) {
       const data = result.data as Record<string, unknown>;
-      response = (data.response as string) ?? JSON.stringify(data);
+      if (typeof data.response === 'string') {
+        response = data.response;
+      } else {
+        // Tool returned structured data without a response string (e.g. scenario list).
+        // Re-route through chat tool to generate a natural response instead of showing raw JSON.
+        console.log(`[NAVI] Tool '${decision.tool}' returned structured data, re-routing through chat`);
+        const chatResult = await handleUserInput(message, { ...contextParams, forceChat: true });
+        const chatData = chatResult.result.data as Record<string, unknown> | undefined;
+        response = (chatData?.response as string) ?? `I'm here to help — what would you like to do?`;
+      }
     } else {
       response = result.error ?? 'Sorry, something went wrong. Try again.';
     }

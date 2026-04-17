@@ -209,6 +209,8 @@ export class AvatarContextController {
     isFirstScenarioMessage?: boolean;
     /** EXP-057: Learning stage for scenario coach-on-the-side */
     learningStage?: string;
+    /** Target language selected by user (may differ from dialect language) */
+    targetLanguage?: string;
   }): string {
     if (!this.activeProfile) {
       return 'You are a helpful language assistant.';
@@ -244,6 +246,13 @@ export class AvatarContextController {
       const enforcement = promptLoader.get('systemLayers.languageEnforcement.template', {
         language: dialectConfig.language,
         dialect: dialectConfig.dialect,
+      });
+      layerDefs.push([enforcement, 0]);
+    } else if (options?.targetLanguage) {
+      // No dialect data but user selected a target language — enforce it
+      const enforcement = promptLoader.get('systemLayers.languageEnforcement.template', {
+        language: options.targetLanguage,
+        dialect: `${options.targetLanguage} (local variety of ${effectiveLocation})`,
       });
       layerDefs.push([enforcement, 0]);
     }
