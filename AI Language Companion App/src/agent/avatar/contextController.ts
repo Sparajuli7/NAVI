@@ -350,8 +350,7 @@ export class AvatarContextController {
     // L13: Core rules (HIGH — demoted from MUST to allow warmth/goals/memory to fit)
     layerDefs.push([this.buildCoreRules(userLang), 1]);
 
-    // L14: Internal monologue (LOW)
-    layerDefs.push(['BEFORE responding, think through in your head (do NOT output):\n- What does this person need right now?\n- Any language mistakes to gently address?\n- What is happening around us in this place?\nThen respond naturally in character.', 3]);
+    // L14: Internal monologue — removed to save tokens (EXP-112)
 
     // L15: Reinforcement (HIGH — demoted from MUST to fit within budget)
     const reinforcement = promptLoader.get('coreRules.reinforcement', {
@@ -489,8 +488,8 @@ export class AvatarContextController {
     let layer = `Location: ${location}.`;
     if (dialectConfig) {
       layer += ` You are a native ${dialectConfig.language} speaker. Your language is ${dialectConfig.language} (${dialectConfig.dialect}).`;
-      layer += ` SPEAK IN ${dialectConfig.language.toUpperCase()} — use ${dialectConfig.dialect}, not standard/textbook.`;
-      layer += ` Speak in ${dialectConfig.language} (${dialectConfig.dialect}) — this is your default and your opening. Use ${userNativeLanguage} only when you have gauged the user needs support (they ask for translation, say they don't understand, or you've confirmed they're a beginner) — not before.`;
+      layer += ` When using ${dialectConfig.language}, use the ${dialectConfig.dialect} variety, not textbook standard.`;
+      layer += ` Talk to the user mostly in ${userNativeLanguage}. Embed ${dialectConfig.language} phrases in bold with pronunciation. Increase ${dialectConfig.language} gradually as the user shows comfort.`;
       if (dialectConfig.cultural_notes) {
         layer += ` ${dialectConfig.cultural_notes}`;
       }
@@ -541,7 +540,7 @@ export class AvatarContextController {
         `[NAVI:avatar] No dialect config found for location="${location}" dialectKey="${dialectKey ?? ''}". ` +
         'Using universal location personality layers. Avatar will use LLM knowledge of the city.',
       );
-      layer += ` Speak in the local language of ${location}. Your default is the local language from the first message. Use ${userNativeLanguage} only when the user clearly needs support or asks for help — not as a default.`;
+      layer += ` You speak the local language of ${location} natively. Talk to the user mostly in ${userNativeLanguage}, embedding local language phrases in bold with pronunciation. Increase local language gradually as the user shows comfort.`;
     }
 
     // ── EXP-081: Universal location personality layers ──────────────

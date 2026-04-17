@@ -5,6 +5,35 @@ import type { ParsedSegment, PhraseCardData } from '../types/chat';
 const PHRASE_CARD_PATTERN =
   /\*\*Phrase:\*\*[ \t]*(.+?)[\r\n]+\*\*Say it:\*\*[ \t]*(.+?)[\r\n]+\*\*Sound tip:\*\*[ \t]*(.+?)[\r\n]+\*\*Means:\*\*[ \t]*(.+?)[\r\n]+\*\*Tip:\*\*[ \t]*(.+?)(?:[\r\n]|$)/gs;
 
+/**
+ * Detect and truncate repetition loops in model output.
+ * If a phrase of 4+ words repeats 3+ times, cut at the first repetition.
+ */
+export function truncateRepetition(text: string): string {
+  // Find any substring of 15+ chars that repeats 3+ times
+  const minLen = 15;
+  for (let len = Math.min(80, Math.floor(text.length / 3)); len >= minLen; len--) {
+    for (let start = 0; start <= text.length - len * 3; start++) {
+      const pattern = text.slice(start, start + len);
+      // Count occurrences
+      let count = 0;
+      let searchFrom = 0;
+      while (true) {
+        const idx = text.indexOf(pattern, searchFrom);
+        if (idx === -1) break;
+        count++;
+        searchFrom = idx + 1;
+        if (count >= 3) {
+          // Found 3+ repetitions — truncate at the second occurrence
+          const secondIdx = text.indexOf(pattern, text.indexOf(pattern) + 1);
+          return text.slice(0, secondIdx).trim();
+        }
+      }
+    }
+  }
+  return text;
+}
+
 /** Strip <think>...</think> blocks (and unclosed <think> during streaming) */
 export function stripThinkTags(text: string): string {
   // Remove complete <think>...</think> blocks (case-insensitive, dotall)

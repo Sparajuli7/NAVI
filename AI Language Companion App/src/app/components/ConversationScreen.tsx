@@ -15,7 +15,7 @@ import { useChatStore } from '../../stores/chatStore';
 import { useCharacterStore } from '../../stores/characterStore';
 import { useAppStore } from '../../stores/appStore';
 import { useNaviAgent } from '../../agent/react/useNaviAgent';
-import { parseResponse, stripThinkTags } from '../../utils/responseParser';
+import { parseResponse, stripThinkTags, truncateRepetition } from '../../utils/responseParser';
 import { saveCharacterConversation } from '../../utils/storage';
 import { startRecording, stopRecording, isSTTSupported, getSTTLangCode } from '../../services/stt';
 import type { Message, PhraseCardData } from '../../types/chat';
@@ -236,7 +236,7 @@ export function ConversationScreen({
         },
       });
 
-      const fullText = stripThinkTags(result.response);
+      const fullText = truncateRepetition(stripThinkTags(result.response));
 
       const segments = parseResponse(fullText);
       useChatStore.setState((state) => {
