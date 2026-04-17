@@ -187,15 +187,20 @@ export class OllamaProvider implements ModelProvider<null>, ChatLLM {
       console.log(`[NAVI] [${m.role}] ${m.content}`);
     }
 
-    const url = `${this.config.baseUrl}/v1/chat/completions`;
+    // Use native Ollama endpoint (not OpenAI-compat) to support think:false
+    const useStream = options?.stream && !!options?.onToken;
+    const url = `${this.config.baseUrl}/api/chat`;
 
     const body = {
       model: this.config.model,
       messages,
-      temperature: options?.temperature ?? 0.7,
-      max_tokens: options?.max_tokens ?? 512,
-      top_p: options?.top_p ?? 0.8,
-      stream: options?.stream && !!options?.onToken,
+      stream: useStream,
+      think: false, // Disable thinking mode — prevents empty responses on Qwen3/Gemma4
+      options: {
+        temperature: options?.temperature ?? 0.7,
+        num_predict: options?.max_tokens ?? 512,
+        top_p: options?.top_p ?? 0.8,
+      },
     };
 
     this.abortController = new AbortController();
@@ -229,22 +234,15 @@ export class OllamaProvider implements ModelProvider<null>, ChatLLM {
         return result;
       }
 
-      // Non-streaming response
+      // Non-streaming response — native Ollama format: { message: { content: "..." } }
       const data = await response.json();
-      let result = data.choices?.[0]?.message?.content ?? '';
+      // Native endpoint: data.message.content. OpenAI-compat fallback: data.choices[0].message.content
+      let result = data.message?.content ?? data.choices?.[0]?.message?.content ?? '';
 
-      // Handle models that put all output in think tags (e.g., Qwen3).
-      // The OpenAI-compatible endpoint returns think tags inline in content.
-      // If content is empty or only whitespace after stripping think tags,
-      // extract the thinking content as the actual response.
-      if (!result.trim()) {
-        // Check if the raw content had think tags with actual text inside
-        const rawContent = data.choices?.[0]?.message?.content ?? '';
-        const thinkMatch = rawContent.match(/<think>([\s\S]*?)<\/think>/i);
-        if (thinkMatch?.[1]?.trim()) {
-          console.log('[NAVI] content empty but think tags found — extracting thinking content');
-          result = thinkMatch[1].trim();
-        }
+      // Fallback: if content is empty, check thinking field (some models put output there)
+      if (!result.trim() && data.message?.thinking) {
+        console.log('[NAVI] content empty — extracting from thinking field');
+        result = data.message.thinking;
       }
 
       console.log(`[NAVI] ── RESPONSE (ollama) ──`);
@@ -369,18 +367,25 @@ export class OllamaProvider implements ModelProvider<null>, ChatLLM {
 
       for (const line of lines) {
         const trimmed = line.trim();
-        if (!trimmed || !trimmed.startsWith('data: ')) continue;
+        if (!trimmed) continue;
 
-        const data = trimmed.slice(6);
-        if (data === '[DONE]') break;
+        // Handle both native Ollama format (bare JSON) and OpenAI SSE format (data: JSON)
+        let jsonStr = trimmed;
+        if (trimmed.startsWith('data: ')) {
+          jsonStr = trimmed.slice(6);
+          if (jsonStr === '[DONE]') break;
+        }
 
         try {
-          const parsed = JSON.parse(data);
-          const delta = parsed.choices?.[0]?.delta?.content ?? '';
+          const parsed = JSON.parse(jsonStr);
+          // Native Ollama: { message: { content: "..." }, done: false }
+          // OpenAI-compat: { choices: [{ delta: { content: "..." } }] }
+          const delta = parsed.message?.content ?? parsed.choices?.[0]?.delta?.content ?? '';
           if (delta) {
             fullText += delta;
             onToken(delta, fullText);
           }
+          if (parsed.done) break;
         } catch {
           // Skip unparseable chunks
         }
