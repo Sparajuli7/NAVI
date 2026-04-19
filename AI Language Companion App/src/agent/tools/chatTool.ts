@@ -8,6 +8,7 @@
  */
 
 import type { ToolDefinition } from '../core/toolRegistry';
+import type { UserMode } from '../core/types';
 import type { ChatLLM } from '../models/chatLLM';
 import type { AvatarContextController } from '../avatar/contextController';
 import type { MemoryManager } from '../memory';
@@ -47,7 +48,7 @@ export function createChatTool(
       const learningContext = params.learningContext as string | undefined;
       const conversationGoals = params.conversationGoals as string | undefined;
       const situationContext = params.situationContext as string | undefined;
-      const userMode = params.userMode as 'learn' | 'guide' | 'friend' | null | undefined;
+      const userMode = params.userMode as UserMode | undefined;
       const translationMode = params.translationMode as 'listen' | 'speak' | undefined;
       const dialectKey = params.dialectKey as string | undefined;
       const isFirstEverMessage = params.isFirstEverMessage as boolean | undefined;
@@ -107,8 +108,8 @@ export function createChatTool(
           stream: !!onToken,
           onToken,
         });
-        memoryManager.working.set('last_user_message', message, 2 * 60 * 60 * 1000); // EXP-058: 2h session TTL
-        memoryManager.working.set('last_response', listenResponse, 2 * 60 * 60 * 1000); // EXP-058: 2h session TTL
+        memoryManager.working.set('last_user_message', message, 2 * 60 * 60 * 1000);
+        memoryManager.working.set('last_response', listenResponse, 2 * 60 * 60 * 1000);
         return { response: listenResponse };
       }
 
@@ -136,7 +137,7 @@ export function createChatTool(
         onToken,
       });
 
-      // Store in working memory (EXP-058: 2h session TTL instead of default 10min)
+      // Store in working memory (2h session TTL)
       memoryManager.working.set('last_user_message', message, 2 * 60 * 60 * 1000);
       memoryManager.working.set('last_response', response, 2 * 60 * 60 * 1000);
 

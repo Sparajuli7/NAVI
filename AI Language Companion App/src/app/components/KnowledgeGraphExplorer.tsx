@@ -25,6 +25,7 @@ import type {
   PhraseMastery,
   EncounterType,
   ConversationMood,
+  FilterMode,
 } from '../../agent/core/types';
 import type { KnowledgeGraphStore } from '../../agent/memory/knowledgeGraph';
 
@@ -59,7 +60,6 @@ const MOOD_ICONS: Record<ConversationMood, string> = {
 };
 
 type ViewMode = 'terms' | 'detail' | 'timeline';
-type FilterMode = 'all' | 'struggling' | 'due' | 'mastered';
 
 // ─── Helpers ────────────────────────────────────────────────────
 

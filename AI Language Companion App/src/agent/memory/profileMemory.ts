@@ -11,7 +11,7 @@
  * Updates are merged, not replaced, to prevent data loss.
  */
 
-import type { ProfileMemory } from '../core/types';
+import type { ProfileMemory, UserMode } from '../core/types';
 import { get, set } from 'idb-keyval';
 import { agentBus } from '../core/eventBus';
 
@@ -81,14 +81,14 @@ export class ProfileMemoryStore {
   }
 
   /** Set the inferred user mode */
-  async setUserMode(mode: 'learn' | 'guide' | 'friend' | null): Promise<void> {
+  async setUserMode(mode: UserMode): Promise<void> {
     if (!this.loaded) await this.load();
     this.profile.userMode = mode;
     await this.save();
   }
 
   /** Get the current user mode */
-  getUserMode(): 'learn' | 'guide' | 'friend' | null {
+  getUserMode(): UserMode {
     return this.profile.userMode ?? null;
   }
 

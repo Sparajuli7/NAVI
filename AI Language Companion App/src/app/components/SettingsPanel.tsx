@@ -12,15 +12,9 @@ import { generateAvatarImage } from '../../utils/generateAvatarImage';
 import { CityPicker } from './CityPicker';
 import { LanguagePicker } from './LanguagePicker';
 import { getLanguageByCode } from '../../config/supportedLanguages';
+import { countryFlag } from '../../utils/countryFlag';
 import type { CityEntry } from './CityPicker';
 import type { UserPreferences, Character } from '../../types/character';
-
-function countryFlag(code: string): string {
-  if (!code || code.length !== 2) return '';
-  return [...code.toUpperCase()]
-    .map((c) => String.fromCodePoint(0x1f1e6 + c.charCodeAt(0) - 65))
-    .join('');
-}
 
 type Section = 'companion' | 'profile' | 'preferences' | 'location' | 'memory' | 'model';
 
@@ -138,7 +132,9 @@ export function SettingsPanel({ onClose, onRegenerate, onDeleteCompanion, onUpda
   };
 
   const handleSwitchOllamaModel = async (model: string) => {
-    if (model === ollamaModel || isSwitchingModel) return;
+    // Allow re-clicking the same model if backend isn't ollama or there was an error
+    const isAlreadyActive = model === ollamaModel && backend === 'ollama' && modelStatus === 'ready';
+    if (isAlreadyActive || isSwitchingModel) return;
     setIsSwitchingModel(true);
     setModelSwitchError(null);
     try {
@@ -890,7 +886,7 @@ export function SettingsPanel({ onClose, onRegenerate, onDeleteCompanion, onUpda
                       value={ollamaUrlDraft}
                       onChange={(e) => setOllamaUrlDraft(e.target.value)}
                       onKeyDown={(e) => e.key === 'Enter' && handleOllamaUrlSave()}
-                      placeholder="http://localhost:11434"
+                      placeholder="http://127.0.0.1:11434"
                       className="flex-1 px-3 py-2.5 bg-card border border-border rounded-xl text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
                     />
                     <button
@@ -908,14 +904,39 @@ export function SettingsPanel({ onClose, onRegenerate, onDeleteCompanion, onUpda
                     </p>
                   </div>
 
-                  {/* CORS hint when not connected */}
+                  {/* Connection help when not connected */}
                   {!ollamaConnected && !isLoadingModels && (
-                    <div className="bg-card border border-border rounded-xl px-4 py-3">
-                      <p className="text-xs text-muted-foreground leading-relaxed mb-2">
-                        If Ollama is running but not connecting, restart it with CORS enabled:
-                      </p>
-                      <div className="bg-background border border-border rounded-lg px-3 py-2">
-                        <code className="text-xs text-foreground break-all">OLLAMA_ORIGINS=* ollama serve</code>
+                    <div className="bg-card border border-border rounded-xl px-4 py-3 space-y-3">
+                      <p className="text-xs font-medium text-foreground">Setup (one-time):</p>
+                      <div className="space-y-2">
+                        <p className="text-xs text-muted-foreground leading-relaxed">
+                          1. Enable CORS so the browser can reach Ollama:
+                        </p>
+                        <div className="bg-background border border-border rounded-lg px-3 py-2 space-y-1">
+                          <p className="text-[10px] text-muted-foreground">macOS (Ollama app):</p>
+                          <code className="text-xs text-foreground break-all block">launchctl setenv OLLAMA_ORIGINS "*"</code>
+                          <p className="text-[10px] text-muted-foreground mt-1">Then restart the Ollama app.</p>
+                        </div>
+                        <div className="bg-background border border-border rounded-lg px-3 py-2 space-y-1">
+                          <p className="text-[10px] text-muted-foreground">Linux / terminal:</p>
+                          <code className="text-xs text-foreground break-all block">OLLAMA_ORIGINS=* ollama serve</code>
+                        </div>
+                        <p className="text-xs text-muted-foreground leading-relaxed">
+                          2. Use <span className="text-foreground font-medium">127.0.0.1</span> (not localhost) in the URL above.
+                        </p>
+                        {location.protocol === 'https:' && (
+                          <>
+                            <p className="text-xs text-amber-400 leading-relaxed">
+                              You're on HTTPS. If 127.0.0.1 still doesn't connect, use a tunnel:
+                            </p>
+                            <div className="bg-background border border-border rounded-lg px-3 py-2">
+                              <code className="text-xs text-foreground break-all">npx localtunnel --port 11434</code>
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                              Paste the https:// URL it gives you above and hit Connect.
+                            </p>
+                          </>
+                        )}
                       </div>
                     </div>
                   )}

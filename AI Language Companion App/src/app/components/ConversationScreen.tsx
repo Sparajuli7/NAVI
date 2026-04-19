@@ -13,6 +13,7 @@ import { KnowledgeGraphExplorer } from './KnowledgeGraphExplorer';
 import { AnimatePresence, motion } from 'motion/react';
 import { useChatStore } from '../../stores/chatStore';
 import { useCharacterStore } from '../../stores/characterStore';
+import { countryFlag } from '../../utils/countryFlag';
 import { useAppStore } from '../../stores/appStore';
 import { useNaviAgent } from '../../agent/react/useNaviAgent';
 import { parseResponse, stripThinkTags, truncateRepetition } from '../../utils/responseParser';
@@ -63,13 +64,6 @@ function detectScenario(text: string): ScenarioKey | null {
     if (count > bestCount) { bestCount = count; best = key; }
   }
   return bestCount > 0 ? best : null;
-}
-
-function countryFlag(code: string): string {
-  if (!code || code.length !== 2) return '';
-  return [...code.toUpperCase()]
-    .map((c) => String.fromCodePoint(0x1f1e6 + c.charCodeAt(0) - 65))
-    .join('');
 }
 
 export function ConversationScreen({
@@ -163,10 +157,7 @@ export function ConversationScreen({
 
     setLlmError(false);
 
-    // Bug fix (EXP-052): Only run detectScenario if no scenario is already active
-    // (prevents keyword detection from overriding a manually-selected scenario)
-    // and skip detection in guide mode (user mentions "restaurant" for translation,
-    // not to start a scenario)
+    // Only run detectScenario if no scenario is already active and not in guide mode
     const detected = (!activeScenario && userMode !== 'guide') ? detectScenario(msgText) : null;
     if (detected) setScenario(detected);
 
@@ -300,10 +291,9 @@ export function ConversationScreen({
     await handleSend(`[End scenario — debrief: ${scenarioLabel}]`);
     agent.avatar.clearOverrides();
 
-    // Bug fix (EXP-052): record scenario completion for learning stage progression
-    // and wire ProactiveEngine.markScenarioCompleted() (was dead code)
+    // Record scenario completion for learning stage progression
     if (scenarioKey) {
-      agent.memory.learner.recordScenarioCompletion(scenarioKey).catch(() => {});
+      agent.memory.learner.recordScenarioCompletion(scenarioKey).catch(e => console.warn('[NAVI]', e));
       agent.proactiveEngine.markScenarioCompleted(scenarioLabel);
     }
   };

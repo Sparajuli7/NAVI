@@ -1,22 +1,8 @@
 /**
  * NAVI Agent Framework — Translation Model Provider (Stub)
  *
- * Provides text translation between languages.
- *
- * Design decision: Stub that delegates to the LLM.
- * A dedicated translation model (e.g., NLLB-200, MarianMT) would be
- * faster and more accurate for pure translation. But loading a separate
- * ~500MB model just for translation is expensive on a phone.
- *
- * For now, translation is handled by prompting the LLM with a
- * translation-focused system prompt. This is slower but uses the
- * model we already have loaded.
- *
- * Phase 2: Add ONNX-based NLLB or MarianMT for fast, dedicated translation.
- * The interface stays the same — just register a new provider.
- *
- * TODO: Evaluate NLLB-200-distilled for on-device translation
- * TODO: Measure latency difference between LLM translation and dedicated model
+ * Stub that delegates translation to the LLM via a translation-focused prompt.
+ * Swap with an ONNX-based NLLB or MarianMT model for dedicated translation.
  */
 
 import type { ModelInfo, ModelProvider, ModelStatus } from '../core/types';

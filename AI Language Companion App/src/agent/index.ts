@@ -35,6 +35,8 @@ export type {
   AgentEvent,
   AgentEventType,
   ProfileMemory,
+  UserMode,
+  FilterMode,
   // Learner + Relationship types
   PhraseAttempt,
   TrackedPhrase,
@@ -69,7 +71,6 @@ export type {
   ContextPacket,
   MemoryQuery,
   ResearchRecommendation,
-  TurnContext,
   TermContext,
   EngagementPattern,
   TermHistory,
@@ -138,15 +139,16 @@ import { MemoryRetrievalAgent } from './agents/memoryRetrievalAgent';
 import { ResearchAgent } from './agents/researchAgent';
 import type { ResearchQuery } from './agents/researchAgent';
 import { registerAllTools } from './tools';
+import type { ToolDependencies } from './tools';
 import { handleUserInput } from './core/router';
 import { agentBus } from './core/eventBus';
 import { detectPhrases, detectTopics } from './prompts/phraseDetector';
 import { buildPronunciationBank } from '../utils/pronunciationLookup';
-import type { ToolResult, EnergyMode, AvatarProfile, ProfileMemory, ContextPacket, ResearchRecommendation, TurnContext, TermNode, ConversationNode } from './core/types';
+import type { ToolResult, EnergyMode, AvatarProfile, ProfileMemory, ContextPacket, ResearchRecommendation, TermNode, ConversationNode, UserMode } from './core/types';
 
 // ─── Mode Keyword Classifier ────────────────────────────────────
 
-const MODE_SIGNALS: Record<'learn' | 'guide' | 'friend', string[]> = {
+const MODE_SIGNALS: Record<Exclude<UserMode, null>, string[]> = {
   learn: ['teach', 'learn', 'practice', 'immerse', 'how do i say', 'how do you say', 'what does', 'say it again', 'what is the word', 'help me pronounce', 'study', 'drill', 'quiz me'],
   guide: ['translate', 'what are they saying', 'help me understand', 'i don\'t understand', 'lost', 'navigate', 'need to say', 'what does this mean', 'how do i get', 'how do i ask', 'i need to tell'],
   friend: ['ugh', 'terrible', 'scammed', 'frustrated', 'can you believe', 'just wanna talk', 'venting', 'awful', 'so annoying', 'this is the worst', 'i can\'t believe', 'wtf', 'omg', 'stressed'],
@@ -154,20 +156,20 @@ const MODE_SIGNALS: Record<'learn' | 'guide' | 'friend', string[]> = {
 
 /** Rolling signal accumulator — counts keyword hits across recent messages */
 class ModeClassifier {
-  private scores: Record<'learn' | 'guide' | 'friend', number> = { learn: 0, guide: 0, friend: 0 };
+  private scores: Record<Exclude<UserMode, null>, number> = { learn: 0, guide: 0, friend: 0 };
   private messageCount = 0;
   private locked = false;
-  private lockedMode: 'learn' | 'guide' | 'friend' | null = null;
+  private lockedMode: UserMode = null;
 
   /** Analyze a message and return the mode if threshold crossed */
-  analyze(message: string): 'learn' | 'guide' | 'friend' | null {
+  analyze(message: string): UserMode {
     if (this.locked) return this.lockedMode;
 
     const lower = message.toLowerCase();
     this.messageCount++;
 
     // Check for signals in each mode
-    for (const [mode, keywords] of Object.entries(MODE_SIGNALS) as Array<['learn' | 'guide' | 'friend', string[]]>) {
+    for (const [mode, keywords] of Object.entries(MODE_SIGNALS) as Array<[Exclude<UserMode, null>, string[]]>) {
       for (const kw of keywords) {
         if (lower.includes(kw)) {
           this.scores[mode]++;
@@ -214,7 +216,7 @@ class ModeClassifier {
   }
 
   isLocked(): boolean { return this.locked; }
-  getCurrentMode(): 'learn' | 'guide' | 'friend' | null { return this.lockedMode; }
+  getCurrentMode(): UserMode { return this.lockedMode; }
 }
 
 /** LLM backend selection */
@@ -264,13 +266,14 @@ export class NaviAgent {
   private embeddingProvider: EmbeddingProvider;
   private translationProvider: TranslationProvider;
 
+  private readonly ls = typeof localStorage !== 'undefined' ? localStorage : null;
   private initialized = false;
   private config: NaviAgentConfig;
   private modeClassifier = new ModeClassifier();
-  private onModeChange?: (mode: 'learn' | 'guide' | 'friend' | null) => void;
+  private onModeChange?: (mode: UserMode) => void;
   /** Tracks how many new terms have been introduced in the current session */
   private termsInSession = 0;
-  /** Tracks previous scenario for TBLT pretask/posttask transitions (EXP-050) */
+  /** Tracks previous scenario for TBLT pretask/posttask transitions */
   private previousScenario = '';
   /** Tracks how many turns the user hasn't produced target language */
   private turnsWithoutOutput = 0;
@@ -297,11 +300,10 @@ export class NaviAgent {
     this.director.setSessionPlanner(this.sessionPlanner);
 
     // Restore persisted backend preference from localStorage (overrides env var and config)
-    const _ls = typeof localStorage !== 'undefined' ? localStorage : null;
-    const savedBackendPref = _ls?.getItem('navi_backend_pref');
-    const savedORKey = _ls?.getItem('navi_openrouter_key') ?? '';
-    const savedORTier = (_ls?.getItem('navi_openrouter_tier') ?? 'free') as OpenRouterTier;
-    const savedWebllmPreset = _ls?.getItem('navi_webllm_preset');
+    const savedBackendPref = this.ls?.getItem('navi_backend_pref');
+    const savedORKey = this.ls?.getItem('navi_openrouter_key') ?? '';
+    const savedORTier = (this.ls?.getItem('navi_openrouter_tier') ?? 'free') as OpenRouterTier;
+    const savedWebllmPreset = this.ls?.getItem('navi_webllm_preset');
 
     if (savedBackendPref === 'webllm' || savedBackendPref === 'openrouter' || savedBackendPref === 'ollama') {
       config = { ...config, backend: savedBackendPref as LLMBackend };
@@ -309,7 +311,7 @@ export class NaviAgent {
         config = { ...config, llmPreset: savedWebllmPreset as keyof typeof LLM_PRESETS };
       }
       if (savedBackendPref === 'ollama') {
-        const savedOllamaModel = _ls?.getItem('navi_ollama_model');
+        const savedOllamaModel = this.ls?.getItem('navi_ollama_model');
         if (savedOllamaModel) {
           config = { ...config, ollamaModel: savedOllamaModel };
         }
@@ -377,7 +379,11 @@ export class NaviAgent {
     }
 
     // Register all tools (using the ChatLLM interface)
-    registerAllTools({
+    registerAllTools(this.buildToolDeps());
+  }
+
+  private buildToolDeps(): ToolDependencies {
+    return {
       llmProvider: this.llm,
       ttsProvider: this.ttsProvider,
       sttProvider: this.sttProvider,
@@ -386,7 +392,7 @@ export class NaviAgent {
       avatarController: this.avatar,
       memoryManager: this.memory,
       locationIntelligence: this.location,
-    });
+    };
   }
 
   private createOllamaProvider(config: NaviAgentConfig): OllamaProvider {
@@ -423,16 +429,7 @@ export class NaviAgent {
         this.models.register(this.ollamaProvider);
 
         // Re-register tools with the new LLM provider
-        registerAllTools({
-          llmProvider: this.llm,
-          ttsProvider: this.ttsProvider,
-          sttProvider: this.sttProvider,
-          visionProvider: this.visionProvider,
-          translationProvider: this.translationProvider,
-          avatarController: this.avatar,
-          memoryManager: this.memory,
-          locationIntelligence: this.location,
-        });
+        registerAllTools(this.buildToolDeps());
 
         agentBus.emit('model:status', { backend: 'ollama', status: 'detected' });
       } else {
@@ -500,10 +497,6 @@ export class NaviAgent {
       onToken?: (token: string, full: string) => void;
     },
   ): Promise<{ response: string; tool: string; confidence: number }> {
-    console.log(`[NAVI] ════════════════════════════════════════`);
-    console.log(`[NAVI] USER INPUT: ${message}`);
-    console.log(`[NAVI] ════════════════════════════════════════`);
-
     // 1. Director pre-processing — build goals + context injection
     const avatarId = this.avatar.getActiveProfile()?.id ?? 'default';
     const historyLen = options?.history?.length ?? 0;
@@ -514,9 +507,9 @@ export class NaviAgent {
     const detectedMode = this.modeClassifier.analyze(message);
     if (detectedMode !== previousMode && detectedMode !== null) {
       // Mode just locked — persist to memory and notify
-      this.memory.profile.setUserMode(detectedMode).catch(() => {});
+      this.memory.profile.setUserMode(detectedMode).catch(e => console.warn('[NAVI]', e));
       if (this.onModeChange) this.onModeChange(detectedMode);
-      console.log(`[NAVI] Mode locked: ${detectedMode}`);
+      console.log(`[NAVI] mode locked: ${detectedMode}`);
     }
 
     const currentMode = this.modeClassifier.getCurrentMode()
@@ -531,7 +524,7 @@ export class NaviAgent {
     const isFirstScenarioMessage = !!currentScenario && currentScenario !== this.previousScenario;
 
     // 1b. Sub-agent context gathering (runs in parallel with director)
-    // EXP-053: Compute language BEFORE director.preProcess so it can scope phrase queries
+    // Compute language BEFORE director.preProcess so it can scope phrase queries
     const locationCtx = this.location.getLocation();
     const currentLanguage = this.location.getPrimaryLanguage();
 
@@ -542,7 +535,7 @@ export class NaviAgent {
       previousScenario: this.previousScenario || undefined,
       language: currentLanguage || undefined,
     });
-    // Update previous scenario tracker for TBLT transitions (EXP-050)
+    // Update previous scenario tracker for TBLT transitions
     this.previousScenario = currentScenario;
     agentBus.emit('director:goals_set', { goals: directorCtx.goals });
     const currentDialect = profile?.dialect || '';
@@ -597,7 +590,7 @@ export class NaviAgent {
     const combinedSubAgentContext = subAgentInjections.join('\n\n');
 
     // Pronunciation reference bank — external API + IndexedDB, must not break message flow
-    // EXP-053: Scope pronunciation bank to current language
+    // Scope pronunciation bank to current language
     const languageScopedPhrases = currentLanguage
       ? this.memory.learner.getPhrasesForLanguage(currentLanguage)
       : this.memory.learner.phrases;
@@ -624,7 +617,7 @@ export class NaviAgent {
       dialectKey: this.avatar.getActiveProfile()?.dialect || undefined,
       isFirstEverMessage: historyLen === 0,
       isFirstScenarioMessage,
-      // EXP-057: Pass learning stage for scenario coach-on-the-side
+      // Pass learning stage for scenario coach-on-the-side
       learningStage: directorCtx.learningStage.stage,
       // Dynamic token budget based on backend context window size
       contextBudget: this.llmBackend === 'openrouter' ? 6000
@@ -650,9 +643,7 @@ export class NaviAgent {
       if (typeof data.response === 'string') {
         response = data.response;
       } else {
-        // Tool returned structured data without a response string (e.g. scenario list).
-        // Re-route through chat tool to generate a natural response instead of showing raw JSON.
-        console.log(`[NAVI] Tool '${decision.tool}' returned structured data, re-routing through chat`);
+        // Tool returned structured data — re-route through chat for a natural response
         const chatResult = await handleUserInput(message, { ...contextParams, forceChat: true });
         const chatData = chatResult.result.data as Record<string, unknown> | undefined;
         response = (chatData?.response as string) ?? `I'm here to help — what would you like to do?`;
@@ -662,7 +653,7 @@ export class NaviAgent {
     }
 
     // 3. Director post-processing — detect phrases, update learner, record interaction
-    // EXP-053: Pass current language so phrases are stored with correct language tag
+    // Pass current language so phrases are stored with correct language tag
     this.director
       .postProcess(message, response, decision.tool, avatarId, currentLanguage || undefined)
       .catch((err) => console.error('[NaviAgent] Director postProcess error:', err));
@@ -690,10 +681,6 @@ export class NaviAgent {
       situationModel,
     }).catch((err) => console.error('[NaviAgent] MemoryMaker error:', err));
 
-    console.log(`[NAVI] ── AGENT OUTPUT (tool=${decision.tool}) ──`);
-    console.log(`[NAVI] ${response}`);
-    console.log(`[NAVI] ════════════════════════════════════════`);
-
     return {
       response,
       tool: decision.tool,
@@ -711,15 +698,11 @@ export class NaviAgent {
       onExplanationToken?: (token: string, full: string) => void;
     },
   ): Promise<ToolResult> {
-    console.log(`[NAVI] ════════════════════════════════════════`);
-    console.log(`[NAVI] IMAGE INPUT: ${image instanceof File ? image.name : typeof image}`);
-    console.log(`[NAVI] ════════════════════════════════════════`);
     const { result } = await handleUserInput('Read this image', {
       imageData: image,
       onOCRProgress: callbacks?.onOCRProgress,
       onExplanationToken: callbacks?.onExplanationToken,
     });
-    console.log(`[NAVI] ── IMAGE OUTPUT (success=${result.success}) ──`);
     return result;
   }
 
@@ -782,9 +765,8 @@ export class NaviAgent {
     const backstoryTier = avatarId
       ? this.memory.relationships.getBackstoryTier(avatarId)
       : 0;
-    // EXP-053: Scope to current language
     const currentLanguage = this.location.getPrimaryLanguage() || undefined;
-    // EXP-075: Pass warmth for relationship-depth-aware absence narratives
+    // Pass warmth for relationship-depth-aware absence narratives
     const warmth = avatarId
       ? this.memory.relationships.getRelationship(avatarId).warmth
       : 0;
@@ -798,7 +780,7 @@ export class NaviAgent {
 
   /** Get the current Ollama base URL */
   getOllamaBaseUrl(): string {
-    return this.config.ollamaBaseUrl ?? 'http://localhost:11434';
+    return this.config.ollamaBaseUrl ?? 'http://127.0.0.1:11434';
   }
 
   /** Set the Ollama base URL (persists for this session) */
@@ -842,21 +824,11 @@ export class NaviAgent {
     this.llmBackend = 'ollama';
 
     // Persist Ollama selection + model name for next session
-    const _ls = typeof localStorage !== 'undefined' ? localStorage : null;
-    _ls?.setItem('navi_backend_pref', 'ollama');
-    _ls?.setItem('navi_ollama_model', model);
+    this.ls?.setItem('navi_backend_pref', 'ollama');
+    this.ls?.setItem('navi_ollama_model', model);
 
     // Re-register tools with the new LLM provider
-    registerAllTools({
-      llmProvider: this.llm,
-      ttsProvider: this.ttsProvider,
-      sttProvider: this.sttProvider,
-      visionProvider: this.visionProvider,
-      translationProvider: this.translationProvider,
-      avatarController: this.avatar,
-      memoryManager: this.memory,
-      locationIntelligence: this.location,
-    });
+    registerAllTools(this.buildToolDeps());
 
     await this.ollamaProvider.load(onProgress);
 
@@ -889,19 +861,17 @@ export class NaviAgent {
     } = {},
     onProgress?: (progress: number, text: string) => void,
   ): Promise<void> {
-    const _ls = typeof localStorage !== 'undefined' ? localStorage : null;
-
     if (type === 'openrouter') {
       const envKey = (import.meta as unknown as { env: Record<string, string> }).env?.VITE_OPENROUTER_API_KEY?.split(',')[0]?.trim() ?? '';
-      const key = opts.apiKey?.trim() ?? _ls?.getItem('navi_openrouter_key') ?? envKey ?? '';
+      const key = opts.apiKey?.trim() ?? this.ls?.getItem('navi_openrouter_key') ?? envKey ?? '';
       if (!key) throw new Error('An OpenRouter API key is required. Get a free one at openrouter.ai.');
 
       const tier = opts.openRouterTier ?? 'free';
       const models = opts.openRouterModels ?? (tier === 'paid' ? OPENROUTER_PAID_MODELS : OPENROUTER_FREE_MODELS);
 
-      _ls?.setItem('navi_backend_pref', 'openrouter');
-      _ls?.setItem('navi_openrouter_key', key);
-      _ls?.setItem('navi_openrouter_tier', tier);
+      this.ls?.setItem('navi_backend_pref', 'openrouter');
+      this.ls?.setItem('navi_openrouter_key', key);
+      this.ls?.setItem('navi_openrouter_tier', tier);
 
       if (!this.openRouterProvider) {
         this.openRouterProvider = new OpenRouterProvider(key, models);
@@ -920,8 +890,8 @@ export class NaviAgent {
       const preset = opts.webllmPreset ?? this.webllmPresetKey;
       if (!(preset in LLM_PRESETS)) throw new Error(`Unknown WebLLM preset: ${preset}`);
 
-      _ls?.setItem('navi_backend_pref', 'webllm');
-      _ls?.setItem('navi_webllm_preset', preset);
+      this.ls?.setItem('navi_backend_pref', 'webllm');
+      this.ls?.setItem('navi_webllm_preset', preset);
 
       // Create a fresh provider if the preset changed
       if (!this.webllmProvider || this.webllmPresetKey !== preset) {
@@ -935,16 +905,7 @@ export class NaviAgent {
     }
 
     // Re-register all tools with the new LLM
-    registerAllTools({
-      llmProvider: this.llm,
-      ttsProvider: this.ttsProvider,
-      sttProvider: this.sttProvider,
-      visionProvider: this.visionProvider,
-      translationProvider: this.translationProvider,
-      avatarController: this.avatar,
-      memoryManager: this.memory,
-      locationIntelligence: this.location,
-    });
+    registerAllTools(this.buildToolDeps());
 
     agentBus.emit('model:status', { backend: this.llmBackend, status: 'switching' });
 
@@ -956,19 +917,19 @@ export class NaviAgent {
   }
 
   /** Register a callback for when mode is silently locked by keyword classifier */
-  onModeDetected(cb: (mode: 'learn' | 'guide' | 'friend' | null) => void): void {
+  onModeDetected(cb: (mode: UserMode) => void): void {
     this.onModeChange = cb;
   }
 
   /** Manually override user mode (from settings panel) */
-  async setUserMode(mode: 'learn' | 'guide' | 'friend' | null): Promise<void> {
+  async setUserMode(mode: UserMode): Promise<void> {
     this.modeClassifier.reset();
     await this.memory.profile.setUserMode(mode);
     if (this.onModeChange) this.onModeChange(mode);
   }
 
   /** Get current user mode */
-  getUserMode(): 'learn' | 'guide' | 'friend' | null {
+  getUserMode(): UserMode {
     return this.modeClassifier.getCurrentMode() ?? this.memory.profile.getUserMode();
   }
 

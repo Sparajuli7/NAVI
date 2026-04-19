@@ -6,6 +6,13 @@
 import type { Character } from '../types/character';
 import type { AvatarProfile } from '../agent/core/types';
 
+/** Maps avatar age group to generational slang era */
+export const AGE_GEN_MAP: Record<string, string> = {
+  teen: 'gen_z', '20s': 'gen_z',
+  '30s': 'millennial', '40s': 'millennial',
+  '50s': 'older', '60s+': 'older',
+};
+
 /** The partial AvatarProfile shape expected by contextController.createFromDescription() */
 type AvatarProfileParams = Partial<AvatarProfile>;
 

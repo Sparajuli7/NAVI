@@ -1,41 +1,9 @@
 /**
  * NAVI Agent Framework — TTS Model Provider
  *
- * Wraps the browser's Web Speech API (SpeechSynthesis) behind
- * the ModelProvider interface, with multi-voice support,
- * pronunciation teaching (slow/syllable modes), and
- * Google Translate TTS as an online fallback.
- *
- * Voice quality research (free options only):
- *
- * 1. Web Speech API (IMPLEMENTED — primary)
- *    Pros: Free, built into all browsers, works offline on device,
- *          zero download, instant startup, multi-language
- *    Cons: Voice quality varies by OS/browser, limited voice control,
- *          no custom voice training, some languages sound robotic
- *
- * 2. Coqui TTS (NOT IMPLEMENTED — future consideration)
- *    Pros: Open source (MPL-2.0), free, multiple languages,
- *          can run fully locally via WASM, good voice quality,
- *          supports voice cloning
- *    Cons: Large model downloads (~200-500MB per language),
- *          requires WASM runtime, slower inference on mobile,
- *          project maintenance uncertain after company closure
- *
- * 3. Mozilla TTS (NOT IMPLEMENTED — future consideration)
- *    Pros: Open source, free, runs locally, good quality
- *    Cons: Superseded by Coqui TTS (which forked from it),
- *          limited language support, no active development
- *
- * 4. Google Cloud TTS free tier (PARTIALLY IMPLEMENTED — online fallback)
- *    Using Google Translate's public audio endpoint (no API key needed).
- *    Pros: 1M chars/month free, excellent voice quality, many languages
- *    Cons: Requires internet, not truly free at scale,
- *          public endpoint may be rate-limited or change without notice
- *    Note: Used ONLY as online fallback when local quality is poor.
- *          App works fully without it.
- *
- * DO NOT implement ElevenLabs or any paid service.
+ * Wraps the browser's Web Speech API (SpeechSynthesis) behind the ModelProvider
+ * interface with multi-voice support, pronunciation teaching (slow/syllable modes),
+ * and Google Translate TTS as an online fallback.
  */
 
 import type { ModelInfo, ModelProvider, ModelStatus } from '../core/types';

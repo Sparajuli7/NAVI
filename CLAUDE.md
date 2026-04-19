@@ -41,7 +41,7 @@ NAVI is an **AI language companion app** — a local friend in your pocket who s
 │   │   ├── app/
 │   │   │   ├── App.tsx               # Root component — phase state machine
 │   │   │   └── components/           # 15+ custom components
-│   │   │       ├── ui/               # 50+ shadcn/ui primitives
+│   │   │       ├── ui/               # (removed — was unused shadcn/ui scaffolding)
 │   │   │       ├── ConversationScreen.tsx   # Main chat interface
 │   │   │       ├── AvatarSelectScreen.tsx    # Onboarding — pick avatar template
 │   │   │       ├── CameraOverlay.tsx        # Camera + OCR UI
@@ -98,7 +98,7 @@ NAVI is an **AI language companion app** — a local friend in your pocket who s
 | Layer | Technology | Version | Notes |
 |---|---|---|---|
 | **Framework** | React + TypeScript | React 18.3.1, TS ^5.9.3 | Vite 6.3.5 build tool |
-| **Styling** | TailwindCSS + shadcn/ui | TailwindCSS 4.1.12 | 50+ Radix-based components |
+| **Styling** | TailwindCSS | TailwindCSS 4.1.12 | Custom components, no shadcn/ui |
 | **State** | Zustand | ^5.0.11 | 3 stores: app, character, chat |
 | **Storage** | IndexedDB (idb-keyval) | ^6.2.2 | Persists character, messages, memories, prefs |
 | **On-Device LLM** | @mlc-ai/web-llm | ^0.2.81 | WebGPU inference, Qwen2.5-1.5B model |
@@ -112,10 +112,7 @@ NAVI is an **AI language companion app** — a local friend in your pocket who s
 | **Toasts** | sonner | 2.0.3 | Notification toasts (used by shadcn/ui) |
 | **Avatars** | avataaars | ^2.0.0 | Installed; avatar rendering currently via BlockyAvatar (custom) |
 
-**Installed but not actively used:**
-- `react-router` 7.13.0 — navigation is manual via `useState` in App.tsx
-- `next-themes` 0.4.6 — dark mode handled manually via `classList`
-- `@mui/material` 7.3.5 + `@emotion/react` 11.14.0 — not used in custom components
+*Previously installed unused packages (react-router, next-themes, @mui/material, @emotion/react, avataaars, 50+ others) were removed in the 2026-04-18 cleanup.*
 
 ---
 
@@ -211,7 +208,7 @@ The agent framework uses an **Orchestrator pattern** with sub-agents:
 ## Current Implementation Status
 
 ### Fully Built
-- All frontend UI components (15+ custom, 50+ shadcn/ui)
+- All frontend UI components (15+ custom, built with Tailwind directly)
 - Zustand stores (app, character, chat) with full type definitions
 - IndexedDB persistence layer (character, conversations, memories, preferences, location)
 - Service layer functions (LLM, OCR, TTS, STT, location)
@@ -377,6 +374,24 @@ The agent framework is fully built. All UI screens still call legacy services di
 ### Resolved Feature Gaps (2026-04-17 — EXP-112 Praktika-inspired language approach)
 - ~~**System prompt contradictions causing repetition loops and wrong-language responses**~~ — EXP-112: Complete rewrite of language-related system prompt instructions across 3 config files + contextController.ts. Root cause: locationLayer said "SPEAK IN FRENCH" while languageEnforcement said "speak mostly English" — contradictory instructions caused small models to loop. Fix inspired by Praktika AI's approach (beginner chats are 80-90% user's language with target phrases embedded). Changes: (1) `coreRules.json` rewritten from ~2,100 tokens to ~480 tokens — "NEVER REPEAT YOURSELF" is now rule #1, language rule is simple and unambiguous; (2) `systemLayers.json` identity template, languageEnforcement, languageCalibration tiers, modeInstructions.learn, codeSwitchingPriority, emotionalMirroring, conversationNaturalness, locationPersonality, locationSensory all shortened and aligned to same direction; (3) `toolPrompts.json` chat template rewritten to numbered rules format (5 rules, ~150 tokens vs ~800); (4) `contextController.ts` locationLayer no longer says "SPEAK IN [LANGUAGE]" — now says "talk mostly in user's language, embed target phrases"; internal monologue layer removed. Total prompt size reduction: ~65%. All language instructions now point the same direction: user's language dominant, target phrases embedded.
 - ~~**Token budget marginally tight post-EXP-096**~~ — Resolved by EXP-112. coreRules dropped from ~2,500 to ~480 tokens. All MEDIUM-priority layers (emotionalMirroring, conversationNaturalness, locationPersonality, locationSensory) also shortened 60-80%. Budget now has ample room for all layers.
+
+### Resolved Feature Gaps (2026-04-18 — Codebase Cleanup)
+- ~~**Dead code bloat (shadcn/ui)**~~ — Deleted entire `src/app/components/ui/` directory (48 files, ~5,100 lines). Zero imports from any application code. Also deleted 5 dead custom components (AIAvatarDisplay, AvatarBuilder, ActionCard, ContextualCard, figma/ImageWithFallback) and 3 dead service/util files (services/ocr.ts, services/modelManager.ts, utils/contextManager.ts, agent/director/types.ts).
+- ~~**54 unused npm packages**~~ — Removed all Radix UI, MUI, Emotion, DiceBear, avataaars, react-router, react-dnd, react-slick, date-fns, recharts, cmdk, sonner, vaul, class-variance-authority, clsx, tailwind-merge, and 30+ others. All were either never imported or only imported by deleted ui/ components.
+- ~~**countryFlag() duplicated 5 times**~~ — Extracted to `src/utils/countryFlag.ts`. All 5 component copies replaced with imports.
+- ~~**COUNTRY_NAMES divergent (13 vs 46 entries)**~~ — Expanded `locationHelpers.ts` to 46 entries. `contextController.ts` now imports from shared source.
+- ~~**AGE_GEN_MAP duplicated 3 times (2 in same function)**~~ — Extracted to `avatarProfileHelpers.ts`. contextController and slangTool import it.
+- ~~**UserMode inline union repeated 15+ times**~~ — Extracted `UserMode` type to `core/types.ts`. All 15+ occurrences across 9 files now import it.
+- ~~**FilterMode/FilterType defined 3 times**~~ — Extracted `FilterMode` type to `core/types.ts`. FlashcardDeck, KnowledgeGraphExplorer, KnowledgeGraphScreen import it.
+- ~~**ConversationGoal defined in 2 files (one stale)**~~ — Moved canonical definition to `core/types.ts`. Deleted stale `director/types.ts`. SessionPlanner imports from core/types. ConversationDirector re-exports for backward compat.
+- ~~**2 circular dependencies**~~ — Broke `types/character.ts` ↔ `utils/avatarPrefs.ts` (moved AvatarPrefs to types/character.ts). Broke `ConversationDirector` ↔ `SessionPlanner` (ConversationGoal moved to core/types.ts). madge reports 0 cycles.
+- ~~**60+ EXP-XXX changelog comments in production code**~~ — Stripped all experiment tracking comments. Replaced with concise functional descriptions where needed.
+- ~~**119 console.log debug traces in production**~~ — Removed ~90 console.logs across 16 files. Kept only lifecycle logs, console.error, and console.warn.
+- ~~**6 silent `.catch(() => {})`**~~ — Replaced with `.catch(e => console.warn('[NAVI]', e))` for observability.
+- ~~**registerAllTools called 4x with identical object**~~ — Extracted to `buildToolDeps()` method.
+- ~~**localStorage check repeated 3x in agent/index.ts**~~ — Extracted to class property `this.ls`.
+- ~~**isWebGPUSupported buried in dead modelManager.ts**~~ — Extracted to `utils/platform.ts`. Deleted `services/modelManager.ts`.
+- ~~**Misleading REVIEW_INTERVALS comment**~~ — Fixed from "legacy (kept for reference)" to accurate description of active usage.
 
 ### Known Feature Gaps
 - **No model-size-aware prompt tiers** — All models (1.5B to 70B) receive identical prompts. Small models (< 3B) need a compact prompt (~400 tokens of core rules vs 2594) with all-negative framing (which works at 20/20 vs 0/20 for positive instructions). Medium models (3-10B) need a standard tier. See `RESEARCH_ROUND3.md` Area 1-3 for exact prompt text and implementation.

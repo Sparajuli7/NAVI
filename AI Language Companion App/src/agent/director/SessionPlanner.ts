@@ -20,7 +20,7 @@ import type { LearnerProfileStore } from '../memory/learnerProfile';
 import type { RelationshipStore } from '../memory/relationshipStore';
 import type { EpisodicMemoryStore } from '../memory/episodicMemory';
 import type { WorkingMemory } from '../memory/workingMemory';
-import type { ConversationGoal } from './ConversationDirector';
+import type { ConversationGoal } from '../core/types';
 
 // ─── Types ─────────────────────────────────────────────────────
 
@@ -55,7 +55,7 @@ export class SessionPlanner {
     learner: LearnerProfileStore,
     relationships: RelationshipStore,
     episodic: EpisodicMemoryStore,
-    /** EXP-053: Current target language — scopes phrase queries */
+    /** Current target language — scopes phrase queries */
     language?: string,
   ): SessionGoal {
     const key = `session_goal_${avatarId}`;
@@ -69,7 +69,6 @@ export class SessionPlanner {
     // Pick a new goal using priority order
     const goal = this.pickGoal(avatarId, learner, relationships, episodic, language);
     this.working.set(key, goal, SESSION_GOAL_TTL_MS);
-    console.log(`[NAVI:session] goal picked: ${goal.type}${goal.target ? ` (target: ${goal.target})` : ''}`);
     return goal;
   }
 
@@ -82,7 +81,7 @@ export class SessionPlanner {
     if (existing) {
       const updated: SessionGoal = { ...existing, achieved: true };
       this.working.set(key, updated, SESSION_GOAL_TTL_MS);
-      console.log(`[NAVI:session] goal achieved: ${existing.type}`);
+      // goal achieved
     }
   }
 
@@ -107,7 +106,7 @@ export class SessionPlanner {
     const now = Date.now();
 
     // 1. Phrases due for review (urgent spaced repetition)
-    // EXP-053: Scope to current language
+    // Scope to current language
     const duePhrases = learner.getPhrasesForReview(1, language);
     if (duePhrases.length > 0) {
       const phrase = duePhrases[0];
@@ -122,7 +121,7 @@ export class SessionPlanner {
     }
 
     // 2. Struggling phrases (mastery=new, attempts>=2)
-    // EXP-053: Scope to current language
+    // Scope to current language
     const struggling = learner.getStrugglingPhrases(1, language);
     if (struggling.length > 0) {
       const phrase = struggling[0];

@@ -148,7 +148,6 @@ export async function generateAvatarImageFromDescription(description: string): P
     }
 
     // Step C — Pollinations.ai fallback (no token needed, 40s timeout)
-    console.log('[NAVI] avatar falling back to Pollinations.ai');
     const encoded = encodeURIComponent(`${STYLE_PREFIX}${imagePrompt}${STYLE_SUFFIX}`);
     const polUrl = `${POLLINATIONS_BASE}/${encoded}?width=512&height=512&nologo=true&model=flux`;
     const polAbort = new AbortController();

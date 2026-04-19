@@ -10,19 +10,16 @@ const dialectMap = dialectMapRaw as DialectMapType;
 
 /** ISO country code to human-readable country name */
 export const COUNTRY_NAMES: Record<string, string> = {
-  JP: 'Japan',
-  VN: 'Vietnam',
-  FR: 'France',
-  MX: 'Mexico',
-  KR: 'South Korea',
-  NP: 'Nepal',
-  ES: 'Spain',
-  IT: 'Italy',
-  TH: 'Thailand',
-  DE: 'Germany',
-  BR: 'Brazil',
-  CN: 'China',
-  AR: 'Argentina',
+  JP: 'Japan', VN: 'Vietnam', FR: 'France', MX: 'Mexico', KR: 'South Korea',
+  NP: 'Nepal', ES: 'Spain', IT: 'Italy', TH: 'Thailand', DE: 'Germany',
+  BR: 'Brazil', CN: 'China', AR: 'Argentina', US: 'United States', GB: 'United Kingdom',
+  AU: 'Australia', CA: 'Canada', IN: 'India', RU: 'Russia', PL: 'Poland',
+  CZ: 'Czech Republic', UA: 'Ukraine', GR: 'Greece', TR: 'Turkey', EG: 'Egypt',
+  SA: 'Saudi Arabia', AE: 'UAE', IL: 'Israel', PH: 'Philippines', ID: 'Indonesia',
+  MY: 'Malaysia', SG: 'Singapore', KH: 'Cambodia', MM: 'Myanmar', LA: 'Laos',
+  SE: 'Sweden', NO: 'Norway', DK: 'Denmark', FI: 'Finland', NL: 'Netherlands',
+  BE: 'Belgium', PT: 'Portugal', CH: 'Switzerland', AT: 'Austria', IE: 'Ireland',
+  CO: 'Colombia', PE: 'Peru', CL: 'Chile', EC: 'Ecuador', VE: 'Venezuela',
 };
 
 /** A preset city derived from dialectMap.json */

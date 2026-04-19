@@ -1,18 +1,8 @@
 /**
  * NAVI Agent Framework — Embedding Model Provider (Stub)
  *
- * Provides text → vector embeddings for semantic memory search.
- *
- * Design decision: Stub implementation using bag-of-characters hashing.
- * Real embeddings require a model (~30-100MB). For the initial version,
- * we use a deterministic hash-based embedding that captures basic
- * character-level similarity. This is NOT good for semantic search
- * but is sufficient to prove the architecture works.
- *
- * Phase 2 replacement: ONNX-based embedding model (e.g., all-MiniLM-L6-v2)
- * running via onnxruntime-web. Same interface, just swap the provider.
- *
- * TODO: Replace with real embedding model when ONNX runtime is integrated
+ * Stub implementation using bag-of-characters hashing for semantic memory search.
+ * Swap with an ONNX-based model (e.g., all-MiniLM-L6-v2) for real embeddings.
  */
 
 import type { ModelInfo, ModelProvider, ModelStatus } from '../core/types';

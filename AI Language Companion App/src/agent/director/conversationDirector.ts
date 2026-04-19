@@ -30,7 +30,7 @@ import type { RelationshipStore } from '../memory/relationshipStore';
 import type { EpisodicMemoryStore } from '../memory/episodicMemory';
 import type { SituationAssessor } from '../memory/situationAssessor';
 import type { WorkingMemory } from '../memory/workingMemory';
-import type { TrackedPhrase, LearningStage, LearningStageInfo } from '../core/types';
+import type { TrackedPhrase, LearningStageInfo, UserMode, ConversationGoal } from '../core/types';
 import { detectPhrases, detectTopics } from '../prompts/phraseDetector';
 import { promptLoader } from '../prompts/promptLoader';
 import type { SessionPlanner } from './SessionPlanner';
@@ -88,12 +88,7 @@ function detectEmotionalState(message: string): EmotionalState {
   if (hasPositiveEmoji && len > 30) return 'excited';
 
   // Disengagement signal — very short message with no punctuation or emoji
-  // Suggests the user may be losing interest or just going through the motions
   if (len <= 4 && !/[!?.…😊🎉👏🔥💪✨🥳😂🤣]/.test(trimmed) && /^[a-zA-Z]*$/.test(trimmed)) return 'neutral';
-
-  // Trailing ellipsis — ambiguous signal; treat as neutral (context-dependent,
-  // could be frustration or trailing thought — we don't want false positives)
-  // Note: "^...+$" (ONLY ellipsis) already triggers 'confused' above
 
   return 'neutral';
 }
@@ -118,19 +113,8 @@ function emotionalCalibrationInstruction(state: EmotionalState): string | null {
 
 // ─── Types ───────────────────────────────────────────────────
 
-export type ConversationGoal =
-  | 'introduce_new_vocab'
-  | 'revisit_struggling'
-  | 'review_due_phrases'
-  | 'challenge_user'
-  | 'celebrate_progress'
-  | 'bridge_locations'
-  | 'free_conversation'
-  | 'assess_comfort_level'
-  | 'avoid_recent_openers'
-  | 'proactive_memory'
-  | 'session_opener'
-  | 'assess_user';
+// Re-export from core/types for backward compatibility
+export type { ConversationGoal } from '../core/types';
 
 export interface DirectorContext {
   /** Goals selected for this message */
@@ -212,12 +196,12 @@ export class ConversationDirector {
     avatarId: string,
     options?: {
       isSessionStart?: boolean;
-      userMode?: 'learn' | 'guide' | 'friend' | null;
+      userMode?: UserMode;
       userNativeLanguage?: string;
       completedScenarios?: number;
       activeScenario?: string;
       previousScenario?: string;
-      /** EXP-053: Current target language — scopes phrase queries to this language */
+      /** Current target language — scopes phrase queries to this language */
       language?: string;
     },
   ): DirectorContext {
@@ -232,14 +216,12 @@ export class ConversationDirector {
     // 0-pre. Emotional state detection — inject calibration context
     const emotionalState = detectEmotionalState(message);
 
-    // EXP-046: negotiation_of_meaning — inject BEFORE confusion calibration
-    // so the model tries negotiation of meaning first (rephrasing, simpler words)
-    // before falling back to native language via the confusion override
+    // Negotiation of meaning — inject BEFORE confusion calibration
+    // so the model tries rephrasing/simpler words before falling back to native language
     if (emotionalState === 'confused') {
       const negotiationText = promptLoader.get('conversationSkills.skills.negotiation_of_meaning.injection');
       if (negotiationText) {
         goalInstructions.push(negotiationText);
-        console.log('[NAVI:director] negotiation_of_meaning triggered (confusion detected)');
       }
     }
 
@@ -247,35 +229,32 @@ export class ConversationDirector {
       const calibration = emotionalCalibrationInstruction(emotionalState);
       if (calibration) {
         goalInstructions.push(calibration);
-        console.log(`[NAVI:director] emotional state: ${emotionalState}`);
       }
 
-      // EXP-046: emotional_mirror — inject alongside calibration for all non-neutral states
+      // Emotional mirror — inject alongside calibration for all non-neutral states
       const emotionalMirrorText = promptLoader.get('conversationSkills.skills.emotional_mirror.injection', {
         emotion: emotionalState,
       });
       if (emotionalMirrorText) {
         goalInstructions.push(emotionalMirrorText);
-        console.log(`[NAVI:director] emotional_mirror triggered (${emotionalState})`);
       }
 
-      // EXP-046: social_proof — inject when frustrated or anxious to normalize struggle
+      // Social proof — inject when frustrated or anxious to normalize struggle
       if (emotionalState === 'frustrated' || emotionalState === 'anxious') {
         const socialProofText = promptLoader.get('conversationSkills.skills.social_proof.injection');
         if (socialProofText) {
           goalInstructions.push(socialProofText);
-          console.log(`[NAVI:director] social_proof triggered (${emotionalState})`);
         }
       }
     }
 
-    // EXP-046: session_pacing — track message count in WorkingMemory
+    // Track message count in WorkingMemory for session pacing
     if (this.working) {
       const currentCount = (this.working.get('session_message_count') as number) ?? 0;
       this.working.set('session_message_count', currentCount + 1, 2 * 60 * 60 * 1000); // 2h TTL
     }
 
-    // EXP-061: Scenario phase tracking — increment turn counter when scenario is active
+    // Scenario phase tracking — increment turn counter when scenario is active
     if (activeScenario && this.working) {
       const scenarioTurnKey = `scenario_turn_${activeScenario}`;
       const currentTurn = ((this.working.get(scenarioTurnKey) as number) ?? 0) + 1;
@@ -290,18 +269,15 @@ export class ConversationDirector {
         phaseHint = `SCENARIO PHASE: WRAPPING UP (turn ${currentTurn}/8) — Start closing the scenario naturally. Hint that a debrief is coming. If the user hasn't used a key phrase yet, create one last natural opportunity.`;
       }
       goalInstructions.push(phaseHint);
-      console.log(`[NAVI:director] scenario phase: turn ${currentTurn} for ${activeScenario}`);
     }
 
-    // EXP-064: Auto-suggest scenarios based on user messages
-    // When detectScenario would match but no scenario is active, suggest entering scenario mode
+    // Auto-suggest scenarios based on user messages
     if (!activeScenario && !isGuideMode && this.working) {
       const detectedScenarioType = this.detectScenarioFromMessage(message);
       if (detectedScenarioType) {
         goalInstructions.push(
           `SCENARIO SUGGESTION: The user seems to be in a ${detectedScenarioType} situation. Offer to switch into practice mode naturally: "Want to practice ${detectedScenarioType}? I can walk you through it." Don't force it — if the conversation is flowing, just help them with what they need.`,
         );
-        console.log(`[NAVI:director] scenario auto-suggestion: ${detectedScenarioType}`);
       }
     }
 
@@ -309,8 +285,7 @@ export class ConversationDirector {
     // This ensures urgent messages like "I'm at a restaurant right now" get
     // immediate situation-aware responses, not delayed until post-processing.
     if (this.situationAssessor) {
-      // Fire-and-forget the save — we just need the in-memory model updated
-      this.situationAssessor.extractSignals(message).catch(() => {});
+      this.situationAssessor.extractSignals(message).catch(e => console.warn('[NAVI]', e));
     }
 
     // If mode is 'guide', skip all learning goals — user just needs navigation/translation
@@ -328,9 +303,6 @@ export class ConversationDirector {
       if (sessionGoal && !sessionGoal.achieved) {
         goals.push(sessionGoal.type);
         sessionGoalInstruction = sessionGoal.instruction;
-        console.log(
-          `[NAVI:session] active goal: ${sessionGoal.type}${sessionGoal.target ? ` (${sessionGoal.target})` : ''}`,
-        );
       }
     }
 
@@ -345,11 +317,7 @@ export class ConversationDirector {
         userNativeLanguage: userNativeLang,
       });
       if (stageInstruction) {
-        // Insert at the front — stage instruction shapes everything else
         goalInstructions.unshift(stageInstruction);
-        console.log(
-          `[NAVI:director] learning stage: ${stageInfo.stage} (score=${stageInfo.compositeScore.toFixed(2)}, interactions=${interactionCount}, mastered=${this.learner.stats.masteredPhrases})`,
-        );
       }
     }
 
@@ -365,7 +333,6 @@ export class ConversationDirector {
     }
 
     // 0b. Comfort level assessment — only on first interactions
-    // Skip if situation assessment is also needed (assess_new_user covers this more naturally)
     const needsAssessment = this.situationAssessor?.needsAssessment() ?? false;
     if (!this.learner.comfortAssessed && this.learner.stats.totalSessions <= 1 && !needsAssessment) {
       goals.push('assess_comfort_level');
@@ -386,7 +353,6 @@ export class ConversationDirector {
     }
 
     // 0d. Situation assessment — for new or incompletely assessed users
-    // (needsAssessment already computed above for comfort level check)
     if (needsAssessment) {
       const isNew = this.situationAssessor?.isNewUser() ?? false;
       const question = this.getNextAssessmentQuestion();
@@ -428,9 +394,7 @@ export class ConversationDirector {
       );
     }
 
-    // 0f-ii. EXP-071: Avatar mood injection — 40% chance on session start
-    // Makes the avatar feel like a real person with varying emotional states between sessions.
-    // 60% neutral (no mood injection) to keep moods occasional, not constant.
+    // Avatar mood injection — 40% chance on session start
     if (options?.isSessionStart) {
       const moods = ['cheerful', 'tired', 'nostalgic', 'excited', 'restless', 'contemplative', 'playful'] as const;
       if (Math.random() < 0.4) {
@@ -438,13 +402,11 @@ export class ConversationDirector {
         const moodText = promptLoader.get(`systemLayers.avatarMoods.${mood}`) as string;
         if (moodText) {
           goalInstructions.push(`TODAY'S MOOD: ${moodText}`);
-          console.log(`[NAVI:director] EXP-071 avatar mood injected: ${mood}`);
         }
       }
     }
 
-    // 0f-iii. EXP-071: Greeting evolution — inject greeting style from current warmth tier on session start
-    // The way the avatar greets the user evolves with the relationship depth.
+    // Greeting evolution — inject greeting style from current warmth tier on session start
     if (options?.isSessionStart) {
       const relForGreeting = this.relationships.getRelationship(avatarId);
       const warmthLevels = promptLoader.getRaw('warmthLevels.levels') as Array<{ range: [number, number]; label: string; greetingStyle?: string }>;
@@ -454,14 +416,11 @@ export class ConversationDirector {
         ) ?? warmthLevels[warmthLevels.length - 1];
         if (matchedLevel?.greetingStyle) {
           goalInstructions.push(`GREETING STYLE (based on your relationship): ${matchedLevel.greetingStyle}`);
-          console.log(`[NAVI:director] EXP-071 greeting style injected: ${matchedLevel.label}`);
         }
       }
     }
 
-    // 0f-iv. EXP-072: Relationship language stages — HOW the avatar talks evolves with warmth
-    // Maps warmth to 5 language stages: new (0-0.2), warming up (0.2-0.4), personal (0.4-0.6),
-    // close (0.6-0.8), bonded (0.8+). Injected on every message to shape language style.
+    // Relationship language stages — HOW the avatar talks evolves with warmth
     {
       const relForLanguage = this.relationships.getRelationship(avatarId);
       const w = relForLanguage.warmth;
@@ -469,13 +428,10 @@ export class ConversationDirector {
       const langStageText = promptLoader.get(`systemLayers.relationshipLanguage.${langStage}`);
       if (langStageText) {
         goalInstructions.push(langStageText);
-        console.log(`[NAVI:director] EXP-072 relationship language: ${langStage} (warmth=${w.toFixed(2)})`);
       }
     }
 
-    // 0f-v. EXP-073: Character arc — WHAT the avatar talks about evolves with warmth
-    // Separate from relationship language: arc controls content/topics, language controls style.
-    // Maps warmth to 4 arc stages: early (0-0.3), developing (0.3-0.55), deep (0.55-0.8), bonded (0.8+).
+    // Character arc — WHAT the avatar talks about evolves with warmth
     {
       const relForArc = this.relationships.getRelationship(avatarId);
       const w = relForArc.warmth;
@@ -483,20 +439,16 @@ export class ConversationDirector {
       const arcText = promptLoader.get(`systemLayers.characterArc.${arcStage}`);
       if (arcText) {
         goalInstructions.push(arcText);
-        console.log(`[NAVI:director] EXP-073 character arc: ${arcStage} (warmth=${w.toFixed(2)})`);
       }
     }
 
     // 0g. World event injection — give the avatar an ongoing life (25% chance per message)
-    // This makes the avatar feel like a real person with things happening around them
-    // EXP-066: Now also pulls from avatar template world_events (ongoing personal storylines)
     // 50% environmental event (worldEvents.json), 50% personal ongoing event (avatarTemplates.json)
     if (Math.random() < 0.25) {
       const templateId = this.relationships.getRelationship(avatarId).avatarId;
       const usePersonalEvent = Math.random() < 0.5;
 
       if (usePersonalEvent) {
-        // Pull from avatar template world_events (ongoing personal storylines)
         const template = (avatarTemplates as Array<{ id: string; world_events?: string[] }>).find(
           t => templateId?.includes(t.id),
         );
@@ -506,12 +458,10 @@ export class ConversationDirector {
           goalInstructions.push(
             `YOUR ONGOING LIFE (this is something happening in YOUR life right now — share it naturally as a friend would, not as a teaching exercise. The user should feel like they're part of your world): ${event}`,
           );
-          console.log('[NAVI:director] personal world_event injected from avatar template');
         }
       }
 
       if (!usePersonalEvent || goalInstructions[goalInstructions.length - 1]?.startsWith('YOUR ONGOING') !== true) {
-        // Fall back to environmental events (worldEvents.json)
         try {
           const worldEvents = promptLoader.getRaw('worldEvents') as Record<string, string[]> | undefined;
           const categories = worldEvents ? Object.keys(worldEvents).filter(k => k !== '_comment') : [];
@@ -540,8 +490,6 @@ export class ConversationDirector {
           promptLoader.get('systemLayers.conversationGoals.review_due_phrases', { phrases }),
         );
 
-        // Contextual re-introduction: for the top review phrase, inject encounter context
-        // so the LLM can re-use it in a new scenario naturally
         const topReview = reviewDue[0];
         const originalContext = (topReview as TrackedPhrase & { context?: string }).context || 'an earlier conversation';
         goalInstructions.push(
@@ -569,7 +517,7 @@ export class ConversationDirector {
         );
       }
 
-      // 4. Check for cross-location bridges (EXP-053: scoped to current language)
+      // 4. Check for cross-location bridges (scoped to current language)
       const bridges = this.findLocationBridges(avatarId, currentLanguage);
       if (bridges) {
         goals.push('bridge_locations');
@@ -605,29 +553,24 @@ export class ConversationDirector {
       );
     }
 
-    // EXP-011: Variable reward — ~1 in 5 messages, inject a surprise delight moment
-    // Skinner variable ratio schedule: unpredictable rewards create strongest engagement
+    // Variable reward — ~1 in 5 messages, inject a surprise delight moment
     if (Math.random() < 0.2) {
       const variableRewardText = promptLoader.get('conversationSkills.skills.variable_reward.injection');
       if (variableRewardText) {
         goalInstructions.push(variableRewardText);
-        console.log('[NAVI:director] variable reward triggered (1-in-5)');
       }
     }
 
-    // EXP-016: Surprise competence — check WorkingMemory for flag set by postProcess
+    // Surprise competence — check WorkingMemory for flag set by postProcess
     if (this.working?.has('surprise_competence')) {
       const surpriseText = promptLoader.get('conversationSkills.skills.surprise_competence.injection');
       if (surpriseText) {
         goalInstructions.push(surpriseText);
-        console.log('[NAVI:director] surprise competence injection (user exceeded expected level)');
       }
-      // Consumed — remove so it only fires once
       this.working.remove('surprise_competence');
     }
 
     // Inside joke / shared reference callback — gated by warmth tier
-    // EXP-069: Enhanced with emotional context — show genuine care, not just data recall
     const callbackRef = this.relationships.getCallbackSuggestion(avatarId);
     if (callbackRef) {
       const refText = typeof callbackRef === 'string' ? callbackRef : (callbackRef as { text?: string }).text ?? String(callbackRef);
@@ -636,7 +579,7 @@ export class ConversationDirector {
       );
     }
 
-    // ── EXP-046: Conversation Skills Activation ─────────────────
+    // ── Conversation Skills Activation ─────────────────────────
 
     const isFunctionalOrHigher = stageInfo.stage === 'functional'
       || stageInfo.stage === 'conversational'
@@ -647,7 +590,6 @@ export class ConversationDirector {
       const languagePlayText = promptLoader.get('conversationSkills.skills.language_play.injection');
       if (languagePlayText) {
         goalInstructions.push(languagePlayText);
-        console.log('[NAVI:director] language_play triggered (functional+, positive energy, 15% roll)');
       }
     }
 
@@ -657,7 +599,6 @@ export class ConversationDirector {
       const productiveFailureText = promptLoader.get('conversationSkills.skills.productive_failure.injection');
       if (productiveFailureText) {
         goalInstructions.push(productiveFailureText);
-        console.log('[NAVI:director] productive_failure triggered (functional+, no struggle, 10% roll)');
       }
     }
 
@@ -668,9 +609,7 @@ export class ConversationDirector {
         const registerText = promptLoader.get('conversationSkills.skills.register_awareness.injection');
         if (registerText) {
           goalInstructions.push(registerText);
-          // Mark as injected for this scenario session (2h TTL — covers one session)
           this.working.set(scenarioSkillKey, true, 2 * 60 * 60 * 1000);
-          console.log(`[NAVI:director] register_awareness triggered (scenario: ${activeScenario})`);
         }
       }
     }
@@ -680,26 +619,21 @@ export class ConversationDirector {
       const identityText = promptLoader.get('conversationSkills.skills.identity_reinforcement.injection');
       if (identityText) {
         goalInstructions.push(identityText);
-        console.log('[NAVI:director] identity_reinforcement triggered (celebrate_progress goal active)');
       }
     }
 
-    // EXP-067: vulnerability_moment — warmth >= friend (0.4) AND 10% random chance
-    // Makes the avatar occasionally share a small struggle, inviting the user to comfort them
-    // This teaches emotional vocabulary through genuine care and deepens the bond
+    // vulnerability_moment — warmth >= friend (0.4) AND 10% random chance
     {
       const relForVulnerability = this.relationships.getRelationship(avatarId);
       if (relForVulnerability.warmth >= 0.4 && Math.random() < 0.10) {
         const vulnerabilityText = promptLoader.get('conversationSkills.skills.vulnerability_moment.injection');
         if (vulnerabilityText) {
           goalInstructions.push(vulnerabilityText);
-          console.log(`[NAVI:director] vulnerability_moment triggered (warmth=${relForVulnerability.warmth.toFixed(2)}, 10% roll)`);
         }
       }
     }
 
     // Emotional learning anchors — teach during emotional peaks for 3-5x retention
-    // victory_anchor: user reports real-world success
     if (emotionalState === 'proud' || emotionalState === 'excited') {
       const prideWords = /did it|said|understood|worked|nailed|got it|they smiled|responded|success/i;
       if (prideWords.test(message)) {
@@ -717,26 +651,22 @@ export class ConversationDirector {
       this.working.set('was_frustrated', true, 10 * 60 * 1000); // 10 min TTL
     }
 
-    // EXP-065: Milestone celebration — consume flag set by checkMilestones in postProcess
+    // Milestone celebration — consume flag set by checkMilestones in postProcess
     if (this.working?.has('milestone_celebration')) {
       const celebrationInstruction = this.working.get('milestone_celebration') as string;
       if (celebrationInstruction) {
         goalInstructions.push(celebrationInstruction);
-        console.log('[NAVI:director] milestone celebration injected');
       }
       this.working.remove('milestone_celebration');
     }
 
-    // EXP-056: mid-conversation reinforcement — refresh behavioral instructions after turn 6
-    // The model forgets behavioral instructions (sensory details, open loops, staying in character)
-    // when they scroll out of the context window attention span. A ~30-token reminder refreshes them.
+    // Mid-conversation reinforcement — refresh behavioral instructions after turn 6
     if (this.working) {
       const sessionMsgCountForReinforce = (this.working.get('session_message_count') as number) ?? 0;
       if (sessionMsgCountForReinforce > 6) {
         goalInstructions.push(
           'REMINDER: Stay in character. Include a sensory detail. End with a hook or question. Keep it short.',
         );
-        console.log(`[NAVI:director] mid-conversation reinforcement injected (turn ${sessionMsgCountForReinforce})`);
       }
     }
 
@@ -747,25 +677,21 @@ export class ConversationDirector {
         goalInstructions.push(
           'SESSION PACING: This conversation has been going for a while (8+ exchanges). Start wrapping up naturally — plant a seed for the next session (a story to continue, a challenge to report back on, something to try before next time). Do NOT announce you are wrapping up. Just let the energy wind down naturally. If the user is still highly engaged, override this and keep going.',
         );
-        console.log(`[NAVI:director] session_pacing triggered (${sessionMsgCount} messages in session)`);
       }
     }
 
-    // ── EXP-050: Wire Remaining Conversation Skills ───────────────
+    // ── Remaining Conversation Skills ───────────────────────────
 
     // expansion — when postProcess detected correct target language production
-    // (flag set in WorkingMemory by postProcess, consumed here)
     if (this.working?.has('expansion_flag')) {
       const expansionText = promptLoader.get('conversationSkills.skills.expansion.injection');
       if (expansionText) {
         goalInstructions.push(expansionText);
-        console.log('[NAVI:director] expansion triggered (user produced correct target language)');
       }
       this.working.remove('expansion_flag');
     }
 
     // elicitation — when a phrase is due for review AND learner is functional+, 30% chance
-    // Use elicitation instead of direct review to make the user produce the phrase themselves
     if (goals.includes('review_due_phrases') && isFunctionalOrHigher && Math.random() < 0.30) {
       const elicitationText = promptLoader.get('conversationSkills.skills.contextual_repetition.injection', {
         phrase: this.learner.getPhrasesForReview(1, currentLanguage)[0]?.phrase ?? '',
@@ -773,7 +699,6 @@ export class ConversationDirector {
       });
       if (elicitationText) {
         goalInstructions.push(elicitationText);
-        console.log('[NAVI:director] contextual_repetition/elicitation triggered (review_due + functional+, 30% roll)');
       }
     }
 
@@ -791,12 +716,11 @@ export class ConversationDirector {
         const sensoryText = promptLoader.get('conversationSkills.skills.sensory_anchor.injection');
         if (sensoryText) {
           goalInstructions.push(sensoryText);
-          console.log(`[NAVI:director] sensory_anchor triggered (message #${sensoryCount}, every 3rd)`);
         }
       }
     }
 
-    // tblt_pretask — inject when a scenario just started (activeScenario present but previousScenario was empty/different)
+    // tblt_pretask — inject when a scenario just started
     const previousScenario = options?.previousScenario;
     if (activeScenario && activeScenario !== previousScenario && this.working) {
       const pretaskKey = `tblt_pretask_${activeScenario}`;
@@ -805,17 +729,15 @@ export class ConversationDirector {
         if (pretaskText) {
           goalInstructions.push(pretaskText);
           this.working.set(pretaskKey, true, 2 * 60 * 60 * 1000);
-          console.log(`[NAVI:director] tblt_pretask triggered (scenario started: ${activeScenario})`);
         }
       }
     }
 
-    // tblt_posttask — inject when a scenario just ended (previousScenario present but activeScenario is empty/different)
+    // tblt_posttask — inject when a scenario just ended
     if (previousScenario && previousScenario !== activeScenario) {
       const posttaskText = promptLoader.get('conversationSkills.skills.tblt_posttask.injection');
       if (posttaskText) {
         goalInstructions.push(posttaskText);
-        console.log(`[NAVI:director] tblt_posttask triggered (scenario ended: ${previousScenario})`);
       }
     }
 
@@ -829,13 +751,12 @@ export class ConversationDirector {
         });
         if (scaffoldText) {
           goalInstructions.push(scaffoldText);
-          console.log(`[NAVI:director] code_switch_scaffold triggered (stage changed: ${lastStage} -> ${stageInfo.stage})`);
         }
       }
       this.working.set('last_known_stage', stageInfo.stage, 24 * 60 * 60 * 1000);
     }
 
-    // Build context strings (EXP-053: scope to current language)
+    // Build context strings (scoped to current language)
     const learningContext = this.learner.formatForPrompt(currentLanguage);
     const warmthInstruction = this.relationships.formatForPrompt(avatarId);
     const personalCtx = this.surfacePersonalContext();
@@ -846,9 +767,6 @@ export class ConversationDirector {
     ].filter((x): x is string => Boolean(x));
     const promptInjection = allInstructions.join('\n');
     const situationContext = this.situationAssessor?.formatForPrompt() ?? '';
-
-    console.log(`[NAVI:director] preProcess goals=[${goals.join(', ')}] assessment=${needsAssessment ? 'active' : 'complete'}`);
-    if (warmthInstruction) console.log(`[NAVI:director] warmth: ${warmthInstruction}`);
 
     return {
       goals,
@@ -871,7 +789,7 @@ export class ConversationDirector {
     llmResponse: string,
     toolUsed: string,
     avatarId: string,
-    /** EXP-053: Current target language — stored with detected phrases */
+    /** Current target language — stored with detected phrases */
     language?: string,
   ): Promise<void> {
     // Rolling window calibration
@@ -884,13 +802,9 @@ export class ConversationDirector {
 
     // 1. Detect phrases in the response
     const detectedPhrases = detectPhrases(llmResponse);
-    if (detectedPhrases.length > 0) {
-      console.log(`[NAVI:director] postProcess detected ${detectedPhrases.length} phrases: ${detectedPhrases.map(p => p.phrase).join(', ')}`);
-    }
     for (const detected of detectedPhrases) {
       await this.learner.recordPhraseAttempt({
         phrase: detected.phrase,
-        // EXP-053: Use actual current language instead of always 'unknown'
         language: detected.language ?? language ?? 'unknown',
         timestamp: Date.now(),
         context: toolUsed,
@@ -900,9 +814,6 @@ export class ConversationDirector {
 
     // 2. Detect topics
     const topics = detectTopics(userMessage + ' ' + llmResponse);
-    if (topics.length > 0) {
-      console.log(`[NAVI:director] postProcess detected topics: ${topics.join(', ')}`);
-    }
     for (const topic of topics) {
       await this.learner.updateTopicProficiency(topic, 0.05);
     }
@@ -912,31 +823,23 @@ export class ConversationDirector {
 
     // 4. Extract situation signals from user message (continuous assessment)
     if (this.situationAssessor) {
-      const changed = await this.situationAssessor.extractSignals(userMessage);
-      if (changed) {
-        const model = this.situationAssessor.getModel();
-        console.log(`[NAVI:director] situation model updated: urgency=${model.urgency} comfort=${model.comfortLevel} goal=${model.primaryGoal} confidence=${model.assessmentConfidence.toFixed(2)}`);
-      }
+      await this.situationAssessor.extractSignals(userMessage);
     }
 
     // 5. Check for milestones
     await this.checkMilestones(avatarId);
 
-    // 6. Language tier advancement — assess user message for target-language use vs help requests
+    // 6. Language tier advancement
     await this.assessLanguageTier(userMessage);
 
-    // 7. EXP-016: Surprise competence detection — if the user produces target language
-    // at a density above what we'd expect for their comfort tier, flag it in WorkingMemory
-    // so the NEXT preProcess injects the surprise_competence skill.
+    // 7. Surprise competence detection — flag if user produces target language
+    // at density above what we'd expect for their comfort tier
     if (this.working) {
       const comfortTier = this.learner.languageComfortTier;
       const nonAsciiCount = (userMessage.match(/[^\x00-\x7F]/g) ?? []).length;
       const msgLen = userMessage.trim().length;
       const nonAsciiRatio = msgLen > 0 ? nonAsciiCount / msgLen : 0;
 
-      // Tier 0-1 (beginner): >40% non-ASCII is surprising
-      // Tier 2 (early): >60% non-ASCII is surprising
-      // Tier 3-4: not surprising — they're expected to use target language heavily
       let isSurprise = false;
       if (comfortTier <= 1 && nonAsciiRatio > 0.4 && msgLen > 5) {
         isSurprise = true;
@@ -945,22 +848,17 @@ export class ConversationDirector {
       }
 
       if (isSurprise) {
-        // Store with short TTL — should fire on the very next preProcess call only
-        // Using 2-minute TTL as a safety window (covers one turn)
         this.working.set('surprise_competence', true, 2 * 60 * 1000);
-        console.log(`[NAVI:director] surprise competence detected: tier=${comfortTier} nonAsciiRatio=${nonAsciiRatio.toFixed(2)}`);
       }
     }
 
-    // 8. EXP-050: Expansion detection — if user produced correct minimal target language
+    // 8. Expansion detection — if user produced correct minimal target language
     // (at least 2 non-ASCII chars, message under 30 chars = correct but basic)
-    // flag in WorkingMemory so next preProcess injects expansion skill
     if (this.working) {
       const nonAsciiCount = (userMessage.match(/[^\x00-\x7F]/g) ?? []).length;
       const msgLen = userMessage.trim().length;
       if (nonAsciiCount >= 2 && msgLen < 30 && msgLen > 2) {
         this.working.set('expansion_flag', true, 2 * 60 * 1000);
-        console.log(`[NAVI:director] expansion_flag set (correct minimal target language, ${nonAsciiCount} non-ASCII, ${msgLen} chars)`);
       }
     }
 
@@ -972,7 +870,6 @@ export class ConversationDirector {
       const isSurpriseCompetence = this.working.get('surprise_competence') !== undefined;
 
       if (emotionalState === 'proud' || emotionalState === 'excited' || hasPhraseMistake || isMilestoneInteraction || isSurpriseCompetence) {
-        // Store as a shared reference for future callbacks
         const momentDesc = emotionalState === 'proud'
           ? `User was proud: "${userMessage.slice(0, 80)}"`
           : hasPhraseMistake
@@ -980,15 +877,14 @@ export class ConversationDirector {
             : isSurpriseCompetence
               ? `User surprised us with unexpected target language ability`
               : `Milestone: ${this.relationships.getRelationship(avatarId).interactionCount} interactions`;
-        this.relationships.addSharedReference(avatarId, momentDesc).catch(() => {});
+        this.relationships.addSharedReference(avatarId, momentDesc).catch(e => console.warn('[NAVI]', e));
       }
     }
 
-    // 9. Check if session goal was achieved
+    // 10. Check if session goal was achieved
     if (this.sessionPlanner) {
       const active = this.sessionPlanner.getActive(avatarId);
       if (active && !active.achieved) {
-        // Simple heuristic: if the target phrase/topic appears in the exchange, mark achieved
         const combined = (userMessage + ' ' + llmResponse).toLowerCase();
         if (active.target && combined.includes(active.target.toLowerCase())) {
           this.sessionPlanner.markAchieved(avatarId);
@@ -1006,7 +902,6 @@ export class ConversationDirector {
   getSuggestions(avatarId: string, language?: string): string[] {
     const suggestions: string[] = [];
 
-    // Review due phrases (EXP-053: scoped to current language)
     const reviewDue = this.learner.getPhrasesForReview(2, language);
     for (const phrase of reviewDue) {
       suggestions.push(
@@ -1014,7 +909,6 @@ export class ConversationDirector {
       );
     }
 
-    // Weak topics
     const weakTopics = this.learner.getWeakTopics(1);
     for (const topic of weakTopics) {
       suggestions.push(
@@ -1022,7 +916,6 @@ export class ConversationDirector {
       );
     }
 
-    // Streak encouragement
     const stats = this.learner.stats;
     if (stats.currentStreak >= 3) {
       suggestions.push(
@@ -1030,7 +923,6 @@ export class ConversationDirector {
       );
     }
 
-    // Relationship milestone upcoming
     const rel = this.relationships.getRelationship(avatarId);
     const nextMilestone = Math.ceil(rel.interactionCount / 25) * 25;
     if (nextMilestone - rel.interactionCount <= 5) {
@@ -1047,7 +939,6 @@ export class ConversationDirector {
   /**
    * Pull 3 recent episodic memories with high importance and format as a
    * curated personal context block for injection into the system prompt.
-   * Not a generic dump — picks meaningful personal details.
    */
   private surfacePersonalContext(): string {
     const recent = this.episodic.getRecent(5);
@@ -1068,13 +959,11 @@ export class ConversationDirector {
 
     const model = this.situationAssessor.getModel();
 
-    // Pick the question for the most important missing signal
     if (model.inCountry === null) return ASSESSMENT_QUESTIONS[0];
     if (model.urgency === 'unknown') return ASSESSMENT_QUESTIONS[1];
     if (model.comfortLevel === 'unknown') return ASSESSMENT_QUESTIONS[2];
     if (model.primaryGoal === 'unknown' || !model.nextSituation) return ASSESSMENT_QUESTIONS[3];
 
-    // Cycle through if somehow all are filled but confidence is still low
     const idx = this.assessmentQuestionIndex % ASSESSMENT_QUESTIONS.length;
     this.assessmentQuestionIndex++;
     return ASSESSMENT_QUESTIONS[idx];
@@ -1082,15 +971,13 @@ export class ConversationDirector {
 
   private findLocationBridges(avatarId: string, language?: string): string | null {
     const rel = this.relationships.getRelationship(avatarId);
-    if (rel.interactionCount < 5) return null; // Too early for bridges
+    if (rel.interactionCount < 5) return null;
 
-    // Look for phrases learned in other locations (EXP-053: scoped to current language)
     const phrases = language ? this.learner.getPhrasesForLanguage(language) : this.learner.phrases;
     const locations = new Set(phrases.map((p) => p.learnedAt).filter(Boolean));
 
     if (locations.size <= 1) return null;
 
-    // Build bridge text from cross-location phrases
     const bridgeParts: string[] = [];
     for (const location of locations) {
       const locationPhrases = phrases
@@ -1105,7 +992,7 @@ export class ConversationDirector {
     return bridgeParts.length > 1 ? bridgeParts.join('. ') : null;
   }
 
-  // ── EXP-064: Scenario Detection From Message ──────────────
+  // ── Scenario Detection From Message ──────────────────────
 
   private static readonly SCENARIO_HINTS: Record<string, string[]> = {
     restaurant: ['restaurant', 'ordering', 'menu', 'waiter', 'eating out', 'dinner', 'lunch', 'cafe'],
@@ -1118,7 +1005,6 @@ export class ConversationDirector {
 
   private detectScenarioFromMessage(message: string): string | null {
     const lower = message.toLowerCase();
-    // Require situational context words that suggest the user is IN the situation right now
     const situationalCues = /\b(i'?m at|i'?m in|i'?m going to|right now|about to|just arrived|heading to|sitting in|walking into)\b/i;
     if (!situationalCues.test(lower)) return null;
 
@@ -1155,12 +1041,6 @@ export class ConversationDirector {
 
   // ── Language Tier Advancement ───────────────────────────────
 
-  /**
-   * Analyze user messages to adaptively advance or drop the language comfort tier.
-   * Tier advances when user consistently responds in the target language.
-   * Tier drops when user consistently asks for help/translation.
-   * Minimum 5 exchanges between any tier change to allow calibration.
-   */
   private async assessLanguageTier(userMessage: string): Promise<void> {
     this.exchangesSinceTierChange++;
 
@@ -1185,21 +1065,17 @@ export class ConversationDirector {
       await this.learner.setComfortTier(currentTier + 1);
       this.consecutiveTargetLangMessages = 0;
       this.exchangesSinceTierChange = 0;
-      console.log(`[NAVI:director] Language comfort tier advanced: ${currentTier} → ${currentTier + 1}`);
     } else if (this.consecutiveHelpRequests >= this.TIER_DROP_THRESHOLD && currentTier > 1) {
       await this.learner.setComfortTier(currentTier - 1);
       this.consecutiveHelpRequests = 0;
       this.exchangesSinceTierChange = 0;
-      console.log(`[NAVI:director] Language comfort tier dropped: ${currentTier} → ${currentTier - 1}`);
     }
   }
 
   private detectsTargetLanguageUse(message: string): boolean {
     if (!message || message.trim().length < 3) return false;
-    // Non-ASCII characters strongly indicate target-language script use
     const nonAscii = (message.match(/[^\x00-\x7F]/g) ?? []).length;
     if (nonAscii > 2) return true;
-    // ASCII message: check it's not a help request
     const lower = message.toLowerCase();
     const helpWords = ['what does', 'how do you say', 'translate', 'in english', 'explain', 'what is'];
     return !helpWords.some((w) => lower.includes(w));
@@ -1230,12 +1106,11 @@ export class ConversationDirector {
     for (const count of phraseMilestones) {
       if (stats.totalPhrases === count) {
         await this.relationships.addMilestone(avatarId, `Learned ${count} phrases!`);
-        // EXP-065: Store celebration instruction for next preProcess
         this.working?.set('milestone_celebration', `The user just hit ${count} phrases. Celebrate this naturally — they sound like someone who's actually been here a while. Frame it as identity, not achievement: "You've got ${count} phrases now — you're not a tourist anymore."`, 5 * 60 * 1000);
       }
     }
 
-    // Mastery milestones (EXP-065: celebrate mastery counts)
+    // Mastery milestones
     const masteryMilestones = [1, 5, 10, 25, 50, 100];
     for (const count of masteryMilestones) {
       if (stats.masteredPhrases === count) {
@@ -1266,7 +1141,7 @@ export class ConversationDirector {
       }
     }
 
-    // EXP-065: Stage change detection — celebrate when the user advances to a new learning stage
+    // Stage change detection — celebrate when the user advances to a new learning stage
     if (this.working) {
       const currentStage = this.learner.getCurrentStage(
         rel.interactionCount,

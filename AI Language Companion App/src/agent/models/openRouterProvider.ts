@@ -101,11 +101,6 @@ export class OpenRouterProvider implements ModelProvider<null>, ChatLLM {
     messages: Array<{ role: string; content: string }>,
     options?: ChatOptions,
   ): Promise<string> {
-    console.log(`[NAVI] ── PROMPT (openrouter) ──`);
-    for (const m of messages) {
-      console.log(`[NAVI] [${m.role}] ${m.content}`);
-    }
-
     const useStream = !!(options?.stream && options?.onToken);
 
     // Try every key × model combination before giving up
@@ -176,10 +171,7 @@ export class OpenRouterProvider implements ModelProvider<null>, ChatLLM {
         }
 
         if (useStream && options?.onToken && response.body) {
-          const result = await this.handleStream(response.body, options.onToken);
-          console.log(`[NAVI] ── RESPONSE (openrouter key ${keyIdx} model ${modelId}) ──`);
-          console.log(`[NAVI] [assistant] ${result}`);
-          return result;
+          return await this.handleStream(response.body, options.onToken);
         }
 
         const data = await response.json() as { choices?: Array<{ message?: { content?: string } }> };
@@ -190,8 +182,6 @@ export class OpenRouterProvider implements ModelProvider<null>, ChatLLM {
           lastError = new Error(`empty_response_key_${keyIdx}_model_${modelIdx}`);
           continue;
         }
-        console.log(`[NAVI] ── RESPONSE (openrouter key ${keyIdx} model ${modelId}) ──`);
-        console.log(`[NAVI] [assistant] ${result}`);
         return result;
       } catch (err) {
         clearTimeout(timeoutId);

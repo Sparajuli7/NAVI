@@ -17,6 +17,8 @@
 import React, { useEffect } from 'react';
 import { motion, useAnimation } from 'motion/react';
 import { useAppStore } from '../../stores/appStore';
+import { countryFlag } from '../../utils/countryFlag';
+import { countryFlag } from '../../utils/countryFlag';
 
 // ─── Emoji map ─────────────────────────────────────────────────────────────
 
@@ -36,13 +38,6 @@ function resolveEmoji(templateId?: string | null, gender?: string): string {
   if (gender === 'female') return '👩';
   if (gender === 'male') return '👨';
   return '🧑';
-}
-
-function countryFlag(cc: string): string {
-  if (!cc || cc.length !== 2) return '';
-  return cc.toUpperCase().replace(/./g, (c) =>
-    String.fromCodePoint(c.charCodeAt(0) + 127397),
-  );
 }
 
 // ─── Size maps ─────────────────────────────────────────────────────────────

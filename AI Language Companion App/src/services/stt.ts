@@ -1,3 +1,5 @@
+import type { UserMode } from '../agent/core/types';
+
 declare global {
   interface Window {
     SpeechRecognition: typeof SpeechRecognition;
@@ -91,7 +93,7 @@ export function getSTTLangCode(languageName: string): string {
 export function getSTTLangCodeForMode(
   avatarLanguage: string,
   userNativeLanguage: string,
-  mode: 'learn' | 'guide' | 'friend' | null,
+  mode: UserMode,
 ): string {
   if (mode === 'guide') {
     // In guide mode: listen for the local language (ambient translation)

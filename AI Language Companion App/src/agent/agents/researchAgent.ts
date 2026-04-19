@@ -32,6 +32,7 @@ import type {
   EngagementPattern,
   EncounterType,
   LearnerProfile,
+  UserMode,
 } from '../core/types';
 import { promptLoader } from '../prompts/promptLoader';
 
@@ -41,7 +42,7 @@ import { promptLoader } from '../prompts/promptLoader';
 export interface ResearchQuery {
   userMessage: string;
   currentTier: number;
-  userMode: 'learn' | 'guide' | 'friend' | null;
+  userMode: UserMode;
   recentEngagement: number;
   termsInSession: number;
   turnsWithoutOutput: number;

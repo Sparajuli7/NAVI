@@ -23,7 +23,7 @@ import { agentBus } from '../core/eventBus';
 const STORAGE_KEY = 'navi_learner_profile';
 const MAX_PHRASES = 500;
 
-// Spaced repetition intervals (in ms) — legacy single track (kept for reference)
+/** Initial review interval for newly encountered phrases (before dual-track SR kicks in) */
 const REVIEW_INTERVALS: Record<PhraseMastery, number> = {
   new: 1 * 24 * 60 * 60 * 1000,        // 1 day
   learning: 3 * 24 * 60 * 60 * 1000,    // 3 days
@@ -60,9 +60,9 @@ export class LearnerProfileStore {
   private loaded = false;
 
   /**
-   * EXP-053: Check if a phrase matches the target language.
+   * Check if a phrase matches the target language.
    * Returns true if: no language filter, phrase matches the language,
-   * or phrase has 'unknown' language (backward compat for pre-EXP-053 data).
+   * or phrase has 'unknown' language (backward compat for legacy data).
    */
   private matchesLanguage(phrase: TrackedPhrase, language?: string): boolean {
     if (!language) return true;
@@ -174,7 +174,7 @@ export class LearnerProfileStore {
   /**
    * Get phrases due for spaced repetition review.
    * When `language` is provided, only returns phrases matching that language
-   * (EXP-053: prevents Nepali phrases surfacing with a French companion).
+   * (prevents cross-companion phrase leaking).
    */
   getPhrasesForReview(limit: number = 5, language?: string): TrackedPhrase[] {
     const now = Date.now();
@@ -339,7 +339,7 @@ export class LearnerProfileStore {
   /**
    * Format learner context for injection into system prompt.
    * When `language` is provided, only includes phrases matching that language
-   * (EXP-053: prevents cross-companion phrase leaking).
+   * (prevents cross-companion phrase leaking).
    */
   formatForPrompt(language?: string): string {
     const sections: string[] = [];
@@ -440,7 +440,7 @@ export class LearnerProfileStore {
    */
   getCurrentStage(interactionCount: number, completedScenarios: number = 0, language?: string): LearningStageInfo {
     // Count phrases at 'practiced' or 'mastered' level as "functionally mastered"
-    // EXP-053: When language is set, only count phrases in that language
+    // When language is set, only count phrases in that language
     const scopedPhrases = language
       ? this.profile.phrases.filter((p) => this.matchesLanguage(p, language))
       : this.profile.phrases;
@@ -522,8 +522,8 @@ export class LearnerProfileStore {
 
   /**
    * Get phrases filtered by language.
-   * EXP-053: Use this when displaying phrases for a specific companion
-   * to avoid showing Nepali phrases in a French companion's context.
+   * Use this when displaying phrases for a specific companion
+   * to avoid cross-language leaking.
    * Includes 'unknown'-language phrases for backward compatibility
    * (phrases recorded before language tagging was fixed).
    */

@@ -1,4 +1,28 @@
-import type { AvatarPrefs } from '../utils/avatarPrefs';
+export interface AvatarPrefs {
+  skinColor: string;       // Tanned | Yellow | Pale | Light | Brown | DarkBrown | Black
+  topType: string;         // hair style
+  hairColor: string;       // Auburn | Black | Blonde | BlondeGolden | Brown | BrownDark | PastelPink | Blue | Platinum | Red | SilverGray
+  eyeType: string;         // Close | Cry | Default | Dizzy | EyeRoll | Happy | Hearts | Side | Squint | Surprised | Wink | WinkWacky
+  clotheType: string;      // BlazerShirt | BlazerSweater | CollarSweater | GraphicShirt | Hoodie | Overall | ShirtCrewNeck | ShirtScoopNeck | ShirtVNeck
+  clotheColor: string;     // Black | Blue01 | ... | White
+  accessoriesType: string; // Blank | Kurt | Prescription01 | Prescription02 | Round | Sunglasses | Wayfarers
+  facialHairType: string;  // Blank | BeardMedium | BeardLight | BeardMajestic | MoustacheFancy | MoustacheMagnum
+  eyebrowType: string;     // Angry | AngryNatural | Default | DefaultNatural | FlatNatural | RaisedExcited | ...
+  mouthType: string;       // Concerned | Default | Disbelief | Eating | Grimace | Sad | ScreamOpen | Serious | Smile | Tongue | Twinkle | Vomit
+}
+
+export const VALID_AVATAR_PREFS: Record<keyof AvatarPrefs, readonly string[]> = {
+  skinColor:       ['Pale', 'Light', 'Tanned', 'Brown', 'DarkBrown', 'Black', 'Yellow'],
+  topType:         ['ShortHairShortWaved', 'ShortHairShortFlat', 'ShortHairShortCurly', 'ShortHairDreads01', 'LongHairStraight', 'LongHairBob', 'LongHairCurly', 'LongHairBun', 'NoHair'],
+  hairColor:       ['Black', 'BrownDark', 'Brown', 'Auburn', 'Blonde', 'BlondeGolden', 'Red', 'PastelPink', 'Platinum', 'SilverGray'],
+  eyeType:         ['Default', 'Happy', 'Wink', 'Surprised', 'Squint', 'Side', 'Dizzy'],
+  clotheType:      ['BlazerShirt', 'BlazerSweater', 'CollarSweater', 'GraphicShirt', 'Hoodie', 'Overall', 'ShirtCrewNeck', 'ShirtScoopNeck', 'ShirtVNeck'],
+  clotheColor:     ['PastelBlue', 'PastelGreen', 'PastelYellow', 'PastelOrange', 'PastelRed', 'White', 'Black'],
+  accessoriesType: ['Blank', 'Kurt', 'Prescription01', 'Prescription02', 'Round', 'Sunglasses', 'Wayfarers'],
+  facialHairType:  ['Blank', 'BeardMedium', 'BeardLight', 'BeardMajestic', 'MoustacheFancy', 'MoustacheMagnum'],
+  eyebrowType:     ['Default', 'DefaultNatural', 'FlatNatural', 'RaisedExcited', 'AngryNatural', 'Angry'],
+  mouthType:       ['Smile', 'Default', 'Serious', 'Twinkle', 'Tongue', 'Sad', 'Concerned', 'Grimace'],
+};
 
 export interface CharacterColors {
   primary: string;

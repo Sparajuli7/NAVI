@@ -14,11 +14,9 @@
 import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { CheckCircle, XCircle, Clock, Volume2, RefreshCw, X } from 'lucide-react';
-import type { TrackedPhrase, PhraseMastery } from '../../agent/core/types';
+import type { TrackedPhrase, PhraseMastery, FilterMode } from '../../agent/core/types';
 
 // ─── Types ──────────────────────────────────────────────────────
-
-type FilterMode = 'all' | 'struggling' | 'due' | 'mastered';
 
 interface FlashcardDeckProps {
   phrases: TrackedPhrase[];

@@ -205,9 +205,7 @@ export class SituationAssessor {
       this.recalculateConfidence();
       await this.save();
 
-      if (prevModel.assessmentConfidence < 0.6 && this.model.assessmentConfidence >= 0.6) {
-        console.log(`[NAVI:situation] Assessment threshold reached: ${JSON.stringify(this.model)}`);
-      }
+      // Assessment threshold crossing is tracked via the return value
     }
 
     return changed;

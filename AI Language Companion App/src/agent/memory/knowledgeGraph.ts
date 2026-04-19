@@ -96,7 +96,6 @@ export class KnowledgeGraphStore {
     }
 
     this.loaded = true;
-    console.log(`[NAVI:kg] loaded ${this.nodes.size} nodes, ${this.edges.size} edges`);
   }
 
   async save(): Promise<void> {
@@ -496,7 +495,6 @@ export class KnowledgeGraphStore {
     for (const n of toRemove) {
       this.removeNode(n.id);
     }
-    console.log(`[NAVI:kg] evicted ${toRemove.length} nodes (capacity: ${MAX_NODES})`);
   }
 
   /** Evict oldest edges when over capacity */
@@ -508,6 +506,5 @@ export class KnowledgeGraphStore {
     for (const e of toRemove) {
       this.removeEdge(e.id);
     }
-    console.log(`[NAVI:kg] evicted ${toRemove.length} edges (capacity: ${MAX_EDGES})`);
   }
 }

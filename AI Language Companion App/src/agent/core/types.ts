@@ -117,6 +117,12 @@ export interface ModelProvider<T = unknown> {
 
 // ─── Memory Types ──────────────────────────────────────────────
 
+/** Inferred interaction mode — detected from conversation signals, not explicit UI */
+export type UserMode = 'learn' | 'guide' | 'friend' | null;
+
+/** Filter mode for phrase display UI (flashcards, knowledge graph) */
+export type FilterMode = 'all' | 'struggling' | 'due' | 'mastered';
+
 export interface ProfileMemory {
   /** User's native language */
   nativeLanguage: string;
@@ -129,7 +135,7 @@ export interface ProfileMemory {
   /** Custom user-provided notes */
   notes: string[];
   /** Inferred interaction mode: learn=immersion, guide=translate/navigate, friend=companion, null=blended */
-  userMode: 'learn' | 'guide' | 'friend' | null;
+  userMode: UserMode;
 }
 
 export interface EpisodicMemory {
@@ -221,6 +227,22 @@ export interface AvatarContextOverride {
   additionalContext?: string;
 }
 
+// ─── Conversation Goal Types ─────────────────────────────────
+
+export type ConversationGoal =
+  | 'introduce_new_vocab'
+  | 'revisit_struggling'
+  | 'review_due_phrases'
+  | 'challenge_user'
+  | 'celebrate_progress'
+  | 'bridge_locations'
+  | 'free_conversation'
+  | 'assess_comfort_level'
+  | 'avoid_recent_openers'
+  | 'proactive_memory'
+  | 'session_opener'
+  | 'assess_user';
+
 // ─── Learning Stage Types ─────────────────────────────────────
 
 /**
@@ -250,12 +272,8 @@ export interface LearningStageInfo {
 
 /**
  * Scenario keys grouped by learning stage availability.
- *
- * EXP-014: survival stage now allows restaurant + emergency with extra scaffolding.
- * A brand-new user who says "I'm at a restaurant right now" should get scenario help
- * even at survival stage. The survival learningStage prompt instruction already provides
- * heavy native-language scaffolding (speak primarily in userNativeLanguage with target
- * phrases EMBEDDED), so these scenarios are safe at survival.
+ * Survival stage allows restaurant + emergency with extra scaffolding
+ * (the survival prompt provides heavy native-language support).
  */
 export const STAGE_SCENARIO_ACCESS: Record<LearningStage, string[]> = {
   survival: ['restaurant', 'emergency'],
@@ -367,7 +385,7 @@ export interface SharedMilestone {
   avatarId: string;
 }
 
-/** A shared reference / inside joke with timing metadata for callback scheduling (EXP-012) */
+/** A shared reference / inside joke with timing metadata for callback scheduling */
 export interface SharedReference {
   /** The reference text */
   text: string;
@@ -719,39 +737,3 @@ export interface ReadinessAssessment {
   reasoning: string;
 }
 
-/** Combined output from all sub-agents — fed into the Orchestrator */
-export interface TurnContext {
-  memoryContext: ContextPacket;
-  researchContext: ResearchRecommendation;
-  directorContext: {
-    goals: string[];
-    promptInjection: string;
-    learningContext: string;
-    warmthInstruction: string;
-    situationContext: string;
-  };
-  /** Combined injection from all three sources (merged, deduplicated) */
-  combinedInjection: string;
-}
-
-// ─── Cloud Escalation (Stub) ───────────────────────────────────
-
-export interface EscalationRequest {
-  /** Why local processing isn't sufficient */
-  reason: string;
-  /** The original request that needs escalation */
-  originalRequest: ToolRequest;
-  /** What local processing has already produced */
-  localContext: string;
-}
-
-export interface EscalationResult {
-  /** Whether escalation was attempted */
-  attempted: boolean;
-  /** Whether cloud was available */
-  available: boolean;
-  /** The cloud response if successful */
-  response?: string;
-  /** Fallback local response */
-  fallback: string;
-}

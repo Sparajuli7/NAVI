@@ -31,6 +31,7 @@ import type {
   ConversationMood,
   SituationModel,
   PhraseMastery,
+  UserMode,
 } from '../core/types';
 import type { DetectedPhrase } from '../prompts/phraseDetector';
 import { KnowledgeGraphStore, nodeId, defaultMetadata } from './knowledgeGraph';
@@ -52,7 +53,7 @@ export interface ExchangeInput {
   language: string;
   script: string;
   dialectKey: string;
-  userMode: 'learn' | 'guide' | 'friend' | null;
+  userMode: UserMode;
   situationModel: SituationModel | null;
 }
 
@@ -285,12 +286,6 @@ export class MemoryMaker {
     // Persist (fire and forget for UX)
     this.graph.save().catch(err =>
       console.error('[NAVI:memoryMaker] save failed:', err),
-    );
-
-    console.log(
-      `[NAVI:memoryMaker] processed exchange: ` +
-      `${nodesCreated.length} created, ${nodesUpdated.length} updated, ` +
-      `${edgesCreated.length} edges, engagement=${engagementScore.toFixed(2)}`,
     );
 
     return { nodesCreated, nodesUpdated, edgesCreated, conversationNodeId };

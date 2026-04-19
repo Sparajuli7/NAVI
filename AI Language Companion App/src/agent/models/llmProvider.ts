@@ -1,18 +1,8 @@
 /**
- * NAVI Agent Framework — LLM Model Provider
+ * NAVI Agent Framework — WebLLM Provider
  *
- * Wraps the existing WebLLM integration (services/modelManager.ts)
- * behind the ModelProvider interface. This is the bridge between
- * the new agent framework and the existing model loading code.
- *
- * Design decision: Wrap, don't rewrite.
- * The existing modelManager.ts works. Instead of rewriting it,
- * we wrap it in the provider interface. This preserves the existing
- * download/progress/caching logic while making it swappable.
- *
- * To test a different LLM (e.g., Phi-3, Gemma, Llama):
- * 1. Create a new provider with different MODEL_ID
- * 2. Register it with the ModelRegistry
+ * In-browser LLM inference via WebGPU using @mlc-ai/web-llm.
+ * Implements ModelProvider + ChatLLM interfaces for the agent framework.
  * 3. Done — no other code changes needed
  */
 
@@ -183,12 +173,6 @@ export class LLMProvider implements ModelProvider<webllm.MLCEngine>, ChatLLM {
       throw new Error(`LLM not ready: ${this.config.modelId}`);
     }
 
-    // Log outgoing prompt
-    console.log(`[NAVI] ── PROMPT (webllm: ${this.config.modelId}) ──`);
-    for (const m of messages) {
-      console.log(`[NAVI] [${m.role}] ${m.content}`);
-    }
-
     const chatMessages = messages as webllm.ChatCompletionMessageParam[];
 
     if (options?.stream && options?.onToken) {
@@ -208,8 +192,6 @@ export class LLMProvider implements ModelProvider<webllm.MLCEngine>, ChatLLM {
           options.onToken(delta, fullText);
         }
       }
-      console.log(`[NAVI] ── RESPONSE (webllm) ──`);
-      console.log(`[NAVI] [assistant] ${fullText}`);
       return fullText;
     }
 
@@ -221,9 +203,6 @@ export class LLMProvider implements ModelProvider<webllm.MLCEngine>, ChatLLM {
       stream: false,
     });
 
-    const response = reply.choices[0]?.message?.content ?? '';
-    console.log(`[NAVI] ── RESPONSE (webllm) ──`);
-    console.log(`[NAVI] [assistant] ${response}`);
-    return response;
+    return reply.choices[0]?.message?.content ?? '';
   }
 }

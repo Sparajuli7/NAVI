@@ -146,7 +146,7 @@ export class RelationshipStore {
     return milestone;
   }
 
-  /** Add a shared reference (inside joke, callback) — stores with timing metadata (EXP-012) */
+  /** Add a shared reference (inside joke, callback) with timing metadata */
   async addSharedReference(avatarId: string, reference: string): Promise<void> {
     if (!this.loaded) await this.load();
 
@@ -193,11 +193,10 @@ export class RelationshipStore {
    * Frequency: stranger=never, acquaintance=rare(10%), friend=sometimes(30%),
    * close_friend=often(50%), family=natural(70%).
    *
-   * EXP-012: Timing-aware callback scheduling based on research:
-   *   - 1st callback: 3-5 messages after creation (immediate recognition)
-   *   - 2nd callback: 15-20 messages after creation (surprised delight)
-   *   - 3rd+ callback: 50+ messages after creation (deep bond, next session)
-   * References in the right time window get priority over random picks.
+   * Timing-aware callback scheduling:
+   *   - 1st callback: 3-8 messages after creation (immediate recognition)
+   *   - 2nd callback: 15-25 messages after creation (surprised delight)
+   *   - 3rd+ callback: 50+ messages since last (deep bond, next session)
    *
    * Returns null if no callback should happen this turn.
    */
@@ -254,8 +253,7 @@ export class RelationshipStore {
       picked.ref.lastCallbackAtInteraction = now;
       rel.sharedReferences[picked.index] = picked.ref;
       // Fire-and-forget save
-      this.save().catch(() => {});
-      console.log(`[NAVI:relationship] EXP-012 timed callback: "${picked.ref.text}" (count=${picked.ref.callbackCount}, priority=${picked.priority})`);
+      this.save().catch(e => console.warn('[NAVI]', e));
       return picked.ref.text;
     }
 
@@ -271,21 +269,9 @@ export class RelationshipStore {
 
   /**
    * Get the current backstory disclosure tier (0-4) for an avatar.
-   *
-   * EXP-010: Changed from interaction-count-linked (every 50 interactions)
-   * to warmth-linked. Backstory disclosure should track emotional closeness,
-   * not just time spent. The warmth tiers already model this progression:
-   *   stranger  (0.0-0.2) → tier 0 (no backstory)
-   *   acquaintance (0.2-0.4) → tier 1 (surface-level daily life)
-   *   friend    (0.4-0.6) → tier 2 (casual personal stories)
-   *   close_friend (0.6-0.8) → tier 3 (real personal things)
-   *   family    (0.8-1.0) → tier 4 (deep/vulnerable)
-   *
-   * Previous: Math.floor(interactionCount / 50) — took ~40 sessions to reach
-   * full disclosure (50 interactions × 4 tiers ÷ 5 msgs/session = 40 sessions).
-   * Now: directly mapped to warmth, which itself takes ~200 interactions to max
-   * but reaches "friend" (tier 2) by session ~9. This front-loads surface
-   * disclosure while keeping deep vulnerability gated behind real relationship.
+   * Mapped directly to warmth tiers:
+   *   stranger (0-0.2) = 0, acquaintance (0.2-0.4) = 1,
+   *   friend (0.4-0.6) = 2, close_friend (0.6-0.8) = 3, family (0.8+) = 4
    */
   getBackstoryTier(avatarId: string): number {
     const rel = this.getRelationship(avatarId);

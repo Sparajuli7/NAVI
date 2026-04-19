@@ -84,7 +84,13 @@ export const OLLAMA_PRESETS = {
   },
 } satisfies Record<string, Partial<OllamaProviderConfig>>;
 
-const DEFAULT_BASE_URL = 'http://localhost:11434';
+/**
+ * Default Ollama URL. Uses 127.0.0.1 instead of localhost because Chrome treats
+ * 127.0.0.1 as "potentially trustworthy" and allows mixed-content (HTTPS→HTTP)
+ * requests to it, while localhost may be blocked on deployed HTTPS sites.
+ * See: https://www.w3.org/TR/secure-contexts/#is-origin-trustworthy
+ */
+const DEFAULT_BASE_URL = 'http://127.0.0.1:11434';
 const DEFAULT_TIMEOUT = 60_000;
 
 export class OllamaProvider implements ModelProvider<null>, ChatLLM {
@@ -146,12 +152,17 @@ export class OllamaProvider implements ModelProvider<null>, ChatLLM {
         onProgress?.(80, `Model ${this.config.model} ready`);
       }
 
-      // Warm up — send a tiny request so the model loads into memory
+      // Warm up — send a tiny request so the model loads into memory.
+      // Non-fatal: if warm-up fails the model is still usable (first real request loads it).
       onProgress?.(90, 'Warming up model...');
-      await this.chat(
-        [{ role: 'user', content: 'hi' }],
-        { max_tokens: 5, temperature: 0 },
-      );
+      try {
+        await this.chat(
+          [{ role: 'user', content: 'hi' }],
+          { max_tokens: 5, temperature: 0 },
+        );
+      } catch (warmupErr) {
+        console.warn('[NAVI:ollama] Warm-up failed (non-fatal):', warmupErr);
+      }
 
       this.status = 'ready';
       onProgress?.(100, 'Ollama ready');
@@ -181,12 +192,6 @@ export class OllamaProvider implements ModelProvider<null>, ChatLLM {
     messages: Array<{ role: string; content: string }>,
     options?: ChatOptions,
   ): Promise<string> {
-    // Log outgoing prompt
-    console.log(`[NAVI] ── PROMPT (ollama: ${this.config.model}) ──`);
-    for (const m of messages) {
-      console.log(`[NAVI] [${m.role}] ${m.content}`);
-    }
-
     // Use native Ollama endpoint (not OpenAI-compat) to support think:false
     const useStream = options?.stream && !!options?.onToken;
     const url = `${this.config.baseUrl}/api/chat`;
@@ -228,26 +233,14 @@ export class OllamaProvider implements ModelProvider<null>, ChatLLM {
 
       // Streaming response
       if (body.stream && options?.onToken && response.body) {
-        const result = await this.handleStream(response.body, options.onToken);
-        console.log(`[NAVI] ── RESPONSE (ollama) ──`);
-        console.log(`[NAVI] [assistant] ${result}`);
-        return result;
+        return await this.handleStream(response.body, options.onToken);
       }
 
-      // Non-streaming response — native Ollama format: { message: { content: "..." } }
-      const data = await response.json();
-      // Native endpoint: data.message.content. OpenAI-compat fallback: data.choices[0].message.content
-      let result = data.message?.content ?? data.choices?.[0]?.message?.content ?? '';
-
-      // Fallback: if content is empty, check thinking field (some models put output there)
-      if (!result.trim() && data.message?.thinking) {
-        console.log('[NAVI] content empty — extracting from thinking field');
-        result = data.message.thinking;
-      }
-
-      console.log(`[NAVI] ── RESPONSE (ollama) ──`);
-      console.log(`[NAVI] [assistant] ${result}`);
-      return result;
+      // Non-streaming: read raw text first, then parse.
+      // This handles the edge case where stream:true was requested but response.body
+      // is unavailable — Ollama returns NDJSON which response.json() can't parse.
+      const raw = await response.text();
+      return this.parseNonStreamResponse(raw);
     } catch (err) {
       clearTimeout(timeoutId);
       if (err instanceof Error && err.name === 'AbortError') {
@@ -259,16 +252,34 @@ export class OllamaProvider implements ModelProvider<null>, ChatLLM {
 
   // ── Ollama-Specific Methods ──────────────────────────────────
 
-  /** Check if Ollama server is reachable */
+  /**
+   * Check if Ollama server is reachable.
+   * Tries the configured URL first, then the alternate loopback (localhost ↔ 127.0.0.1).
+   * If the alternate works, auto-switches the base URL so subsequent requests succeed.
+   */
   async checkConnection(): Promise<boolean> {
-    try {
-      const response = await fetch(`${this.config.baseUrl}/api/tags`, {
-        signal: AbortSignal.timeout(5000),
-      });
-      return response.ok;
-    } catch {
-      return false;
+    const tryUrl = async (url: string) => {
+      try {
+        const response = await fetch(`${url}/api/tags`, {
+          signal: AbortSignal.timeout(5000),
+        });
+        return response.ok;
+      } catch {
+        return false;
+      }
+    };
+
+    if (await tryUrl(this.config.baseUrl)) return true;
+
+    // Try alternate loopback form (HTTPS sites can reach 127.0.0.1 but not localhost)
+    const alt = getAlternateLoopback(this.config.baseUrl);
+    if (alt && alt !== this.config.baseUrl && await tryUrl(alt)) {
+      console.warn(`[NAVI:ollama] Switched to ${alt} (original ${this.config.baseUrl} unreachable)`);
+      this.config.baseUrl = alt;
+      return true;
     }
+
+    return false;
   }
 
   /** Check if a specific model is already pulled */
@@ -347,6 +358,36 @@ export class OllamaProvider implements ModelProvider<null>, ChatLLM {
     }
   }
 
+  /**
+   * Parse a non-streaming response. Handles both single JSON and NDJSON
+   * (multiple JSON objects separated by newlines, which Ollama sends when
+   * stream:true was requested but the response was read without streaming).
+   */
+  private parseNonStreamResponse(raw: string): string {
+    try {
+      const data = JSON.parse(raw);
+      let result = data.message?.content ?? data.choices?.[0]?.message?.content ?? '';
+      if (!result.trim() && data.message?.thinking) {
+        result = data.message.thinking;
+      }
+      return result;
+    } catch {
+      // NDJSON: concatenate content from all lines
+      const lines = raw.split('\n').filter(l => l.trim());
+      let result = '';
+      for (const line of lines) {
+        try {
+          const obj = JSON.parse(line);
+          const content = obj.message?.content ?? obj.choices?.[0]?.delta?.content ?? '';
+          if (content) result += content;
+        } catch {
+          // skip unparseable fragments
+        }
+      }
+      return result || raw;
+    }
+  }
+
   /** Handle SSE streaming from Ollama's OpenAI-compatible endpoint */
   private async handleStream(
     body: ReadableStream<Uint8Array>,
@@ -415,35 +456,70 @@ export class OllamaProvider implements ModelProvider<null>, ChatLLM {
 
 // ── Utilities ──────────────────────────────────────────────────
 
-/** Quick check: is Ollama running on this machine? */
+/**
+ * Quick check: is Ollama running on this machine?
+ * Tries the given URL first, then falls back to the alternate loopback form
+ * (127.0.0.1 ↔ localhost) since HTTPS sites can reach 127.0.0.1 but not localhost.
+ */
 export async function isOllamaAvailable(
   baseUrl: string = DEFAULT_BASE_URL,
 ): Promise<boolean> {
-  try {
-    const response = await fetch(`${baseUrl}/api/tags`, {
-      signal: AbortSignal.timeout(3000),
-    });
-    return response.ok;
-  } catch {
-    return false;
-  }
+  const tryFetch = async (url: string) => {
+    try {
+      const response = await fetch(`${url}/api/tags`, {
+        signal: AbortSignal.timeout(3000),
+      });
+      return response.ok;
+    } catch {
+      return false;
+    }
+  };
+
+  if (await tryFetch(baseUrl)) return true;
+
+  // If the primary URL failed, try the alternate loopback form
+  const alt = getAlternateLoopback(baseUrl);
+  if (alt && alt !== baseUrl) return tryFetch(alt);
+
+  return false;
 }
 
 /** List models available in a local Ollama instance */
 export async function listOllamaModels(
   baseUrl: string = DEFAULT_BASE_URL,
 ): Promise<Array<{ name: string; size: number }>> {
-  try {
-    const response = await fetch(`${baseUrl}/api/tags`, {
-      signal: AbortSignal.timeout(5000),
-    });
-    if (!response.ok) return [];
-    const data = await response.json();
-    return (data.models ?? []).map((m: { name: string; size: number }) => ({
-      name: m.name,
-      size: m.size,
-    }));
-  } catch {
-    return [];
+  const tryList = async (url: string) => {
+    try {
+      const response = await fetch(`${url}/api/tags`, {
+        signal: AbortSignal.timeout(5000),
+      });
+      if (!response.ok) return null;
+      const data = await response.json();
+      return (data.models ?? []).map((m: { name: string; size: number }) => ({
+        name: m.name,
+        size: m.size,
+      }));
+    } catch {
+      return null;
+    }
+  };
+
+  const result = await tryList(baseUrl);
+  if (result) return result;
+
+  // Try alternate loopback
+  const alt = getAlternateLoopback(baseUrl);
+  if (alt && alt !== baseUrl) {
+    const altResult = await tryList(alt);
+    if (altResult) return altResult;
   }
+
+  return [];
+}
+
+/** Swap localhost ↔ 127.0.0.1 for mixed-content fallback */
+function getAlternateLoopback(url: string): string | null {
+  if (url.includes('localhost')) return url.replace('localhost', '127.0.0.1');
+  if (url.includes('127.0.0.1')) return url.replace('127.0.0.1', 'localhost');
+  return null;
 }

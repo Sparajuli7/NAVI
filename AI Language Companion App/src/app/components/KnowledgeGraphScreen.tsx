@@ -2,7 +2,8 @@ import React, { useMemo, useState } from 'react';
 import { ArrowLeft, Search, LayoutList } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { PhraseDetailSheet } from './PhraseDetailSheet';
-import type { PhraseMastery, TrackedPhrase } from '../../agent/core/types';
+import { countryFlag } from '../../utils/countryFlag';
+import type { PhraseMastery, TrackedPhrase, FilterMode } from '../../agent/core/types';
 import type { GeneratedCharacter } from '../../types/character';
 
 interface GraphPhrase {
@@ -24,13 +25,6 @@ interface GraphPhrase {
   practiceText?: string;
   /** Set when node is built from learner store */
   sourceTracked?: TrackedPhrase;
-}
-
-function countryFlagFromCode(code: string): string {
-  if (!code || code.length !== 2) return '';
-  return [...code.toUpperCase()]
-    .map((c) => String.fromCodePoint(0x1f1e6 + c.charCodeAt(0) - 65))
-    .join('');
 }
 
 function stableJitter(s: string, spread: number): number {
@@ -503,7 +497,7 @@ const masteryColors: Record<PhraseMastery, string> = {
   mastered: '#D4A853',
 };
 
-type FilterType = 'all' | 'struggling' | 'due' | 'mastered';
+type FilterType = FilterMode;
 
 export interface KnowledgeGraphScreenProps {
   onBack: () => void;
@@ -541,7 +535,7 @@ export function KnowledgeGraphScreen({
     if (usingLiveData) {
       const list = trackedToGraphPhrases(trackedPhrases);
       wireCategoryConnections(list);
-      const flagEmoji = countryFlagFromCode(countryCode ?? '');
+      const flagEmoji = countryFlag(countryCode ?? '');
       return {
         graphPhrases: list,
         flag: flagEmoji || '🌐',

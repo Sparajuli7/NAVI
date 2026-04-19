@@ -10,6 +10,7 @@ import type { AvatarContextController } from '../avatar/contextController';
 import type { LocationIntelligence } from '../location/locationIntelligence';
 import type { MemoryManager } from '../memory';
 import { promptLoader } from '../prompts/promptLoader';
+import { AGE_GEN_MAP } from '../../utils/avatarProfileHelpers';
 
 export function createSlangTool(
   llmProvider: ChatLLM,
@@ -29,14 +30,9 @@ export function createSlangTool(
 
     async execute(params: Record<string, unknown>): Promise<unknown> {
       const message = params.message as string;
-      // EXP-077: Default slang generation to avatar's age group instead of always gen_z
+      // Default slang generation to avatar's age group instead of always gen_z
       const profile = avatarController.getActiveProfile();
-      const ageGenMap: Record<string, string> = {
-        teen: 'gen_z', '20s': 'gen_z',
-        '30s': 'millennial', '40s': 'millennial',
-        '50s': 'older', '60s+': 'older',
-      };
-      const avatarGeneration = profile ? (ageGenMap[profile.ageGroup] ?? 'millennial') : 'gen_z';
+      const avatarGeneration = profile ? (AGE_GEN_MAP[profile.ageGroup] ?? 'millennial') : 'gen_z';
       const generation = (params.generation as string) ?? avatarGeneration;
       const language = locationIntelligence.getPrimaryLanguage();
       const dialect = locationIntelligence.getDialect();

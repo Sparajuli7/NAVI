@@ -13,7 +13,7 @@ import type { ScenarioKey, ParsedScenarioContext, LocationContext } from '../typ
 import type { AvatarTemplate, Character, GeneratedCharacter } from '../types/character';
 import { mapCharacterToUI } from '../types/character';
 import type { Message } from '../types/chat';
-import { isWebGPUSupported } from '../services/modelManager';
+import { isWebGPUSupported } from '../utils/platform';
 import { useNaviAgent } from '../agent/react/useNaviAgent';
 import { useAppStore } from '../stores/appStore';
 import { useCharacterStore } from '../stores/characterStore';

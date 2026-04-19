@@ -75,7 +75,7 @@ export class ProactiveEngine {
    *
    * @param backstoryTier - backstory disclosure depth (0-4)
    * @param language - current target language for scoping phrase queries
-   * @param warmth - relationship warmth score (0-1) for EXP-075 absence narratives
+   * @param warmth - relationship warmth score (0-1) for warmth-based absence narratives
    */
   getProactiveMessage(backstoryTier?: number, language?: string, warmth?: number): string | null {
     if (this.firedThisSession) return null;
@@ -86,12 +86,11 @@ export class ProactiveEngine {
 
     let message: string | null = null;
 
-    // 1. Long absence (> 7 days) — EXP-075: warmth-based return narratives
-    // The avatar reacts to absence based on relationship depth, not generically.
+    // 1. Long absence (> 7 days) — warmth-based return narratives
     if (daysSinceLast > 7) {
       message = this.absenceMessage(warmth ?? 0, daysSinceLast, stats.totalPhrases, stats.longestStreak);
     }
-    // 2. Short absence (> 2 days) — EXP-075: warmth-based short absence
+    // 2. Short absence (> 2 days)
     else if (daysSinceLast > 2) {
       message = this.absenceMessage(warmth ?? 0, daysSinceLast, stats.totalPhrases, stats.currentStreak);
     }
@@ -114,7 +113,7 @@ export class ProactiveEngine {
     }
     // 6. Struggling phrases + at least 1 day since last session
     else {
-      // EXP-053: Scope to current language
+      // Scope to current language
       const struggling = this.learner.getStrugglingPhrases(1, language);
       if (struggling.length > 0 && daysSinceLast >= 1) {
         message = `That phrase we've been working on — want to give it another shot today? No pressure, just checking in.`;
@@ -146,7 +145,7 @@ export class ProactiveEngine {
   }
 
   /**
-   * EXP-075: Generate absence return message based on relationship warmth.
+   * Generate absence return message based on relationship warmth.
    * The avatar's reaction to the user's return scales with emotional closeness:
    * - Stranger (< 0.2): Casual, no acknowledgment of absence
    * - Acquaintance (0.2-0.4): Brief, light check-in

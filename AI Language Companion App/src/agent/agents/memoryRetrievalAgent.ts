@@ -64,7 +64,7 @@ export class MemoryRetrievalAgent {
 
   private buildTurnContext(query: MemoryQuery): ContextPacket {
     const relatedTerms = this.getRelatedTerms(query.currentTopics, query.language);
-    // EXP-054: Scope struggle terms to current language
+    // Scope struggle terms to current language
     const struggleTerms = this.getStrugglingTermPhrases(query.language);
     const bridgeMemories = this.getBridgeMemories(query.currentLocation, query.language);
     const engagementHints = this.getEngagementHints(query.currentAvatarId);
@@ -116,7 +116,7 @@ export class MemoryRetrievalAgent {
     }
 
     const relatedTerms = this.getRelatedTerms(recap.unfinishedTopics, query.language);
-    // EXP-054: Scope struggle terms to current language
+    // Scope struggle terms to current language
     const struggleTerms = this.getStrugglingTermPhrases(query.language);
 
     return {
@@ -174,7 +174,7 @@ export class MemoryRetrievalAgent {
 
   private buildTeachingContext(query: MemoryQuery): ContextPacket {
     const relatedTerms = this.getRelatedTerms(query.currentTopics, query.language);
-    // EXP-054: Filter struggling terms by current language
+    // Filter struggling terms by current language
     const allStruggleCtx = this.graph.getStrugglingTermsWithContext();
     const struggleCtx = query.language
       ? allStruggleCtx.filter(s => s.term.language === query.language)
@@ -441,10 +441,7 @@ export class MemoryRetrievalAgent {
     };
   }
 
-  /**
-   * Get phrases the user struggles with from the knowledge graph.
-   * EXP-054: When language is provided, only returns terms matching that language.
-   */
+  /** Get phrases the user struggles with from the knowledge graph, scoped by language. */
   private getStrugglingTermPhrases(language?: string): string[] {
     return this.graph.getNodesByType<TermNode>('term')
       .filter(t => {

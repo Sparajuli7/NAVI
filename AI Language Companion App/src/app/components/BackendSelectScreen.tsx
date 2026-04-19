@@ -53,20 +53,23 @@ export function BackendSelectScreen({ onDone }: BackendSelectScreenProps) {
   const [ollamaModels, setOllamaModels] = useState<OllamaModel[]>([]);
   const [ollamaAvailable, setOllamaAvailable] = useState(false);
 
-  // Detect Ollama on mount — fetch installed models
+  // Detect Ollama on mount — try 127.0.0.1 first (works from HTTPS), then localhost
   useEffect(() => {
-    fetch('http://localhost:11434/api/tags', { signal: AbortSignal.timeout(3000) })
-      .then(r => r.json())
-      .then(data => {
-        const models = (data.models ?? []).map((m: { name: string; size: number }) => ({
-          name: m.name,
-          size: m.size,
-        }));
-        if (models.length > 0) {
-          setOllamaModels(models);
-          setOllamaAvailable(true);
-        }
-      })
+    const tryFetch = (url: string) =>
+      fetch(`${url}/api/tags`, { signal: AbortSignal.timeout(3000) })
+        .then(r => r.json())
+        .then(data => {
+          const models = (data.models ?? []).map((m: { name: string; size: number }) => ({
+            name: m.name,
+            size: m.size,
+          }));
+          if (models.length > 0) {
+            setOllamaModels(models);
+            setOllamaAvailable(true);
+          }
+        });
+    tryFetch('http://127.0.0.1:11434')
+      .catch(() => tryFetch('http://localhost:11434'))
       .catch(() => { /* Ollama not running */ });
   }, []);
 

@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type { ModelStatus } from '../types/inference';
 import type { UserPreferences, } from '../types/character';
 import type { LocationContext } from '../types/config';
+import type { UserMode } from '../agent/core/types';
 
 interface AppStore {
   modelStatus: ModelStatus;
@@ -10,7 +11,7 @@ interface AppStore {
   currentLocation: LocationContext | null;
   isFirstLaunch: boolean;
   userProfile: string;
-  userMode: 'learn' | 'guide' | 'friend' | null;
+  userMode: UserMode;
   geminiApiKey: string;
 
   setModelStatus: (status: ModelStatus) => void;
@@ -19,7 +20,7 @@ interface AppStore {
   setCurrentLocation: (location: LocationContext) => void;
   setIsFirstLaunch: (value: boolean) => void;
   setUserProfile: (text: string) => void;
-  setUserMode: (mode: 'learn' | 'guide' | 'friend' | null) => void;
+  setUserMode: (mode: UserMode) => void;
   setGeminiApiKey: (key: string) => void;
 }
 

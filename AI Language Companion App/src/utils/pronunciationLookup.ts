@@ -85,7 +85,7 @@ export async function lookupWordIPA(
     };
     memoryCache[key] = entry;
     // Save async — don't block
-    saveCache().catch(() => {});
+    saveCache().catch(e => console.warn('[NAVI]', e));
 
     return { ipa: entry.ipa, audio: entry.audio };
   } catch {

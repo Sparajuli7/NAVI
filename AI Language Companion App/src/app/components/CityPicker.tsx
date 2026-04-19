@@ -13,6 +13,7 @@ import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react'
 import { Search, Navigation, MapPin, X } from 'lucide-react';
 import citiesData from '../../data/cities.json';
 import { detectLocation } from '../../services/location';
+import { countryFlag } from '../../utils/countryFlag';
 
 export interface CityEntry {
   city: string;
@@ -30,13 +31,6 @@ interface CityPickerProps {
   showGPS?: boolean;
   /** Additional CSS class for the container */
   className?: string;
-}
-
-function countryFlag(code: string): string {
-  if (!code || code.length !== 2) return '';
-  return [...code.toUpperCase()]
-    .map((c) => String.fromCodePoint(0x1f1e6 + c.charCodeAt(0) - 65))
-    .join('');
 }
 
 // Normalize the cities.json shape (it uses "name" and "country_code")

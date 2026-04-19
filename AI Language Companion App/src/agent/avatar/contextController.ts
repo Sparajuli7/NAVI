@@ -19,12 +19,14 @@
  * This also makes A/B testing trivial — just swap config files.
  */
 
-import type { AvatarProfile, AvatarContextOverride } from '../core/types';
+import type { AvatarProfile, AvatarContextOverride, UserMode } from '../core/types';
 import type { AvatarTemplate } from '../../types/character';
 import type { ScenarioContext, DialectInfo } from '../../types/config';
 import { agentBus } from '../core/eventBus';
 import { promptLoader } from '../prompts/promptLoader';
 import { estimateTokens } from '../../utils/tokenEstimator';
+import { COUNTRY_NAMES } from '../../utils/locationHelpers';
+import { AGE_GEN_MAP } from '../../utils/avatarProfileHelpers';
 
 // Import existing configs from the app
 import avatarTemplatesRaw from '../../config/avatarTemplates.json';
@@ -203,11 +205,11 @@ export class AvatarContextController {
     conversationGoals?: string;
     situationContext?: string;
     userNativeLanguage?: string;
-    userMode?: 'learn' | 'guide' | 'friend' | null;
+    userMode?: UserMode;
     dialectKey?: string;
     isFirstEverMessage?: boolean;
     isFirstScenarioMessage?: boolean;
-    /** EXP-057: Learning stage for scenario coach-on-the-side */
+    /** Learning stage for scenario coach-on-the-side */
     learningStage?: string;
     /** Target language selected by user (may differ from dialect language) */
     targetLanguage?: string;
@@ -258,7 +260,7 @@ export class AvatarContextController {
     }
 
     // L4: Scenario (HIGH)
-    // EXP-057: Use coach-on-the-side mode for survival/functional learners
+    // Use coach-on-the-side mode for survival/functional learners
     if (effectiveScenario) {
       const learningStage = options?.learningStage;
       const useCoachMode = learningStage === 'survival' || learningStage === 'functional';
@@ -300,9 +302,7 @@ export class AvatarContextController {
     }
 
     // L11.6: Scenario opener (MEDIUM — only on first message with active scenario)
-    // Bug fix (EXP-052): use isFirstScenarioMessage instead of isFirstEverMessage
-    // so the opener fires when a scenario starts mid-conversation, not only on the
-    // user's very first message ever.
+    // Opener fires when a scenario starts mid-conversation, not only on the first message ever
     if ((options?.isFirstScenarioMessage || (options?.isFirstEverMessage && effectiveScenario))) {
       const scenarioConfig = this.scenarios[effectiveScenario!];
       if (scenarioConfig) {
@@ -311,10 +311,7 @@ export class AvatarContextController {
         });
         layerDefs.push([openerLayer, 2]);
 
-        // Bug fix (EXP-052): inject TBLT pretask on first scenario message
-        // so the user gets key phrases and scene-setting before the task phase
-        // EXP-060: inject vocabulary_focus from scenarioContexts.json so the model
-        // has the actual vocabulary list to draw from during the pretask
+        // Inject TBLT pretask with vocabulary_focus so the user gets key phrases before the task phase
         try {
           const pretaskLayer = promptLoader.get('systemLayers.scenario.tblt_pretask', {
             label: scenarioConfig.label,
@@ -339,9 +336,8 @@ export class AvatarContextController {
     const fewShot = promptLoader.get('coreRules.fewShotExamples') as string;
     if (fewShot) layerDefs.push([fewShot, 3]);
 
-    // L12.5: Sparse character bootstrap (MEDIUM) — EXP-046
-    // When a custom character has a brief personality (<100 chars), inject an instruction
-    // for the LLM to organically develop personality over the first few exchanges.
+    // L12.5: Sparse character bootstrap (MEDIUM)
+    // When a custom character has a brief personality (<100 chars), let the LLM develop it organically
     if (profile.personality && profile.personality.length < 100) {
       const bootstrapLayer = promptLoader.get('systemLayers.sparseCharacterBootstrap') as string;
       if (bootstrapLayer) layerDefs.push([bootstrapLayer, 2]);
@@ -350,7 +346,7 @@ export class AvatarContextController {
     // L13: Core rules (HIGH — demoted from MUST to allow warmth/goals/memory to fit)
     layerDefs.push([this.buildCoreRules(userLang), 1]);
 
-    // L14: Internal monologue — removed to save tokens (EXP-112)
+    // L14: Internal monologue — removed to save tokens
 
     // L15: Reinforcement (HIGH — demoted from MUST to fit within budget)
     const reinforcement = promptLoader.get('coreRules.reinforcement', {
@@ -459,20 +455,7 @@ export class AvatarContextController {
       if (parts.length === 2) {
         const countryCode = parts[0];
         city = parts[1] || location;
-        // Resolve country name from COUNTRY_NAMES-style map
-        const countryNames: Record<string, string> = {
-          JP: 'Japan', VN: 'Vietnam', FR: 'France', MX: 'Mexico', KR: 'South Korea',
-          NP: 'Nepal', ES: 'Spain', IT: 'Italy', TH: 'Thailand', DE: 'Germany',
-          BR: 'Brazil', CN: 'China', AR: 'Argentina', US: 'United States', GB: 'United Kingdom',
-          AU: 'Australia', CA: 'Canada', IN: 'India', RU: 'Russia', PL: 'Poland',
-          CZ: 'Czech Republic', UA: 'Ukraine', GR: 'Greece', TR: 'Turkey', EG: 'Egypt',
-          SA: 'Saudi Arabia', AE: 'UAE', IL: 'Israel', PH: 'Philippines', ID: 'Indonesia',
-          MY: 'Malaysia', SG: 'Singapore', KH: 'Cambodia', MM: 'Myanmar', LA: 'Laos',
-          SE: 'Sweden', NO: 'Norway', DK: 'Denmark', FI: 'Finland', NL: 'Netherlands',
-          BE: 'Belgium', PT: 'Portugal', CH: 'Switzerland', AT: 'Austria', IE: 'Ireland',
-          CO: 'Colombia', PE: 'Peru', CL: 'Chile', EC: 'Ecuador', VE: 'Venezuela',
-        };
-        country = countryNames[countryCode] ?? countryCode;
+        country = COUNTRY_NAMES[countryCode] ?? countryCode;
       }
     }
     // If location contains a comma, try to parse "City, Country"
@@ -494,12 +477,7 @@ export class AvatarContextController {
         layer += ` ${dialectConfig.cultural_notes}`;
       }
       // Map age group to generation
-      const genMap: Record<string, string> = {
-        teen: 'gen_z', '20s': 'gen_z',
-        '30s': 'millennial', '40s': 'millennial',
-        '50s': 'older', '60s+': 'older',
-      };
-      const generation = genMap[ageGroup] ?? 'millennial';
+      const generation = AGE_GEN_MAP[ageGroup] ?? 'millennial';
       const slang = dialectConfig.slang_era[generation];
       if (slang) {
         layer += ` Use age-appropriate slang: ${slang}`;
@@ -509,17 +487,12 @@ export class AvatarContextController {
         layer += ` Always write phrases in both ${dialectConfig.scripts[0]} script AND romanized transliteration side by side.`;
       }
 
-      // EXP-076: Dialect-specific teaching instructions
+      // Dialect-specific teaching instructions
       try {
         const culturalNotesFragment = dialectConfig.cultural_notes
           ? ` Cultural context for your dialect: ${dialectConfig.cultural_notes}`
           : '';
-        const genMap076: Record<string, string> = {
-          teen: 'gen_z', '20s': 'gen_z',
-          '30s': 'millennial', '40s': 'millennial',
-          '50s': 'older', '60s+': 'older',
-        };
-        const gen076 = genMap076[ageGroup] ?? 'millennial';
+        const gen076 = AGE_GEN_MAP[ageGroup] ?? 'millennial';
         const slangEraData = dialectConfig.slang_era[gen076];
         const slangEraFragment = slangEraData
           ? ` Your generation's slang palette: ${slangEraData}`
@@ -543,8 +516,7 @@ export class AvatarContextController {
       layer += ` You speak the local language of ${location} natively. Talk to the user mostly in ${userNativeLanguage}, embedding local language phrases in bold with pronunciation. Increase local language gradually as the user shows comfort.`;
     }
 
-    // ── EXP-081: Universal location personality layers ──────────────
-    // Injected for ALL cities (dialectMap or not) to ensure rich personality everywhere.
+    // Universal location personality layers — injected for ALL cities to ensure rich personality
 
     // Location personality — makes the avatar a true local
     try {
@@ -582,7 +554,7 @@ export class AvatarContextController {
     return layer;
   }
 
-  /** EXP-057: Coach-on-the-side scenario layer for survival/functional learners */
+  /** Coach-on-the-side scenario layer for survival/functional learners */
   private buildScenarioCoachLayer(scenario: string, characterName: string): string {
     const config = this.scenarios[scenario];
     if (!config) return '';
