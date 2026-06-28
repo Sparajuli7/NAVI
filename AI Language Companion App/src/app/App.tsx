@@ -416,16 +416,17 @@ export default function App() {
 
   const handleGoHome = () => setAppPhase('home');
 
+  const EMPTY_SCENARIO_CTX: ParsedScenarioContext = {
+    where: '', doing: '', talkingTo: '', nervousAbout: '', customText: '',
+  };
+
   const handleOpenScenarios = (preselectedKey?: string) => {
-    setShowScenarioLauncher(true);
-    // If a specific scenario key was passed (from HomeScreen tile), auto-start it
-    if (preselectedKey) {
-      // Short delay to let the launcher mount, then trigger the scenario
-      setTimeout(() => {
-        // The ScenarioLauncher itself handles the UI; pre-selection would need prop drilling
-        // For now, opening the launcher is sufficient — user sees it pre-highlighted
-      }, 50);
+    // A specific scenario key from a HomeScreen tile → launch it directly (skip the picker grid)
+    if (preselectedKey && preselectedKey !== 'custom') {
+      handleStartScenario(preselectedKey as ScenarioKey, EMPTY_SCENARIO_CTX);
+      return;
     }
+    setShowScenarioLauncher(true);
   };
 
   const handleStartScenario = (templateKey: ScenarioKey | 'custom', context: ParsedScenarioContext) => {
@@ -505,8 +506,17 @@ export default function App() {
         <p className="text-sm text-muted-foreground leading-relaxed">
           Your browser doesn't support on-device AI.{' '}
           Try <strong>Chrome 113+</strong> or <strong>Edge 113+</strong> on desktop,
-          or install <strong>Ollama</strong> for local model serving.
+          or pick a cloud / Ollama model instead.
         </p>
+        <button
+          onClick={() => {
+            localStorage.removeItem('navi_backend_pref');
+            setAppPhase('backend_select');
+          }}
+          className="mt-2 px-6 py-3 bg-primary text-primary-foreground rounded-2xl text-sm font-semibold"
+        >
+          Choose a different model
+        </button>
       </div>
     );
   }

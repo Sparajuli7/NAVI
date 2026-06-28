@@ -165,6 +165,7 @@ export function CityPicker({ value, onChange, placeholder = 'Search cities...', 
           <button
             type="button"
             onClick={handleClear}
+            aria-label="Clear selected city"
             className="p-0.5 hover:bg-muted/50 rounded transition-colors"
           >
             <X className="w-3.5 h-3.5 text-muted-foreground" />

@@ -14,6 +14,7 @@ export function Navbar({ onGoHome, onEdit, onSettings, children }: NavbarProps) 
       {/* NAVI logo — always links home */}
       <button
         onClick={onGoHome}
+        aria-label="Go to home"
         className="flex items-center gap-2 hover:opacity-80 transition-opacity"
       >
         <Home className="w-4 h-4 text-primary" />
@@ -31,6 +32,8 @@ export function Navbar({ onGoHome, onEdit, onSettings, children }: NavbarProps) 
         {onEdit && (
           <button
             onClick={onEdit}
+            aria-label="Edit companion"
+            title="Edit companion"
             className="p-2 hover:bg-muted/50 rounded-lg transition-colors"
           >
             <Pencil className="w-5 h-5 text-muted-foreground" />
@@ -39,6 +42,8 @@ export function Navbar({ onGoHome, onEdit, onSettings, children }: NavbarProps) 
         {onSettings && (
           <button
             onClick={onSettings}
+            aria-label="Open settings"
+            title="Settings"
             className="p-2 hover:bg-muted/50 rounded-lg transition-colors"
           >
             <Settings className="w-5 h-5 text-muted-foreground" />

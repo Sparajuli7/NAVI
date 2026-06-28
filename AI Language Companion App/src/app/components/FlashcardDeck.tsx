@@ -269,6 +269,7 @@ export function FlashcardDeck({
         {onClose && (
           <button
             onClick={onClose}
+            aria-label="Close phrase deck"
             className="w-8 h-8 flex items-center justify-center rounded-full bg-white/5 hover:bg-white/10 transition-colors"
           >
             <X className="w-4 h-4 text-white/60" />

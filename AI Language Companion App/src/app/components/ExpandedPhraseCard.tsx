@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'motion/react';
-import { Volume2, Mic, Bookmark, X } from 'lucide-react';
+import { Volume2, Mic, Bookmark, BookmarkCheck, X } from 'lucide-react';
 import { speakPhrase, stopSpeaking } from '../../services/tts';
 import { startRecording, stopRecording, isSTTSupported } from '../../services/stt';
 
@@ -17,10 +17,24 @@ interface ExpandedPhraseCardProps {
   characterName: string;
   languageName?: string;
   onClose: () => void;
+  /** Persist this phrase to the learner's deck. Returns a promise so we can show a saving state. */
+  onSave?: () => Promise<void> | void;
 }
 
-export function ExpandedPhraseCard({ phrase, characterName, languageName = 'English', onClose }: ExpandedPhraseCardProps) {
+export function ExpandedPhraseCard({ phrase, characterName, languageName = 'English', onClose, onSave }: ExpandedPhraseCardProps) {
   const [isPracticing, setIsPracticing] = useState(false);
+  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved'>('idle');
+
+  const handleSave = async () => {
+    if (!onSave || saveState !== 'idle') return;
+    setSaveState('saving');
+    try {
+      await onSave();
+      setSaveState('saved');
+    } catch {
+      setSaveState('idle');
+    }
+  };
 
   const formalityPosition = phrase.formality === 'casual' ? 20 : phrase.formality === 'formal' ? 80 : 50;
 
@@ -67,6 +81,7 @@ export function ExpandedPhraseCard({ phrase, characterName, languageName = 'Engl
           <h3 className="font-medium text-foreground">Phrase Details</h3>
           <button
             onClick={onClose}
+            aria-label="Close phrase details"
             className="p-2 hover:bg-muted/50 rounded-lg transition-colors"
           >
             <X className="w-5 h-5 text-muted-foreground" />
@@ -176,10 +191,30 @@ export function ExpandedPhraseCard({ phrase, characterName, languageName = 'Engl
           )}
 
           {/* Save button */}
-          <button className="w-full flex items-center justify-center gap-2 px-6 py-3 border border-border text-foreground rounded-xl font-medium hover:border-primary/30 transition-colors">
-            <Bookmark className="w-5 h-5" />
-            <span>Save phrase</span>
-          </button>
+          {onSave && (
+            <button
+              onClick={handleSave}
+              disabled={saveState !== 'idle'}
+              aria-label={saveState === 'saved' ? 'Phrase saved to your deck' : 'Save phrase to your deck'}
+              className={`w-full flex items-center justify-center gap-2 px-6 py-3 border rounded-xl font-medium transition-colors disabled:cursor-default ${
+                saveState === 'saved'
+                  ? 'border-primary/40 bg-primary/10 text-primary'
+                  : 'border-border text-foreground hover:border-primary/30'
+              }`}
+            >
+              {saveState === 'saved' ? (
+                <>
+                  <BookmarkCheck className="w-5 h-5" />
+                  <span>Saved to deck</span>
+                </>
+              ) : (
+                <>
+                  <Bookmark className="w-5 h-5" />
+                  <span>{saveState === 'saving' ? 'Saving…' : 'Save phrase'}</span>
+                </>
+              )}
+            </button>
+          )}
         </div>
       </motion.div>
     </motion.div>

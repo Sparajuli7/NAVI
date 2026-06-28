@@ -177,6 +177,7 @@ export function CameraOverlay({ character, onClose }: CameraOverlayProps) {
       <div className="relative z-10 flex items-center justify-between px-6 py-4">
         <button
           onClick={onClose}
+          aria-label="Close camera"
           className="p-2 bg-black/50 backdrop-blur-sm rounded-full"
         >
           <X className="w-5 h-5 text-white" />
@@ -184,6 +185,8 @@ export function CameraOverlay({ character, onClose }: CameraOverlayProps) {
         <span className="text-white font-medium">Camera</span>
         <button
           onClick={() => setFlashOn(!flashOn)}
+          aria-label={flashOn ? 'Turn flash off' : 'Turn flash on'}
+          aria-pressed={flashOn}
           className="p-2 bg-black/50 backdrop-blur-sm rounded-full"
         >
           {flashOn ? (
@@ -310,6 +313,7 @@ export function CameraOverlay({ character, onClose }: CameraOverlayProps) {
                           </div>
                           <button
                             className="p-2 hover:bg-muted/50 rounded-lg transition-colors flex-shrink-0"
+                            aria-label={`Hear "${seg.data.phrase}" spoken aloud`}
                             onClick={() => speakPhrase(seg.data.phrase, currentLocation?.dialectInfo?.language ?? 'English')}
                           >
                             <Volume2 className="w-4 h-4 text-muted-foreground" />

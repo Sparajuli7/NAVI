@@ -9,7 +9,6 @@ import { ExpandedPhraseCard } from './ExpandedPhraseCard';
 import { SettingsPanel } from './SettingsPanel';
 import { FlashcardDeck } from './FlashcardDeck';
 import { KnowledgeGraphScreen } from './KnowledgeGraphScreen';
-import { KnowledgeGraphExplorer } from './KnowledgeGraphExplorer';
 import { AnimatePresence, motion } from 'motion/react';
 import { useChatStore } from '../../stores/chatStore';
 import { useCharacterStore } from '../../stores/characterStore';
@@ -91,7 +90,6 @@ export function ConversationScreen({
   const [showSettings, setShowSettings]         = useState(false);
   const [showFlashcards, setShowFlashcards]     = useState(false);
   const [showKnowledgeGraph, setShowKnowledgeGraph] = useState(false);
-  const [showGraphExplorer, setShowGraphExplorer]   = useState(false);
   const [isRecording, setIsRecording]           = useState(false);
   const [isAmbientListening, setIsAmbientListening] = useState(false);
   const [llmError, setLlmError]                 = useState(false);
@@ -380,10 +378,13 @@ export function ConversationScreen({
         {activeScenario && SCENARIOS[activeScenario] && (
           <button
             onClick={isScenarioActive ? handleEndScenario : undefined}
+            disabled={!isScenarioActive}
+            aria-label={isScenarioActive ? `End ${SCENARIOS[activeScenario].label} scenario` : undefined}
+            title={isScenarioActive ? 'Tap to end this scenario' : undefined}
             className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors
               ${isScenarioActive
                 ? 'bg-primary/20 text-primary hover:bg-primary/30'
-                : 'bg-primary/10 text-primary/70'}`}
+                : 'bg-primary/10 text-primary/70 cursor-default'}`}
           >
             {(SCENARIOS[activeScenario] as { emoji?: string }).emoji && (
               <span className="text-xs">{(SCENARIOS[activeScenario] as { emoji?: string }).emoji}</span>
@@ -403,6 +404,7 @@ export function ConversationScreen({
         <button
           onClick={onOpenScenarios}
           className="p-2 hover:bg-muted/50 rounded-lg transition-colors"
+          aria-label="Practice a scenario"
           title="Practice a scenario"
         >
           <Zap className="w-4 h-4 text-muted-foreground" />
@@ -410,6 +412,8 @@ export function ConversationScreen({
         <button
           onClick={onToggleTheme}
           className="p-2 hover:bg-muted/50 rounded-lg transition-colors"
+          aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+          title={isDark ? 'Light mode' : 'Dark mode'}
         >
           {isDark ? (
             <Sun className="w-4 h-4 text-muted-foreground" />
@@ -420,6 +424,8 @@ export function ConversationScreen({
         <button
           onClick={() => setShowSettings(true)}
           className="p-2 hover:bg-muted/50 rounded-lg transition-colors"
+          aria-label="Open settings"
+          title="Settings"
         >
           <Settings className="w-4 h-4 text-muted-foreground" />
         </button>
@@ -496,6 +502,8 @@ export function ConversationScreen({
         <div className="px-4 py-3 flex items-center gap-2">
           <button
             onClick={onOpenCamera}
+            aria-label="Scan a menu or sign with the camera"
+            title="Scan with camera"
             className="p-2.5 hover:bg-muted/50 rounded-lg transition-colors flex-shrink-0"
           >
             <Camera className="w-5 h-5 text-muted-foreground" />
@@ -513,6 +521,8 @@ export function ConversationScreen({
           {isSTTSupported() && (
             <button
               className={`p-2.5 rounded-xl transition-colors flex-shrink-0 ${isRecording ? 'bg-primary' : 'bg-primary/10 hover:bg-primary/20'}`}
+              aria-label={userMode === 'guide' ? 'Hold to listen and translate' : 'Hold to speak'}
+              title={userMode === 'guide' ? 'Hold to listen & translate' : 'Hold to speak'}
               onPointerDown={handleMicDown}
               onPointerUp={handleMicUp}
               onPointerLeave={handleMicUp}
@@ -524,7 +534,9 @@ export function ConversationScreen({
           {inputValue.trim() && (
             <motion.button
               onClick={() => handleSend()}
-              className="p-2.5 bg-primary text-primary-foreground rounded-xl flex-shrink-0"
+              disabled={isGenerating}
+              aria-label="Send message"
+              className="p-2.5 bg-primary text-primary-foreground rounded-xl flex-shrink-0 disabled:opacity-50"
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
               whileTap={{ scale: 0.9 }}
@@ -553,6 +565,15 @@ export function ConversationScreen({
             characterName={character.name}
             languageName={languageName}
             onClose={() => setExpandedPhrase(null)}
+            onSave={async () => {
+              await agent.memory.learner.recordPhraseAttempt({
+                phrase: expandedPhrase.foreign,
+                language: languageName,
+                outcome: 'learned',
+                timestamp: Date.now(),
+                context: currentLocation?.city ?? 'chat',
+              });
+            }}
           />
         )}
       </AnimatePresence>
@@ -625,21 +646,6 @@ export function ConversationScreen({
         )}
       </AnimatePresence>
 
-      {/* ── Knowledge Graph Explorer (rich graph view) ────────────────── */}
-      <AnimatePresence>
-        {showGraphExplorer && (
-          <KnowledgeGraphExplorer
-            key="graph-explorer"
-            graph={agent.memory.graph}
-            onBack={() => setShowGraphExplorer(false)}
-            onPracticePhrase={(phrase) => {
-              setShowGraphExplorer(false);
-              handleSend(`Can we practice this phrase? "${phrase}"`);
-            }}
-            characterName={character.name}
-          />
-        )}
-      </AnimatePresence>
     </div>
   );
 }

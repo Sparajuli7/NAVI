@@ -121,6 +121,7 @@ export function ScenarioLauncher({ onStart, onClose }: ScenarioLauncherProps) {
           {step === 'custom' && (
             <button
               onClick={() => setStep('pick')}
+              aria-label="Back to scenario list"
               className="p-1.5 hover:bg-muted/50 rounded-lg transition-colors"
             >
               <ArrowLeft className="w-4 h-4 text-muted-foreground" />
@@ -139,6 +140,7 @@ export function ScenarioLauncher({ onStart, onClose }: ScenarioLauncherProps) {
         </div>
         <button
           onClick={onClose}
+          aria-label="Close scenario launcher"
           className="p-2 hover:bg-muted/50 rounded-lg transition-colors"
         >
           <X className="w-5 h-5 text-muted-foreground" />
@@ -197,8 +199,9 @@ export function ScenarioLauncher({ onStart, onClose }: ScenarioLauncherProps) {
             </div>
 
             <motion.button
-              className="w-full px-6 py-4 bg-primary text-primary-foreground rounded-2xl font-medium hover:shadow-[0_0_20px_rgba(212,168,83,0.3)] transition-all flex items-center justify-center gap-2 mt-2"
+              className="w-full px-6 py-4 bg-primary text-primary-foreground rounded-2xl font-medium hover:shadow-[0_0_20px_rgba(212,168,83,0.3)] transition-all flex items-center justify-center gap-2 mt-2 disabled:opacity-40 disabled:shadow-none"
               onClick={handleStartCustom}
+              disabled={!situationText.trim()}
               whileTap={{ scale: 0.97 }}
             >
               <Sparkles className="w-4 h-4" />
