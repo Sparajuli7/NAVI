@@ -497,7 +497,6 @@ const masteryColors: Record<PhraseMastery, string> = {
   mastered: '#D4A853',
 };
 
-type FilterType = FilterMode;
 
 export interface KnowledgeGraphScreenProps {
   onBack: () => void;
@@ -525,7 +524,7 @@ export function KnowledgeGraphScreen({
 }: KnowledgeGraphScreenProps) {
   void _character;
   const [selectedPhrase, setSelectedPhrase] = useState<GraphPhrase | null>(null);
-  const [activeFilter, setActiveFilter] = useState<FilterType>('all');
+  const [activeFilter, setActiveFilter] = useState<FilterMode>('all');
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -654,7 +653,7 @@ export function KnowledgeGraphScreen({
       )}
 
       <div className="px-4 py-2 flex gap-2 overflow-x-auto scrollbar-hide border-b border-border/50 bg-card/50 shrink-0">
-        {(['all', 'struggling', 'due', 'mastered'] as FilterType[]).map((filter) => (
+        {(['all', 'struggling', 'due', 'mastered'] as FilterMode[]).map((filter) => (
           <button
             key={filter}
             type="button"

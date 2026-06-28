@@ -14,6 +14,7 @@ const STATUS_LABEL: Record<ModelStatus, string> = {
   loading:     'Loading into GPU...',
   ready:       'Ready!',
   error:       'Something went wrong. Retrying...',
+  unloaded:    'Preparing your AI companion...',
 };
 
 export function ModelDownloadScreen({ progress, status, progressText }: ModelDownloadScreenProps) {

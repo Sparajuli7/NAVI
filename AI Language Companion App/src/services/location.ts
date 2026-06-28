@@ -1,8 +1,7 @@
 import dialectMapRaw from '../config/dialectMap.json';
 import citiesData from '../data/cities.json';
-import type { LocationContext, DialectInfo } from '../types/config';
+import type { LocationContext, DialectInfo, DialectMap } from '../types/config';
 
-type DialectMap = Record<string, DialectInfo>;
 const dialectMap = dialectMapRaw as DialectMap;
 
 interface CityEntry {

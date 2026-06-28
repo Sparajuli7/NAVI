@@ -2,11 +2,10 @@
  * Shared location/dialect helpers used across App.tsx and other UI components.
  * Consolidates: COUNTRY_NAMES, resolveDialectKey, getDialectInfo, buildLocationContext.
  */
-import type { LocationContext, DialectInfo } from '../types/config';
+import type { LocationContext, DialectInfo, DialectMap } from '../types/config';
 import dialectMapRaw from '../config/dialectMap.json';
 
-type DialectMapType = Record<string, DialectInfo>;
-const dialectMap = dialectMapRaw as DialectMapType;
+const dialectMap = dialectMapRaw as DialectMap;
 
 /** ISO country code to human-readable country name */
 export const COUNTRY_NAMES: Record<string, string> = {

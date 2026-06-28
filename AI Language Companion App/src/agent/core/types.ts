@@ -8,7 +8,8 @@
 
 // Re-export ModelStatus from the canonical location so agent consumers
 // can keep importing from this file without breakage.
-export type { ModelStatus } from '../../types/inference';
+import type { ModelStatus } from '../../types/inference';
+export type { ModelStatus };
 
 // ─── Execution Types ───────────────────────────────────────────
 

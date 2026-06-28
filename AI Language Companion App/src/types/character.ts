@@ -114,4 +114,4 @@ export function mapCharacterToUI(c: Character): GeneratedCharacter {
 export type AvatarState = 'idle' | 'generating' | 'speaking' | 'success' | 'thinking';
 
 /** Type alias for the dialect map JSON shape */
-export type DialectMap = Record<string, import('./config').DialectInfo>;
+export type { DialectMap } from './config';

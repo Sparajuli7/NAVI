@@ -12,6 +12,9 @@ export interface DialectInfo {
   slang_era: SlangEra;
 }
 
+/** Type alias for the dialect map JSON shape (keyed by dialect key). */
+export type DialectMap = Record<string, DialectInfo>;
+
 export interface ScenarioContext {
   label: string;
   emoji?: string;
