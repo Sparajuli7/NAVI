@@ -27,6 +27,6 @@ export interface OCRResult {
   blocks: string[];
   blockCount: number;
   avgBlockLength: number;
-  /** OCR confidence score (0-1). Present when using VisionProvider, absent in legacy service. */
-  confidence?: number;
+  /** OCR confidence score (0-1) */
+  confidence: number;
 }
