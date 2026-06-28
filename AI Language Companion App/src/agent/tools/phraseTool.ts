@@ -10,6 +10,7 @@ import type { AvatarContextController } from '../avatar/contextController';
 import type { LocationIntelligence } from '../location/locationIntelligence';
 import type { MemoryManager } from '../memory';
 import { promptLoader } from '../prompts/promptLoader';
+import { getToolConfig, getUserNativeLanguage } from './toolHelpers';
 export function createPhraseTool(
   llmProvider: ChatLLM,
   avatarController: AvatarContextController,
@@ -30,10 +31,8 @@ export function createPhraseTool(
       const language = locationIntelligence.getPrimaryLanguage();
       const dialect = locationIntelligence.getDialect();
 
-      const toolConfig = promptLoader.getRaw('toolPrompts.phrase') as {
-        mode_header: string; template: string; temperature: number; max_tokens: number;
-      };
-      const userNativeLanguage = memoryManager.profile.getProfile().nativeLanguage || 'English';
+      const toolConfig = getToolConfig('toolPrompts.phrase');
+      const userNativeLanguage = getUserNativeLanguage(memoryManager);
       // Filter tracked phrases by current language to avoid cross-companion leaking
       const trackedPhrases = language
         ? memoryManager.learner.getPhrasesForLanguage(language)

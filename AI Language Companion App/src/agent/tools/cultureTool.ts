@@ -10,6 +10,7 @@ import type { AvatarContextController } from '../avatar/contextController';
 import type { LocationIntelligence } from '../location/locationIntelligence';
 import type { MemoryManager } from '../memory';
 import { promptLoader } from '../prompts/promptLoader';
+import { getToolConfig, getUserNativeLanguage } from './toolHelpers';
 
 export function createCultureTool(
   llmProvider: ChatLLM,
@@ -30,12 +31,10 @@ export function createCultureTool(
       const message = params.message as string;
       const locationContext = locationIntelligence.buildContextForPrompt();
 
-      const toolConfig = promptLoader.getRaw('toolPrompts.culture') as {
-        mode_header: string; template: string; temperature: number; max_tokens: number;
-      };
+      const toolConfig = getToolConfig('toolPrompts.culture');
       const toolPrompt = promptLoader.get('toolPrompts.culture.template');
 
-      const userNativeLanguage = memoryManager.profile.getProfile().nativeLanguage || 'English';
+      const userNativeLanguage = getUserNativeLanguage(memoryManager);
       const systemPrompt = `${avatarController.buildSystemPrompt({ userNativeLanguage })}\n\n${toolConfig.mode_header}\n${locationContext}\n\n${toolPrompt}`;
 
       const messages = [

@@ -13,6 +13,7 @@ import type { ChatLLM } from '../models/chatLLM';
 import type { AvatarContextController } from '../avatar/contextController';
 import type { MemoryManager } from '../memory';
 import { promptLoader } from '../prompts/promptLoader';
+import { getUserNativeLanguage } from './toolHelpers';
 
 export function createChatTool(
   llmProvider: ChatLLM,
@@ -69,7 +70,7 @@ export function createChatTool(
       };
 
       // Get user's native language from profile memory
-      const userNativeLanguage = memoryManager.profile.getProfile().nativeLanguage || 'English';
+      const userNativeLanguage = getUserNativeLanguage(memoryManager);
 
       const systemPrompt = avatarController.buildSystemPrompt({
         memoryContext,

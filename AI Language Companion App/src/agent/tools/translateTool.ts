@@ -9,6 +9,7 @@ import type { ChatLLM } from '../models/chatLLM';
 import type { TranslationProvider } from '../models/translationProvider';
 import type { LocationIntelligence } from '../location/locationIntelligence';
 import type { MemoryManager } from '../memory';
+import { getUserNativeLanguage } from './toolHelpers';
 
 export function createTranslateTool(
   llmProvider: ChatLLM,
@@ -32,7 +33,7 @@ export function createTranslateTool(
       const targetLanguage = (params.targetLanguage as string) ?? locationIntelligence.getPrimaryLanguage();
       const sourceLanguage = params.sourceLanguage as string | undefined;
 
-      const userNativeLanguage = memoryManager?.profile.getProfile().nativeLanguage || 'English';
+      const userNativeLanguage = getUserNativeLanguage(memoryManager);
       const translationPrompt = translationProvider.buildTranslationPrompt(
         message,
         targetLanguage,

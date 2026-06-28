@@ -9,6 +9,7 @@ import { useNaviAgent } from '../../agent/react/useNaviAgent';
 import { updateGeminiApiKey } from '../../agent/models/geminiEmbedding';
 import { LLM_PRESETS, OPENROUTER_FREE_MODELS, OPENROUTER_PAID_MODELS } from '../../agent/models';
 import { generateAvatarImage } from '../../utils/generateAvatarImage';
+import { formatGB } from '../../utils/formatBytes';
 import { CityPicker } from './CityPicker';
 import { LanguagePicker } from './LanguagePicker';
 import { getLanguageByCode } from '../../config/supportedLanguages';
@@ -962,7 +963,7 @@ export function SettingsPanel({ onClose, onRegenerate, onDeleteCompanion, onUpda
                                 {m.name}
                               </span>
                               <span className="text-xs text-muted-foreground ml-2">
-                                {(m.size / 1e9).toFixed(1)} GB · local · private
+                                {formatGB(m.size)} GB · local · private
                               </span>
                             </div>
                             <div className={`w-3.5 h-3.5 rounded-full border-2 shrink-0 ml-3 ${

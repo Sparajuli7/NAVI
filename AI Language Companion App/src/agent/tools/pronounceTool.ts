@@ -11,6 +11,7 @@ import type { AvatarContextController } from '../avatar/contextController';
 import type { LocationIntelligence } from '../location/locationIntelligence';
 import type { MemoryManager } from '../memory';
 import { promptLoader } from '../prompts/promptLoader';
+import { getToolConfig, getUserNativeLanguage } from './toolHelpers';
 import { lookupPhraseIPA } from '../../utils/pronunciationLookup';
 
 export function createPronounceTool(
@@ -33,11 +34,9 @@ export function createPronounceTool(
       const language = locationIntelligence.getPrimaryLanguage();
       const dialect = locationIntelligence.getDialect();
 
-      const toolConfig = promptLoader.getRaw('toolPrompts.pronounce') as {
-        mode_header: string; template: string; temperature: number; max_tokens: number;
-      };
+      const toolConfig = getToolConfig('toolPrompts.pronounce');
       const modeHeader = toolConfig.mode_header;
-      const userNativeLanguage = memoryManager.profile.getProfile().nativeLanguage || 'English';
+      const userNativeLanguage = getUserNativeLanguage(memoryManager);
 
       // Pre-lookup: try to find real IPA for the phrase the user is asking about
       let ipaHint = '';

@@ -10,6 +10,7 @@ import type { AvatarContextController } from '../avatar/contextController';
 import type { LocationIntelligence } from '../location/locationIntelligence';
 import type { MemoryManager } from '../memory';
 import { promptLoader } from '../prompts/promptLoader';
+import { getToolConfig, getUserNativeLanguage } from './toolHelpers';
 import { AGE_GEN_MAP } from '../../utils/avatarProfileHelpers';
 
 export function createSlangTool(
@@ -38,11 +39,9 @@ export function createSlangTool(
       const dialect = locationIntelligence.getDialect();
       const locationCtx = locationIntelligence.buildContextForPrompt();
 
-      const toolConfig = promptLoader.getRaw('toolPrompts.slang') as {
-        mode_header: string; template: string; temperature: number; max_tokens: number;
-      };
+      const toolConfig = getToolConfig('toolPrompts.slang');
       const modeHeader = promptLoader.get('toolPrompts.slang.mode_header', { generation });
-      const userNativeLanguage = memoryManager.profile.getProfile().nativeLanguage || 'English';
+      const userNativeLanguage = getUserNativeLanguage(memoryManager);
       const toolPrompt = promptLoader.get('toolPrompts.slang.template', { generation, language, dialect });
 
       const systemPrompt = `${avatarController.buildSystemPrompt({ userNativeLanguage })}\n\n${modeHeader}\n${locationCtx}\n\n${toolPrompt}`;

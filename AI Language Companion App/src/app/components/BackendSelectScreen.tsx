@@ -9,7 +9,8 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { RefreshCw, Server } from 'lucide-react';
 import { useNaviAgent } from '../../agent/react/useNaviAgent';
-import { LLM_PRESETS } from '../../agent/models';
+import { LLM_PRESETS, listOllamaModels } from '../../agent/models';
+import { formatGB } from '../../utils/formatBytes';
 
 interface BackendSelectScreenProps {
   onDone: () => void;
@@ -53,23 +54,15 @@ export function BackendSelectScreen({ onDone }: BackendSelectScreenProps) {
   const [ollamaModels, setOllamaModels] = useState<OllamaModel[]>([]);
   const [ollamaAvailable, setOllamaAvailable] = useState(false);
 
-  // Detect Ollama on mount — try 127.0.0.1 first (works from HTTPS), then localhost
+  // Detect Ollama on mount — listOllamaModels handles the 127.0.0.1 ↔ localhost fallback
   useEffect(() => {
-    const tryFetch = (url: string) =>
-      fetch(`${url}/api/tags`, { signal: AbortSignal.timeout(3000) })
-        .then(r => r.json())
-        .then(data => {
-          const models = (data.models ?? []).map((m: { name: string; size: number }) => ({
-            name: m.name,
-            size: m.size,
-          }));
-          if (models.length > 0) {
-            setOllamaModels(models);
-            setOllamaAvailable(true);
-          }
-        });
-    tryFetch('http://127.0.0.1:11434')
-      .catch(() => tryFetch('http://localhost:11434'))
+    listOllamaModels('http://127.0.0.1:11434')
+      .then(models => {
+        if (models.length > 0) {
+          setOllamaModels(models);
+          setOllamaAvailable(true);
+        }
+      })
       .catch(() => { /* Ollama not running */ });
   }, []);
 
@@ -197,7 +190,7 @@ export function BackendSelectScreen({ onDone }: BackendSelectScreenProps) {
                         {m.name}
                       </span>
                       <span className="text-xs text-muted-foreground ml-2">
-                        {(m.size / 1e9).toFixed(1)} GB · local · private
+                        {formatGB(m.size)} GB · local · private
                       </span>
                     </div>
                     <div className={`w-3.5 h-3.5 rounded-full border-2 shrink-0 ml-3 ${
@@ -234,7 +227,7 @@ export function BackendSelectScreen({ onDone }: BackendSelectScreenProps) {
                       {cfg.name}
                     </span>
                     <span className="text-xs text-muted-foreground ml-2">
-                      {(cfg.sizeBytes / 1e9).toFixed(1)} GB
+                      {formatGB(cfg.sizeBytes)} GB
                     </span>
                   </div>
                   <div className={`w-3.5 h-3.5 rounded-full border-2 shrink-0 ml-3 ${

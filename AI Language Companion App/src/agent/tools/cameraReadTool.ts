@@ -12,6 +12,7 @@ import type { AvatarContextController } from '../avatar/contextController';
 import type { LocationIntelligence } from '../location/locationIntelligence';
 import type { MemoryManager } from '../memory';
 import { analyzeImage } from '../pipelines/imageUnderstanding';
+import { getUserNativeLanguage } from './toolHelpers';
 
 export function createCameraReadTool(
   llmProvider: ChatLLM,
@@ -36,7 +37,7 @@ export function createCameraReadTool(
       const onOCRProgress = params.onOCRProgress as ((p: number) => void) | undefined;
       const onExplanationToken = params.onExplanationToken as ((t: string, f: string) => void) | undefined;
 
-      const userNativeLanguage = memoryManager?.profile.getProfile().nativeLanguage || 'English';
+      const userNativeLanguage = getUserNativeLanguage(memoryManager);
       const avatarContext = avatarController.buildSystemPrompt({ userNativeLanguage });
       const language = locationIntelligence.getPrimaryLanguage();
 
