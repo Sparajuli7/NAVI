@@ -312,15 +312,11 @@ export class AvatarContextController {
         layerDefs.push([openerLayer, 2]);
 
         // Inject TBLT pretask with vocabulary_focus so the user gets key phrases before the task phase
-        try {
-          const pretaskLayer = promptLoader.get('systemLayers.scenario.tblt_pretask', {
-            label: scenarioConfig.label,
-            vocabulary: scenarioConfig.vocabulary_focus.join(', '),
-          });
-          if (pretaskLayer) layerDefs.push([pretaskLayer, 1]);
-        } catch {
-          // tblt_pretask template not available — skip silently
-        }
+        const pretaskLayer = promptLoader.get('systemLayers.scenario.tblt_pretask', {
+          label: scenarioConfig.label,
+          vocabulary: scenarioConfig.vocabulary_focus.join(', '),
+        });
+        if (pretaskLayer) layerDefs.push([pretaskLayer, 1]);
       }
     }
 
@@ -488,25 +484,21 @@ export class AvatarContextController {
       }
 
       // Dialect-specific teaching instructions
-      try {
-        const culturalNotesFragment = dialectConfig.cultural_notes
-          ? ` Cultural context for your dialect: ${dialectConfig.cultural_notes}`
-          : '';
-        const gen076 = AGE_GEN_MAP[ageGroup] ?? 'millennial';
-        const slangEraData = dialectConfig.slang_era[gen076];
-        const slangEraFragment = slangEraData
-          ? ` Your generation's slang palette: ${slangEraData}`
-          : '';
-        const dialectTeachingLayer = promptLoader.get('systemLayers.dialectTeaching.template', {
-          language: dialectConfig.language,
-          dialect: dialectConfig.dialect,
-          culturalNotes: culturalNotesFragment,
-          slangEraNote: slangEraFragment,
-        });
-        layer += ` ${dialectTeachingLayer}`;
-      } catch {
-        // dialectTeaching template not available — skip silently
-      }
+      const culturalNotesFragment = dialectConfig.cultural_notes
+        ? ` Cultural context for your dialect: ${dialectConfig.cultural_notes}`
+        : '';
+      const gen076 = AGE_GEN_MAP[ageGroup] ?? 'millennial';
+      const slangEraData = dialectConfig.slang_era[gen076];
+      const slangEraFragment = slangEraData
+        ? ` Your generation's slang palette: ${slangEraData}`
+        : '';
+      const dialectTeachingLayer = promptLoader.get('systemLayers.dialectTeaching.template', {
+        language: dialectConfig.language,
+        dialect: dialectConfig.dialect,
+        culturalNotes: culturalNotesFragment,
+        slangEraNote: slangEraFragment,
+      });
+      layer += ` ${dialectTeachingLayer}`;
     } else {
       // No dialect config — infer language from location name
       console.warn(
@@ -519,37 +511,24 @@ export class AvatarContextController {
     // Universal location personality layers — injected for ALL cities to ensure rich personality
 
     // Location personality — makes the avatar a true local
-    try {
-      const locPersonality = promptLoader.get('systemLayers.locationPersonality', {
-        city: city || location,
-        country: country || 'your country',
-      });
-      layer += `\n${locPersonality}`;
-    } catch {
-      // locationPersonality template not available — skip silently
-    }
+    const locPersonality = promptLoader.get('systemLayers.locationPersonality', {
+      city: city || location,
+      country: country || 'your country',
+    });
+    layer += `\n${locPersonality}`;
 
     // Cultural voice — language-family conversational style
-    try {
-      const family = language ? getLanguageFamily(language) : 'default';
-      const culturalVoiceKey = `systemLayers.culturalVoice.${family}`;
-      const culturalVoice = promptLoader.get(culturalVoiceKey, {
-        city: city || location,
-      });
-      layer += `\n${culturalVoice}`;
-    } catch {
-      // culturalVoice template not available — skip silently
-    }
+    const family = language ? getLanguageFamily(language) : 'default';
+    const culturalVoice = promptLoader.get(`systemLayers.culturalVoice.${family}`, {
+      city: city || location,
+    });
+    layer += `\n${culturalVoice}`;
 
     // Location sensory — grounds the avatar in the physical city
-    try {
-      const locSensory = promptLoader.get('systemLayers.locationSensory', {
-        city: city || location,
-      });
-      layer += `\n${locSensory}`;
-    } catch {
-      // locationSensory template not available — skip silently
-    }
+    const locSensory = promptLoader.get('systemLayers.locationSensory', {
+      city: city || location,
+    });
+    layer += `\n${locSensory}`;
 
     return layer;
   }
@@ -559,37 +538,22 @@ export class AvatarContextController {
     const config = this.scenarios[scenario];
     if (!config) return '';
 
-    try {
-      return promptLoader.get('systemLayers.scenarioCoach', {
-        characterName,
-        scenarioLabel: config.label,
-      });
-    } catch {
-      // Fall back to regular scenario layer if coach template not found
-      return this.buildScenarioLayer(scenario);
-    }
+    return promptLoader.get('systemLayers.scenarioCoach', {
+      characterName,
+      scenarioLabel: config.label,
+    });
   }
 
   private buildScenarioLayer(scenario: string, formalityShift?: number): string {
     const config = this.scenarios[scenario];
     if (!config) return '';
 
-    // Use the richer scenarioLock template if available, fall back to basic scenario template
-    let layer: string;
-    try {
-      layer = promptLoader.get('systemLayers.scenarioLock', {
-        scenarioLabel: config.label,
-        vocabulary: config.vocabulary_focus.join(', '),
-        toneGuidance: config.tone_guidance ?? config.tone_shift,
-        culturalGuardrails: config.cultural_guardrails ?? '',
-      });
-    } catch {
-      layer = promptLoader.get('systemLayers.scenario.template', {
-        label: config.label,
-        vocabulary: config.vocabulary_focus.join(', '),
-        tone: config.tone_shift,
-      });
-    }
+    let layer = promptLoader.get('systemLayers.scenarioLock', {
+      scenarioLabel: config.label,
+      vocabulary: config.vocabulary_focus.join(', '),
+      toneGuidance: config.tone_guidance ?? config.tone_shift,
+      culturalGuardrails: config.cultural_guardrails ?? '',
+    });
 
     if (formalityShift !== undefined) {
       const totalShift = config.formality_adjustment + formalityShift;

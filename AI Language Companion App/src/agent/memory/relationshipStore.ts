@@ -309,12 +309,8 @@ export class RelationshipStore {
 
     // Backstory disclosure tier instruction
     const backstoryTier = this.getBackstoryTier(avatarId);
-    try {
-      const backstoryInstruction = promptLoader.get(`systemLayers.backstoryDisclosure.tier_${backstoryTier}`) as string;
-      if (backstoryInstruction) sections.push(backstoryInstruction);
-    } catch {
-      // backstoryDisclosure config not yet loaded — skip silently
-    }
+    const backstoryInstruction = promptLoader.get(`systemLayers.backstoryDisclosure.tier_${backstoryTier}`) as string;
+    if (backstoryInstruction) sections.push(backstoryInstruction);
 
     // Callback suggestion — a specific shared reference to weave in this turn
     const callback = this.getCallbackSuggestion(avatarId);

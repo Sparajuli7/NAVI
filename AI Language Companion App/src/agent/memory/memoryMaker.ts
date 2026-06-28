@@ -386,8 +386,8 @@ export class MemoryMaker {
           { temperature: config.temperature, max_tokens: config.max_tokens },
         );
         if (result && result.length > 5) return result.trim();
-      } catch {
-        // Fallback to heuristic
+      } catch (err) {
+        console.warn('[NAVI:memoryMaker] reason inference LLM call failed, using heuristic:', err);
       }
     }
 

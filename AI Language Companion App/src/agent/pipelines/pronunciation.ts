@@ -146,8 +146,8 @@ Be encouraging but honest. Focus on the most impactful corrections.`;
   try {
     const cleaned = raw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
     return JSON.parse(cleaned) as PronunciationFeedback;
-  } catch {
-    // Fallback if LLM doesn't return valid JSON
+  } catch (err) {
+    console.warn('[NAVI:pronunciation] LLM did not return valid JSON, using string-similarity fallback:', err);
     const similarity = computeStringSimilarity(target.toLowerCase(), userSaid.toLowerCase());
     return {
       score: similarity,

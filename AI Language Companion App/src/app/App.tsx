@@ -270,7 +270,7 @@ export default function App() {
     if (languageCode) {
       useAppStore.getState().setUserPreferences({ target_language: languageCode });
       await savePreferences(useAppStore.getState().userPreferences);
-      try { await agent.memory.profile.setTargetLanguage(languageCode); } catch { /* profile may not be ready */ }
+      try { await agent.memory.profile.setTargetLanguage(languageCode); } catch (err) { console.warn('[NAVI] failed to persist target language to profile:', err); }
     }
 
     // Add first message to chat

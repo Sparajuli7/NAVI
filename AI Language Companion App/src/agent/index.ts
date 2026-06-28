@@ -597,7 +597,10 @@ export class NaviAgent {
     const pronunciationBank = await buildPronunciationBank(
       currentLanguage,
       languageScopedPhrases.slice(0, 5),
-    ).catch(() => '');
+    ).catch((err) => {
+      console.warn('[NAVI] pronunciation bank lookup failed (non-fatal):', err);
+      return '';
+    });
 
     // Merge director goals + sub-agent context + pronunciation bank
     const fullConversationGoals = [

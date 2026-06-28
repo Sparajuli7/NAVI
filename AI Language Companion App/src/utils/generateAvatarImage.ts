@@ -45,7 +45,8 @@ export async function generateAvatarImage(
     if (!blob.size) return null;
 
     return await blobToBase64(blob);
-  } catch {
+  } catch (err) {
+    console.warn('[NAVI] avatar image generation failed:', err);
     return null;
   }
 }

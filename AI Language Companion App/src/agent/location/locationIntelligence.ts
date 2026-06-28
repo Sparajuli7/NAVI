@@ -49,8 +49,8 @@ export class LocationIntelligence {
       try {
         const detected = await detectLocation();
         this.setLocation(detected, 'auto');
-      } catch {
-        // Geolocation failed — will need manual input
+      } catch (err) {
+        console.warn('[NAVI] geolocation auto-detect failed, manual input required:', err);
       }
     }
 

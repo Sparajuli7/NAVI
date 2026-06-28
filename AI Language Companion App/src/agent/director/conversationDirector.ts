@@ -462,20 +462,18 @@ export class ConversationDirector {
       }
 
       if (!usePersonalEvent || goalInstructions[goalInstructions.length - 1]?.startsWith('YOUR ONGOING') !== true) {
-        try {
-          const worldEvents = promptLoader.getRaw('worldEvents') as Record<string, string[]> | undefined;
-          const categories = worldEvents ? Object.keys(worldEvents).filter(k => k !== '_comment') : [];
-          const matchedCategory = categories.find(c => templateId?.includes(c)) ?? categories[Math.floor(Math.random() * categories.length)];
-          if (matchedCategory && worldEvents) {
-            const events = worldEvents[matchedCategory];
-            if (events && events.length > 0) {
-              const event = events[Math.floor(Math.random() * events.length)];
-              goalInstructions.push(
-                `WORLD EVENT (happening right now around you — react to it naturally, use it as a conversation starter or teaching moment): ${event}`,
-              );
-            }
+        const worldEvents = promptLoader.getRaw('worldEvents') as Record<string, string[]>;
+        const categories = Object.keys(worldEvents).filter(k => k !== '_comment');
+        const matchedCategory = categories.find(c => templateId?.includes(c)) ?? categories[Math.floor(Math.random() * categories.length)];
+        if (matchedCategory) {
+          const events = worldEvents[matchedCategory];
+          if (events && events.length > 0) {
+            const event = events[Math.floor(Math.random() * events.length)];
+            goalInstructions.push(
+              `WORLD EVENT (happening right now around you — react to it naturally, use it as a conversation starter or teaching moment): ${event}`,
+            );
           }
-        } catch { /* worldEvents config not loaded */ }
+        }
       }
     }
 

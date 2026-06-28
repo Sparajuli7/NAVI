@@ -267,12 +267,13 @@ export class TTSProvider implements ModelProvider<SpeechSynthesis> {
       }
       this.audioElement = new Audio(url);
       this.audioElement.playbackRate = Math.max(0.5, Math.min(rate, 2.0));
-      this.audioElement.play().catch(() => {
-        // Fallback to local TTS if Google Translate fails
+      this.audioElement.play().catch((err) => {
+        console.warn('[NAVI:tts] Google Translate playback failed, falling back to local TTS:', err);
         this.speakLocal(text, language, rate);
       });
       return true;
-    } catch {
+    } catch (err) {
+      console.warn('[NAVI:tts] Google Translate TTS setup failed:', err);
       return false;
     }
   }

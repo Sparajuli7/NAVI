@@ -59,7 +59,8 @@ export function createTranslateTool(
       try {
         const cleaned = raw.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
         return JSON.parse(cleaned);
-      } catch {
+      } catch (err) {
+        console.warn('[NAVI:translate] LLM did not return valid JSON, using raw text as translation:', err);
         return { translated: raw, sourceLanguage: sourceLanguage ?? 'unknown', targetLanguage };
       }
     },

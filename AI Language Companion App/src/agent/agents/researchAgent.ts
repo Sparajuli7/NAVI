@@ -274,12 +274,7 @@ export class ResearchAgent {
     protocolKey: string,
     vars: Record<string, string>,
   ): string {
-    try {
-      return promptLoader.get(`learningProtocols.protocols.${protocolKey}.instruction`, vars);
-    } catch {
-      // Fallback if template not found
-      return `Apply ${protocolKey} protocol.`;
-    }
+    return promptLoader.get(`learningProtocols.protocols.${protocolKey}.instruction`, vars);
   }
 
   private emptyRecommendation(): ResearchRecommendation {

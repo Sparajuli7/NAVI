@@ -5,7 +5,7 @@ import { CharacterAvatar } from './CharacterAvatar';
 import { useNaviAgent } from '../../agent/react/useNaviAgent';
 import { speakPhrase } from '../../services/tts';
 import { parseResponse } from '../../utils/responseParser';
-import type { ParsedSegment } from '../../types/chat';
+import type { ParsedSegment, PhraseCardSegment } from '../../types/chat';
 import { useCharacterStore } from '../../stores/characterStore';
 import { useAppStore } from '../../stores/appStore';
 import { useChatStore } from '../../stores/chatStore';

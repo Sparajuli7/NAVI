@@ -111,7 +111,8 @@ export function SettingsPanel({ onClose, onRegenerate, onDeleteCompanion, onUpda
           setOllamaModels([]);
         }
       })
-      .catch(() => {
+      .catch((err) => {
+        console.warn('[NAVI] Ollama connection check failed:', err);
         setOllamaModels([]);
         setOllamaConnected(false);
       })
@@ -726,7 +727,7 @@ export function SettingsPanel({ onClose, onRegenerate, onDeleteCompanion, onUpda
                   if (locationLanguage) {
                     setUserPreferences({ target_language: locationLanguage });
                     await savePreferences(useAppStore.getState().userPreferences);
-                    try { await agent.memory.profile.setTargetLanguage(locationLanguage); } catch { /* ok */ }
+                    try { await agent.memory.profile.setTargetLanguage(locationLanguage); } catch (err) { console.warn('[NAVI] failed to persist target language to profile:', err); }
                   }
                   setLocationSaved(true);
                 }}
@@ -1071,7 +1072,8 @@ export function SettingsPanel({ onClose, onRegenerate, onDeleteCompanion, onUpda
                         } else {
                           setPortraitRegenStatus('fail');
                         }
-                      } catch {
+                      } catch (err) {
+                        console.warn('[NAVI] portrait regeneration failed:', err);
                         setPortraitRegenStatus('fail');
                       } finally {
                         setIsRegeneratingPortrait(false);

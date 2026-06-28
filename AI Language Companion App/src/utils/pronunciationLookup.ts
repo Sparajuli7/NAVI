@@ -88,8 +88,9 @@ async function lookupWordIPA(
     saveCache().catch(e => console.warn('[NAVI]', e));
 
     return { ipa: entry.ipa, audio: entry.audio };
-  } catch {
-    return null; // API failed — fall back to LLM
+  } catch (err) {
+    console.warn(`[NAVI] pronunciation lookup failed for "${word}" (${language}), falling back to LLM:`, err);
+    return null;
   }
 }
 
