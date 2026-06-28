@@ -235,6 +235,3 @@ export function CityPicker({ value, onChange, placeholder = 'Search cities...', 
     </div>
   );
 }
-
-/** Export the full city list for external use */
-export { CITIES };

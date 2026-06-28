@@ -1,5 +1,3 @@
-import type { UserMode } from '../agent/core/types';
-
 declare global {
   interface Window {
     SpeechRecognition: typeof SpeechRecognition;
@@ -85,19 +83,4 @@ export function stopRecording(): void {
  *  ne-NP falls back to hi-IN if Nepali recognition is unavailable in the browser. */
 export function getSTTLangCode(languageName: string): string {
   return STT_LANG_CODE_MAP[languageName] ?? 'en-US';
-}
-
-/** Get the STT code for a specific mode.
- * In guide mode, listen using the avatar's language (for ambient translation).
- * In learn/friend mode, listen in the user's native language. */
-export function getSTTLangCodeForMode(
-  avatarLanguage: string,
-  userNativeLanguage: string,
-  mode: UserMode,
-): string {
-  if (mode === 'guide') {
-    // In guide mode: listen for the local language (ambient translation)
-    return STT_LANG_CODE_MAP[avatarLanguage] ?? 'en-US';
-  }
-  return STT_LANG_CODE_MAP[userNativeLanguage] ?? 'en-US';
 }

@@ -1,6 +1,6 @@
 /**
- * Shared location/dialect helpers used across App.tsx, NewOnboardingScreen.tsx, and other UI components.
- * Consolidates: COUNTRY_NAMES, getPresetCities, buildLocationFromPreset, resolveDialectKey, buildLocationContext.
+ * Shared location/dialect helpers used across App.tsx and other UI components.
+ * Consolidates: COUNTRY_NAMES, resolveDialectKey, getDialectInfo, buildLocationContext.
  */
 import type { LocationContext, DialectInfo } from '../types/config';
 import dialectMapRaw from '../config/dialectMap.json';
@@ -21,40 +21,6 @@ export const COUNTRY_NAMES: Record<string, string> = {
   BE: 'Belgium', PT: 'Portugal', CH: 'Switzerland', AT: 'Austria', IE: 'Ireland',
   CO: 'Colombia', PE: 'Peru', CL: 'Chile', EC: 'Ecuador', VE: 'Venezuela',
 };
-
-/** A preset city derived from dialectMap.json */
-export interface PresetCity {
-  key: string;
-  city: string;
-  country: string;
-}
-
-/** Get all preset cities from the dialectMap with human-readable country names. */
-export function getPresetCities(): PresetCity[] {
-  return Object.keys(dialectMap).map((key) => {
-    const [countryCode, city] = key.split('/');
-    return {
-      key,
-      city,
-      country: COUNTRY_NAMES[countryCode] ?? countryCode,
-    };
-  });
-}
-
-/** Build a full LocationContext from a dialectMap preset key (e.g. "NP/Kathmandu"). */
-export function buildLocationFromPreset(key: string): LocationContext {
-  const [countryCode, city] = key.split('/');
-  const info = dialectMap[key];
-  return {
-    city,
-    country: COUNTRY_NAMES[countryCode] ?? countryCode,
-    countryCode,
-    lat: 0,
-    lng: 0,
-    dialectKey: key,
-    dialectInfo: info ?? null,
-  };
-}
 
 /**
  * Resolve a dialect key for a character. Prefers the stored dialect_key,

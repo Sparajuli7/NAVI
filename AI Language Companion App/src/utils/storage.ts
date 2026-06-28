@@ -18,10 +18,6 @@ const memKey  = (charId: string) => `navi_mem_${charId}`;
 
 // ── Legacy single-character storage (kept for migration) ──────────────────────
 
-export async function saveConversation(messages: Message[]): Promise<void> {
-  await set(KEYS.conversation, messages);
-}
-
 export async function loadConversation(): Promise<Message[]> {
   return (await get<Message[]>(KEYS.conversation)) ?? [];
 }
@@ -106,10 +102,6 @@ export async function saveAvatarImage(characterId: string, base64: string): Prom
   await set(avatarImgKey(characterId), base64);
 }
 
-export async function loadAvatarImage(characterId: string): Promise<string | null> {
-  return (await get<string>(avatarImgKey(characterId))) ?? null;
-}
-
 // ── Per-character cleanup ─────────────────────────────────────────────────────
 
 /** Delete all IndexedDB data for a specific character (conversation, memories, portrait). */
@@ -121,8 +113,3 @@ export async function deleteCharacterData(charId: string): Promise<void> {
   ]);
 }
 
-// ── Nuclear reset ─────────────────────────────────────────────────────────────
-
-export async function clearAllData(): Promise<void> {
-  await Promise.all(Object.values(KEYS).map((k) => del(k)));
-}

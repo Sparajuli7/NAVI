@@ -59,7 +59,7 @@ export function nodeId(type: NodeType): string {
   return makeId(type);
 }
 
-export function edgeId(): string {
+function edgeId(): string {
   return makeId('edge');
 }
 

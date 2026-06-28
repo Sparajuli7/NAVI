@@ -28,13 +28,8 @@ const LANG_CODE_MAP: Record<string, string> = {
   Cantonese:  'zh-HK',
 };
 
-export function isTTSSupported(): boolean {
+function isTTSSupported(): boolean {
   return typeof window !== 'undefined' && 'speechSynthesis' in window;
-}
-
-export function getAvailableLanguages(): string[] {
-  if (!isTTSSupported()) return [];
-  return window.speechSynthesis.getVoices().map((v) => v.lang);
 }
 
 /** Pick the best available voice for a language code prefix */

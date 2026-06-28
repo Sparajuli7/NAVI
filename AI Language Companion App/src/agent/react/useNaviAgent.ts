@@ -219,8 +219,3 @@ export function useNaviAgent(config?: NaviAgentConfig): UseNaviAgentReturn {
     switchBackend,
   };
 }
-
-/** Reset the singleton (for testing) */
-export function resetNaviAgent(): void {
-  agentInstance = null;
-}

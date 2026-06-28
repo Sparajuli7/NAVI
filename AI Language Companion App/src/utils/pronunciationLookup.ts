@@ -46,7 +46,7 @@ async function saveCache(): Promise<void> {
 }
 
 /** Look up IPA for a single word. Returns null if not found. */
-export async function lookupWordIPA(
+async function lookupWordIPA(
   word: string,
   language: string,
 ): Promise<{ ipa: string; audio?: string } | null> {
@@ -177,10 +177,4 @@ export async function buildPronunciationBank(
   // Cap at 15 entries to avoid bloating the prompt
   const capped = entries.slice(0, 15);
   return `PRONUNCIATION REFERENCE (use these IPA values to write accurate reader-friendly pronunciations — convert IPA to simple syllable-by-syllable form the user can read, like "bon-ZHOOR" from /bɔ̃.ʒuʁ/):\n${capped.join('\n')}`
-}
-
-/** Get the count of cached pronunciations */
-export async function getCacheSize(): Promise<number> {
-  await loadCache();
-  return Object.keys(memoryCache).length;
 }
