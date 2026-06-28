@@ -123,9 +123,11 @@ The agent framework, memory, providers, prompt engine, and all UI screens are bu
 
 ### Known Gaps
 **Agent ↔ UI wiring (incomplete):**
-- `CameraOverlay` uses a mocked scan flow — `agent.handleImage()` (OCR→classify→LLM) exists but isn't connected.
-- `ExpandedPhraseCard` TTS/STT still calls `services/` directly instead of agent tools.
+- `CameraOverlay` is wired to `agent.handleImage()` (OCR→classify→stream LLM), but its "Help me with this" only injects a `system` message and closes — it doesn't prompt the avatar to reply, so the scan flow doesn't complete itself.
+- `ExpandedPhraseCard` TTS/STT still calls `services/` directly instead of agent tools; "Practice" records speech but discards the transcript (no scoring/feedback).
 - KnowledgeGraph data isn't auto-migrated from the flat stores into graph nodes.
+- `KnowledgeGraphExplorer` is a built-but-orphaned rich graph view (no entry point) — either give it one or delete it (~600 lines).
+- Flashcards are 2 levels deep (My phrases pill → graph → open); consider a first-class entry point.
 
 **Model / prompt quality:**
 - No model-size-aware prompt tiers — all models (1.5B–70B) get the same prompt. Small models (<3B) need a compact, all-negative tier (see `RESEARCH_ROUND3.md`). 1.5B is unreliable for persona conversation; invest in 5B+ availability over 1.5B tuning.
