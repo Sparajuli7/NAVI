@@ -16,12 +16,7 @@
 
 import type { ModelInfo, ModelProvider, ModelStatus } from '../core/types';
 
-declare global {
-  interface Window {
-    SpeechRecognition: typeof SpeechRecognition;
-    webkitSpeechRecognition: typeof SpeechRecognition;
-  }
-}
+// SpeechRecognition global types are declared in src/types/speech.d.ts
 
 /** Map language names to BCP-47 codes for speech recognition */
 const STT_LANG_CODE_MAP: Record<string, string> = {
@@ -122,12 +117,12 @@ export class STTProvider implements ModelProvider<SpeechRecognition | null> {
     this.recognition.interimResults = false;
     this.recognition.maxAlternatives = 1;
 
-    this.recognition.onresult = (event) => {
+    this.recognition.onresult = (event: SpeechRecognitionEvent) => {
       const transcript = event.results[0]?.[0]?.transcript ?? '';
       onResult(transcript);
     };
 
-    this.recognition.onerror = (event) => {
+    this.recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
       onError?.(event.error);
     };
 

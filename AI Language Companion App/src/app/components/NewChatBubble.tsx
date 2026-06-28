@@ -139,7 +139,7 @@ export function SpeechBubble({
           <div className="space-y-3">
             {segments.map((seg, idx) => (
               <React.Fragment key={idx}>
-                {seg.type === 'phrase_card' && seg.data ? (
+                {seg.type === 'phrase_card' ? (
                   <PhraseCardFull
                     data={seg.data}
                     languageName={languageName}
@@ -286,7 +286,7 @@ export function ChatLogEntry({
             <div className="space-y-2">
               {segments.map((seg, idx) => (
                 <React.Fragment key={idx}>
-                  {seg.type === 'phrase_card' && seg.data ? (
+                  {seg.type === 'phrase_card' ? (
                     <PhraseCardCompact
                       data={seg.data}
                       onPhraseCardClick={onPhraseCardClick}

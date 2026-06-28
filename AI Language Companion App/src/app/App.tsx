@@ -159,7 +159,7 @@ export default function App() {
         const avatarProfile = agent.createAvatarFromTemplate(
           activeChar.template_id ?? 'default',
           savedLocation?.city ?? activeChar.location_city,
-          activeChar.dialect_key ?? savedLocation?.dialectKey,
+          activeChar.dialect_key ?? savedLocation?.dialectKey ?? undefined,
         );
         avatarProfile.name = activeChar.name;
         avatarProfile.personality = activeChar.summary;

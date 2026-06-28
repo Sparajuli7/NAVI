@@ -9,17 +9,26 @@ export interface PhraseCardData {
   tip: string;
 }
 
-export interface ParsedSegment {
-  type: 'text' | 'phrase_card';
-  content?: string;
-  data?: PhraseCardData;
+export interface TextSegment {
+  type: 'text';
+  content: string;
 }
+
+export interface PhraseCardSegment {
+  type: 'phrase_card';
+  data: PhraseCardData;
+}
+
+/** A parsed chunk of an LLM response — either plain text or a structured phrase card. */
+export type ParsedSegment = TextSegment | PhraseCardSegment;
 
 export interface MessageMetadata {
   segments?: ParsedSegment[];
   scenario?: string;
   cameraContext?: string;
   isStreaming?: boolean;
+  /** Marks a proactive (agent-initiated) message so it can be filtered out of LLM history. */
+  isProactive?: boolean;
 }
 
 export interface PhraseHighlight {

@@ -39,7 +39,9 @@ interface ConversationScreenProps {
   isDark: boolean;
 }
 
-const SCENARIO_KEYWORDS: Record<ScenarioKey, string[]> = {
+// Only a subset of scenarios have keyword-based auto-detection; the rest are
+// launched explicitly via the ScenarioLauncher.
+const SCENARIO_KEYWORDS: Partial<Record<ScenarioKey, string[]>> = {
   restaurant:  ['restaurant', 'food', 'menu', 'eat', 'order', 'drink', 'meal', 'bill', 'tip', 'hungry', 'cafe', 'dine', 'cook'],
   hospital:    ['hospital', 'doctor', 'sick', 'pain', 'medicine', 'emergency', 'hurt', 'symptom', 'health', 'clinic', 'pharmacy'],
   market:      ['market', 'buy', 'price', 'cheap', 'expensive', 'haggle', 'bargain', 'shop', 'shopping', 'discount', 'cost'],

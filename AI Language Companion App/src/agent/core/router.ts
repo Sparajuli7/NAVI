@@ -150,8 +150,13 @@ export async function handleUserInput(
   constraintOverrides?: Partial<ExecutionContext['constraints']>,
 ): Promise<{ decision: RouteDecision; result: ToolResult }> {
   // forceChat bypasses routing — used when a tool returned structured data instead of a response
-  const decision = contextParams.forceChat
-    ? { tool: 'chat' as const, confidence: 1, params: { message: userMessage, ...contextParams } }
+  const decision: RouteDecision = contextParams.forceChat
+    ? {
+        tool: 'chat',
+        confidence: 1,
+        params: { message: userMessage, ...contextParams },
+        reason: 'forceChat: tool returned structured data, routing to chat',
+      }
     : routeIntent(userMessage, contextParams);
 
   const request: ToolRequest = {

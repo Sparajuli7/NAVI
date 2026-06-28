@@ -18,7 +18,6 @@ import React, { useEffect } from 'react';
 import { motion, useAnimation } from 'motion/react';
 import { useAppStore } from '../../stores/appStore';
 import { countryFlag } from '../../utils/countryFlag';
-import { countryFlag } from '../../utils/countryFlag';
 
 // ─── Emoji map ─────────────────────────────────────────────────────────────
 

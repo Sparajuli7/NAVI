@@ -64,14 +64,18 @@ export async function analyzeImage(
   const totalStart = Date.now();
 
   // Step 1: OCR
+  const ocrStart = Date.now();
   const ocr: OCRResult = await visionProvider.extractText(
     image,
     undefined,
     options?.onOCRProgress,
   );
+  const ocrMs = Date.now() - ocrStart;
 
   // Step 2: Classification
+  const classificationStart = Date.now();
   const documentType = classifyOCR(ocr.text, ocr.blockCount, ocr.avgBlockLength);
+  const classificationMs = Date.now() - classificationStart;
 
   // Step 3: LLM Explanation
   const explainStart = Date.now();

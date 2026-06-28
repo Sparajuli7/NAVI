@@ -25,8 +25,12 @@ function resolveBackend(opts: {
 
   // Mirror constructor lines 299–315
   let llmBackend: 'openrouter' | 'webllm' | 'ollama' | 'auto' = 'auto';
-  if (savedBackendPref === 'webllm' || savedBackendPref === 'openrouter') {
-    llmBackend = savedBackendPref as 'webllm' | 'openrouter';
+  if (
+    savedBackendPref === 'webllm' ||
+    savedBackendPref === 'openrouter' ||
+    savedBackendPref === 'ollama'
+  ) {
+    llmBackend = savedBackendPref;
   }
 
   // Mirror lines 319–329 (FIXED condition: === 'openrouter' not !== 'webllm')

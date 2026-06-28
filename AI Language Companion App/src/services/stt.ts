@@ -1,9 +1,4 @@
-declare global {
-  interface Window {
-    SpeechRecognition: typeof SpeechRecognition;
-    webkitSpeechRecognition: typeof SpeechRecognition;
-  }
-}
+// SpeechRecognition global types are declared in src/types/speech.d.ts
 
 /** Map language names to BCP-47 codes for speech recognition */
 const STT_LANG_CODE_MAP: Record<string, string> = {
@@ -62,12 +57,12 @@ export function startRecording(
   recognition.interimResults = false;
   recognition.maxAlternatives = 1;
 
-  recognition.onresult = (event) => {
+  recognition.onresult = (event: SpeechRecognitionEvent) => {
     const transcript = event.results[0]?.[0]?.transcript ?? '';
     onResult(transcript);
   };
 
-  recognition.onerror = (event) => {
+  recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
     onError?.(event.error);
   };
 

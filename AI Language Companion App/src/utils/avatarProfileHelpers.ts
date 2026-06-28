@@ -5,9 +5,10 @@
  */
 import type { Character } from '../types/character';
 import type { AvatarProfile } from '../agent/core/types';
+import type { SlangEra } from '../types/config';
 
 /** Maps avatar age group to generational slang era */
-export const AGE_GEN_MAP: Record<string, string> = {
+export const AGE_GEN_MAP: Record<string, keyof SlangEra> = {
   teen: 'gen_z', '20s': 'gen_z',
   '30s': 'millennial', '40s': 'millennial',
   '50s': 'older', '60s+': 'older',

@@ -293,9 +293,7 @@ export function CameraOverlay({ character, onClose }: CameraOverlayProps) {
               {!isLLMStreaming && !errorMessage && parsedSegments.some(s => s.type === 'phrase_card') && (
                 <div className="space-y-3 mb-6">
                   {parsedSegments
-                    .filter((s): s is ParsedSegment & { type: 'phrase_card'; data: NonNullable<ParsedSegment['data']> } =>
-                      s.type === 'phrase_card' && !!s.data
-                    )
+                    .filter((s): s is PhraseCardSegment => s.type === 'phrase_card')
                     .map((seg, index) => (
                       <motion.div
                         key={index}
