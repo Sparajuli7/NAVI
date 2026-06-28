@@ -8,6 +8,9 @@ interface ChatStore {
   activeScenario: ScenarioKey | null;
   scenarioContext: ParsedScenarioContext | null;
   isScenarioActive: boolean;
+  /** A message queued from outside the chat input (e.g. a camera scan) for the
+   *  ConversationScreen to send through its normal handleSend pipeline. */
+  pendingUserMessage: string | null;
 
   addMessage: (message: Message) => void;
   updateLastMessage: (content: string, done?: boolean) => void;
@@ -15,6 +18,7 @@ interface ChatStore {
   setScenario: (scenario: ScenarioKey | null) => void;
   setScenarioContext: (ctx: ParsedScenarioContext | null) => void;
   setScenarioActive: (active: boolean) => void;
+  setPendingUserMessage: (text: string | null) => void;
   clearMessages: () => void;
 }
 
@@ -24,6 +28,7 @@ export const useChatStore = create<ChatStore>((set) => ({
   activeScenario: null,
   scenarioContext: null,
   isScenarioActive: false,
+  pendingUserMessage: null,
 
   addMessage: (message) =>
     set((state) => ({ messages: [...state.messages, message] })),
@@ -52,10 +57,13 @@ export const useChatStore = create<ChatStore>((set) => ({
 
   setScenarioActive: (active) => set({ isScenarioActive: active }),
 
+  setPendingUserMessage: (text) => set({ pendingUserMessage: text }),
+
   clearMessages: () => set({
     messages: [],
     activeScenario: null,
     scenarioContext: null,
     isScenarioActive: false,
+    pendingUserMessage: null,
   }),
 }));

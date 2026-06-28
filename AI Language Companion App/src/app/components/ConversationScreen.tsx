@@ -9,6 +9,7 @@ import { ExpandedPhraseCard } from './ExpandedPhraseCard';
 import { SettingsPanel } from './SettingsPanel';
 import { FlashcardDeck } from './FlashcardDeck';
 import { KnowledgeGraphScreen } from './KnowledgeGraphScreen';
+import { KnowledgeGraphExplorer } from './KnowledgeGraphExplorer';
 import { AnimatePresence, motion } from 'motion/react';
 import { useChatStore } from '../../stores/chatStore';
 import { useCharacterStore } from '../../stores/characterStore';
@@ -90,6 +91,7 @@ export function ConversationScreen({
   const [showSettings, setShowSettings]         = useState(false);
   const [showFlashcards, setShowFlashcards]     = useState(false);
   const [showKnowledgeGraph, setShowKnowledgeGraph] = useState(false);
+  const [showMemoryGraph, setShowMemoryGraph]   = useState(false);
   const [isRecording, setIsRecording]           = useState(false);
   const [isAmbientListening, setIsAmbientListening] = useState(false);
   const [llmError, setLlmError]                 = useState(false);
@@ -98,9 +100,9 @@ export function ConversationScreen({
   const proactiveShownRef = useRef(false);
 
   const {
-    messages, isGenerating, activeScenario, isScenarioActive,
+    messages, isGenerating, activeScenario, isScenarioActive, pendingUserMessage,
     addMessage, updateLastMessage, setGenerating, setScenario,
-    setScenarioActive, setScenarioContext,
+    setScenarioActive, setScenarioContext, setPendingUserMessage,
   } = useChatStore();
   const { activeCharacter, addMemory: _addMemory } = useCharacterStore();
   const { currentLocation } = useAppStore();
@@ -269,6 +271,14 @@ export function ConversationScreen({
       setGenerating(false);
     }
   };
+
+  // Send a message queued from outside the input (e.g. a camera scan)
+  useEffect(() => {
+    if (!pendingUserMessage) return;
+    setPendingUserMessage(null);
+    handleSend(pendingUserMessage);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingUserMessage]);
 
   const handleRetry = () => {
     useChatStore.setState((state) => ({
@@ -609,6 +619,7 @@ export function ConversationScreen({
                 setShowKnowledgeGraph(false);
                 setShowFlashcards(true);
               }}
+              onOpenMemoryGraph={() => setShowMemoryGraph(true)}
               character={character}
               location={location}
               countryCode={currentLocation?.countryCode}
@@ -620,6 +631,23 @@ export function ConversationScreen({
               }}
             />
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* ── Memory graph explorer (rich KnowledgeGraph view) ─────────── */}
+      <AnimatePresence>
+        {showMemoryGraph && (
+          <KnowledgeGraphExplorer
+            key="memory-graph"
+            graph={agent.memory.graph}
+            characterName={character.name}
+            onBack={() => setShowMemoryGraph(false)}
+            onPracticePhrase={(phrase) => {
+              setShowMemoryGraph(false);
+              setShowKnowledgeGraph(false);
+              handleSend(`Can we practice this phrase? "${phrase}"`);
+            }}
+          />
         )}
       </AnimatePresence>
 

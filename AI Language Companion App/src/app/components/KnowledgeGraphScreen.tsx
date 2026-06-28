@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { ArrowLeft, Search, LayoutList } from 'lucide-react';
+import { ArrowLeft, Search, LayoutList, Brain } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { PhraseDetailSheet } from './PhraseDetailSheet';
 import { countryFlag } from '../../utils/countryFlag';
@@ -502,6 +502,8 @@ export interface KnowledgeGraphScreenProps {
   onBack: () => void;
   /** Optional: open list-style phrase deck */
   onOpenFlashcards?: () => void;
+  /** Optional: open the rich memory-graph explorer (KnowledgeGraphStore) */
+  onOpenMemoryGraph?: () => void;
   character: GeneratedCharacter;
   location: string;
   countryCode?: string;
@@ -515,6 +517,7 @@ export interface KnowledgeGraphScreenProps {
 export function KnowledgeGraphScreen({
   onBack,
   onOpenFlashcards,
+  onOpenMemoryGraph,
   character: _character,
   location,
   countryCode,
@@ -619,11 +622,23 @@ export function KnowledgeGraphScreen({
         </div>
 
         <div className="flex items-center gap-1">
+          {onOpenMemoryGraph && (
+            <button
+              type="button"
+              onClick={onOpenMemoryGraph}
+              className="p-2 hover:bg-muted/50 rounded-lg transition-colors"
+              aria-label="Open memory graph"
+              title="Memory graph"
+            >
+              <Brain className="w-5 h-5 text-primary" />
+            </button>
+          )}
           {onOpenFlashcards && (
             <button
               type="button"
               onClick={onOpenFlashcards}
               className="p-2 hover:bg-muted/50 rounded-lg transition-colors"
+              aria-label="Open card deck"
               title="Card deck"
             >
               <LayoutList className="w-5 h-5 text-primary" />

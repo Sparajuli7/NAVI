@@ -33,7 +33,7 @@ export function CameraOverlay({ character, onClose }: CameraOverlayProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { currentLocation } = useAppStore();
-  const { addMessage } = useChatStore();
+  const { setPendingUserMessage } = useChatStore();
   const { agent } = useNaviAgent();
 
   const handleFileCapture = async (file: File) => {
@@ -99,16 +99,15 @@ export function CameraOverlay({ character, onClose }: CameraOverlayProps) {
   };
 
   const handleHelpWithThis = () => {
-    const type = scanTypeLabel ?? 'GENERAL';
-    const textSnippet = scannedText.slice(0, 200);
-    const interpretationSnippet = llmResponse.slice(0, 200);
-    addMessage({
-      id: Date.now().toString(),
-      role: 'system',
-      content: `[Camera scan: ${type}. Text: "${textSnippet}". Interpretation: "${interpretationSnippet}"]`,
-      type: 'system',
-      timestamp: Date.now(),
-    });
+    const typeWord = (TYPE_LABELS[scanTypeLabel ?? 'GENERAL'] ?? TYPE_LABELS.GENERAL)
+      .label.replace(' detected', '').toLowerCase();
+    const textSnippet = scannedText.slice(0, 500).trim();
+    // Queue a natural chat message; ConversationScreen sends it through handleSend
+    // so the avatar replies in the main thread and the user can ask follow-ups.
+    const prompt = textSnippet
+      ? `Help me understand this ${typeWord} I just scanned. It reads:\n"${textSnippet}"`
+      : `Help me understand this ${typeWord} I just scanned.`;
+    setPendingUserMessage(prompt);
     onClose();
   };
 
