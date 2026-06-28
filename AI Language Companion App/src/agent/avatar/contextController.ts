@@ -386,7 +386,6 @@ export class AvatarContextController {
       .map(([c]) => c)
       .join('\n\n');
 
-    console.log(`[NAVI:avatar] buildSystemPrompt layers=${selectedIndices.size}/${layerDefs.length} tokens≈${usedTokens} avatar=${profile.name} location=${effectiveLocation} scenario=${effectiveScenario || 'none'}`);
     return assembled;
   }
 

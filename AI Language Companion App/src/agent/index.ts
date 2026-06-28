@@ -509,7 +509,6 @@ export class NaviAgent {
       // Mode just locked — persist to memory and notify
       this.memory.profile.setUserMode(detectedMode).catch(e => console.warn('[NAVI]', e));
       if (this.onModeChange) this.onModeChange(detectedMode);
-      console.log(`[NAVI] mode locked: ${detectedMode}`);
     }
 
     const currentMode = this.modeClassifier.getCurrentMode()

@@ -18,9 +18,6 @@
  * not exactly how they said it. So we're comparing text, not audio.
  * This is good enough for conversational coaching but not for
  * academic pronunciation assessment.
- *
- * TODO: Evaluate forced alignment models for Phase 3
- * TODO: Measure STT accuracy across different accents
  */
 
 import type { ChatLLM } from '../models/chatLLM';
