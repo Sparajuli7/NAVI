@@ -18,6 +18,9 @@ import { useNaviAgent } from '../agent/react/useNaviAgent';
 import { useAppStore } from '../stores/appStore';
 import { useCharacterStore } from '../stores/characterStore';
 import { useChatStore } from '../stores/chatStore';
+import { AuthScreen } from '../auth/AuthScreen';
+import { useAuth } from '../auth/useAuth';
+import { useAuthStore } from '../auth/authStore';
 import {
   loadCharacter,
   loadConversation,
@@ -39,7 +42,7 @@ import {
 import { resolveDialectKey, getDialectInfo, buildLocationContext } from '../utils/locationHelpers';
 import { buildAvatarProfileParams } from '../utils/avatarProfileHelpers';
 
-type AppPhase = 'init' | 'no_webgpu' | 'backend_select' | 'downloading' | 'home' | 'onboarding' | 'chat';
+type AppPhase = 'init' | 'auth' | 'no_webgpu' | 'backend_select' | 'downloading' | 'home' | 'onboarding' | 'chat';
 
 export default function App() {
   const [appPhase, setAppPhase]             = useState<AppPhase>('init');
@@ -61,8 +64,26 @@ export default function App() {
     document.documentElement.classList.add('dark');
   }, []);
 
-  useEffect(() => {
-    async function init() {
+  // Auth check — runs once on mount.
+  // If a session exists (or Supabase isn't configured): boot immediately.
+  // If no session: show auth screen; bootApp() is called after sign-in or skip.
+  useAuth((userId) => {
+    if (userId !== null) {
+      // Logged in — boot with cloud data already pulled into IndexedDB
+      void bootApp();
+    } else {
+      const { isGuest } = useAuthStore.getState();
+      if (isGuest) {
+        // Supabase not configured, or already a guest — boot immediately
+        void bootApp();
+      } else {
+        // Show auth screen (user can sign in or skip)
+        setAppPhase('auth');
+      }
+    }
+  });
+
+  async function bootApp() {
       // Initialize agent (loads memory, detects Ollama, sets backend)
       try {
         await initAgent();
@@ -159,7 +180,7 @@ export default function App() {
         const avatarProfile = agent.createAvatarFromTemplate(
           activeChar.template_id ?? 'default',
           savedLocation?.city ?? activeChar.location_city,
-          activeChar.dialect_key ?? savedLocation?.dialectKey,
+          activeChar.dialect_key ?? savedLocation?.dialectKey ?? undefined,
         );
         avatarProfile.name = activeChar.name;
         avatarProfile.personality = activeChar.summary;
@@ -201,10 +222,7 @@ export default function App() {
         console.error('Model load failed:', err);
       }
       setAppPhase(targetPhase);
-    }
-
-    init();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }
 
   // Called after the user selects a backend (from Settings or no-WebGPU fallback)
   const handleBackendChosen = async () => {
@@ -491,6 +509,19 @@ export default function App() {
     await saveUserProfile(text);
   };
 
+  // Auth screen — shown when no session exists and Supabase is configured
+  if (appPhase === 'auth') {
+    return (
+      <AuthScreen
+        onAuthenticated={() => { void bootApp(); }}
+        onSkip={() => {
+          useAuthStore.getState().continueAsGuest();
+          void bootApp();
+        }}
+      />
+    );
+  }
+
   // Backend selection (Settings model picker or no-WebGPU fallback)
   if (appPhase === 'backend_select') {
     return <BackendSelectScreen onDone={handleBackendChosen} />;
@@ -579,6 +610,7 @@ export default function App() {
               localStorage.removeItem('navi_backend_pref');
               setAppPhase('backend_select');
             }}
+            onShowAuth={() => setAppPhase('auth')}
             isDark={isDark}
           />
 
@@ -605,6 +637,10 @@ export default function App() {
             setShowHomeSettings(false);
             localStorage.removeItem('navi_backend_pref');
             setAppPhase('backend_select');
+          }}
+          onShowAuth={() => {
+            setShowHomeSettings(false);
+            setAppPhase('auth');
           }}
         />
       )}
