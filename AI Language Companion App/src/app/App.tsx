@@ -64,6 +64,12 @@ export default function App() {
     document.documentElement.classList.add('dark');
   }, []);
 
+  // Supply the Supabase session token to the managed NAVI Cloud backend.
+  // Injected here (app layer) so the agent core never imports the auth store.
+  useEffect(() => {
+    agent.setAuthTokenProvider(() => useAuthStore.getState().session?.access_token ?? null);
+  }, [agent]);
+
   // Auth check — runs once on mount.
   // If a session exists (or Supabase isn't configured): boot immediately.
   // If no session: show auth screen; bootApp() is called after sign-in or skip.

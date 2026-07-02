@@ -7,10 +7,12 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { RefreshCw, Server } from 'lucide-react';
+import { RefreshCw, Server, Cloud } from 'lucide-react';
 import { useNaviAgent } from '../../agent/react/useNaviAgent';
 import { LLM_PRESETS, listOllamaModels } from '../../agent/models';
 import { formatGB } from '../../utils/formatBytes';
+import { useAuthStore } from '../../auth/authStore';
+import { MANAGED_CLOUD, TIERS } from '../../config/monetization';
 
 interface BackendSelectScreenProps {
   onDone: () => void;
@@ -41,12 +43,14 @@ const CLOUD_MODELS: CloudModel[] = [
 ];
 
 type Selection =
+  | { type: 'managed' }
   | { type: 'cloud'; model: CloudModel }
   | { type: 'ondevice'; presetKey: string }
   | { type: 'ollama'; model: string };
 
 export function BackendSelectScreen({ onDone }: BackendSelectScreenProps) {
   const { switchBackend, switchOllamaModel } = useNaviAgent();
+  const signedIn = useAuthStore((s) => s.user !== null);
 
   const [selected, setSelected] = useState<Selection>({ type: 'cloud', model: CLOUD_MODELS[0] });
   const [isSwitching, setIsSwitching] = useState(false);
@@ -71,7 +75,10 @@ export function BackendSelectScreen({ onDone }: BackendSelectScreenProps) {
     setIsSwitching(true);
     setError(null);
     try {
-      if (selected.type === 'cloud') {
+      if (selected.type === 'managed') {
+        // NAVI Cloud — managed backend persists its own pref inside switchBackend()
+        await switchBackend('managed');
+      } else if (selected.type === 'cloud') {
         const tier = selected.model.free ? 'free' : 'paid';
         let openRouterModels: string[];
         if (selected.model.free) {
@@ -99,6 +106,7 @@ export function BackendSelectScreen({ onDone }: BackendSelectScreenProps) {
 
   const isSelected = (s: Selection) => {
     if (s.type !== selected.type) return false;
+    if (s.type === 'managed') return true;
     if (s.type === 'cloud' && selected.type === 'cloud') return s.model.id === selected.model.id;
     if (s.type === 'ondevice' && selected.type === 'ondevice') return s.presetKey === selected.presetKey;
     if (s.type === 'ollama' && selected.type === 'ollama') return s.model === selected.model;
@@ -127,10 +135,45 @@ export function BackendSelectScreen({ onDone }: BackendSelectScreenProps) {
         animate={{ opacity: 1 }}
         transition={{ duration: 0.35, delay: 0.1 }}
       >
+        {/* NAVI Cloud — managed free-credits backend (no key, sign-in required) */}
+        {MANAGED_CLOUD.enabled && (
+          <div>
+            <div className="flex items-center gap-2 px-1 mb-2">
+              <Cloud className="w-3.5 h-3.5 text-primary" />
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                NAVI Cloud — free daily use, no setup
+              </p>
+            </div>
+            <button
+              onClick={() => signedIn && setSelected({ type: 'managed' })}
+              disabled={!signedIn}
+              className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border text-left transition-all ${
+                isSelected({ type: 'managed' })
+                  ? 'border-primary bg-primary/10'
+                  : 'border-border bg-card hover:border-primary/40'
+              } ${!signedIn ? 'opacity-60 cursor-not-allowed' : ''}`}
+            >
+              <div>
+                <span className={`text-sm font-medium ${isSelected({ type: 'managed' }) ? 'text-foreground' : 'text-muted-foreground'}`}>
+                  NAVI Cloud
+                </span>
+                <span className="text-xs text-muted-foreground ml-2">
+                  {signedIn
+                    ? `${TIERS.free.dailyMessageCap} free messages/day · no key needed`
+                    : 'Sign in to use'}
+                </span>
+              </div>
+              <div className={`w-3.5 h-3.5 rounded-full border-2 shrink-0 ml-3 ${
+                isSelected({ type: 'managed' }) ? 'border-primary bg-primary' : 'border-border'
+              }`} />
+            </button>
+          </div>
+        )}
+
         {/* Cloud models */}
         <div>
           <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1 mb-2">
-            Cloud — instant, no download
+            Cloud (your own key) — instant, no download
           </p>
           <div className="space-y-1.5">
             {CLOUD_MODELS.map((model) => {

@@ -46,3 +46,15 @@
 .ambient-gradient {
   animation: ambient-float 20s ease-in-out infinite;
 }
+
+/* Desktop backdrop behind the centered phone-frame app (see main.tsx AppRoute).
+   On phones this is invisible (the frame fills the viewport); on wide screens
+   it frames the app instead of leaving it floating on flat background. */
+@media (min-width: 768px) {
+  .app-desktop-backdrop {
+    background:
+      radial-gradient(60rem 40rem at 50% -10%, rgba(212, 168, 83, 0.06), transparent 60%),
+      radial-gradient(50rem 40rem at 100% 100%, rgba(107, 186, 167, 0.05), transparent 60%),
+      var(--background);
+  }
+}

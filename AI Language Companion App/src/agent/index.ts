@@ -104,13 +104,15 @@ export {
   isOllamaAvailable,
   listOllamaModels,
   OpenRouterProvider,
+  ManagedCloudProvider,
+  ManagedCloudLimitError,
   TTSProvider,
   STTProvider,
   VisionProvider,
   EmbeddingProvider,
   TranslationProvider,
 } from './models';
-export type { ChatLLM, ChatOptions } from './models';
+export type { ChatLLM, ChatOptions, AuthTokenGetter } from './models';
 
 // Avatar
 export { AvatarContextController } from './avatar/contextController';
@@ -128,8 +130,8 @@ export { registerAllTools } from './tools';
 // ─── NaviAgent: The unified agent instance ─────────────────────
 
 import { MemoryManager } from './memory';
-import { ModelRegistry, LLMProvider, LLM_PRESETS, OllamaProvider, OLLAMA_PRESETS, isOllamaAvailable, listOllamaModels, OpenRouterProvider, OPENROUTER_FREE_MODELS, OPENROUTER_PAID_MODELS, TTSProvider, STTProvider, VisionProvider, EmbeddingProvider, TranslationProvider } from './models';
-import type { ChatLLM } from './models';
+import { ModelRegistry, LLMProvider, LLM_PRESETS, OllamaProvider, OLLAMA_PRESETS, isOllamaAvailable, listOllamaModels, OpenRouterProvider, OPENROUTER_FREE_MODELS, OPENROUTER_PAID_MODELS, ManagedCloudProvider, TTSProvider, STTProvider, VisionProvider, EmbeddingProvider, TranslationProvider } from './models';
+import type { ChatLLM, AuthTokenGetter } from './models';
 import { AvatarContextController } from './avatar/contextController';
 import { LocationIntelligence } from './location/locationIntelligence';
 import { ConversationDirector } from './director/conversationDirector';
@@ -220,7 +222,7 @@ class ModeClassifier {
 }
 
 /** LLM backend selection */
-export type LLMBackend = 'webllm' | 'ollama' | 'openrouter' | 'auto';
+export type LLMBackend = 'webllm' | 'ollama' | 'openrouter' | 'managed' | 'auto';
 /** OpenRouter model tier */
 export type OpenRouterTier = 'free' | 'paid';
 
@@ -260,6 +262,10 @@ export class NaviAgent {
   private webllmProvider: LLMProvider | null = null;
   private ollamaProvider: OllamaProvider | null = null;
   private openRouterProvider: OpenRouterProvider | null = null;
+  private managedProvider: ManagedCloudProvider | null = null;
+  /** Supplies the Supabase access token to the managed-cloud provider. Injected
+   *  from the app layer (see App.tsx) so agent core stays decoupled from auth. */
+  private authTokenProvider: AuthTokenGetter | null = null;
   private ttsProvider: TTSProvider;
   private sttProvider: STTProvider;
   private visionProvider: VisionProvider;
@@ -305,7 +311,7 @@ export class NaviAgent {
     const savedORTier = (this.ls?.getItem('navi_openrouter_tier') ?? 'free') as OpenRouterTier;
     const savedWebllmPreset = this.ls?.getItem('navi_webllm_preset');
 
-    if (savedBackendPref === 'webllm' || savedBackendPref === 'openrouter' || savedBackendPref === 'ollama') {
+    if (savedBackendPref === 'webllm' || savedBackendPref === 'openrouter' || savedBackendPref === 'ollama' || savedBackendPref === 'managed') {
       config = { ...config, backend: savedBackendPref as LLMBackend };
       if (savedBackendPref === 'webllm' && savedWebllmPreset && savedWebllmPreset in LLM_PRESETS) {
         config = { ...config, llmPreset: savedWebllmPreset as keyof typeof LLM_PRESETS };
@@ -340,7 +346,12 @@ export class NaviAgent {
     // Only use OpenRouter when the user explicitly chose it (savedBackendPref === 'openrouter').
     // An env key alone must NOT override 'auto' or 'webllm' — that would fire OpenRouter before
     // the user has visited BackendSelectScreen on first run.
-    if (openRouterKeys.length > 0 && this.llmBackend === 'openrouter') {
+    if (this.llmBackend === 'managed') {
+      // NAVI-managed cloud — routes through our proxy with the user's session token.
+      // Token provider is injected later (setAuthTokenProvider); read lazily here.
+      this.managedProvider = new ManagedCloudProvider(() => this.authTokenProvider?.() ?? null);
+      this.llm = this.managedProvider;
+    } else if (openRouterKeys.length > 0 && this.llmBackend === 'openrouter') {
       // OpenRouter cloud mode — no local model download needed
       this.openRouterProvider = new OpenRouterProvider(openRouterKeys);
       this.llm = this.openRouterProvider;
@@ -364,6 +375,7 @@ export class NaviAgent {
     this.translationProvider = new TranslationProvider();
 
     // Register all model providers
+    if (this.managedProvider) this.models.register(this.managedProvider);
     if (this.openRouterProvider) this.models.register(this.openRouterProvider);
     if (this.webllmProvider) this.models.register(this.webllmProvider);
     if (this.ollamaProvider) this.models.register(this.ollamaProvider);
@@ -414,10 +426,10 @@ export class NaviAgent {
   async initialize(): Promise<void> {
     if (this.initialized) return;
 
-    if (this.llmBackend === 'openrouter') {
-      // Cloud mode — key was set in constructor, nothing to detect
-      console.log('[NAVI] Using OpenRouter (cloud mode)');
-      agentBus.emit('model:status', { backend: 'openrouter', status: 'ready' });
+    if (this.llmBackend === 'openrouter' || this.llmBackend === 'managed') {
+      // Cloud mode — nothing to download or detect; ready immediately.
+      console.log(`[NAVI] Using ${this.llmBackend === 'managed' ? 'NAVI Cloud (managed)' : 'OpenRouter'} (cloud mode)`);
+      agentBus.emit('model:status', { backend: this.llmBackend, status: 'ready' });
     } else if (this.llmBackend === 'auto') {
       // Auto-detect: prefer Ollama, fall back to WebLLM
       const ollamaUp = await isOllamaAvailable(this.config.ollamaBaseUrl);
@@ -457,8 +469,8 @@ export class NaviAgent {
   async loadLLM(
     onProgress?: (progress: number, text: string) => void,
   ): Promise<void> {
-    if (this.llmBackend === 'openrouter') {
-      // No download needed — OpenRouter is always ready
+    if (this.llmBackend === 'openrouter' || this.llmBackend === 'managed') {
+      // No download needed — cloud backends are always ready
       return;
     } else if (this.ollamaProvider && this.llmBackend === 'ollama') {
       await this.ollamaProvider.load(onProgress);
@@ -480,6 +492,14 @@ export class NaviAgent {
   /** Get the active ChatLLM instance */
   getLLM(): ChatLLM {
     return this.llm;
+  }
+
+  /**
+   * Inject the getter that supplies the Supabase access token to the managed-cloud
+   * backend. Called from the app layer so agent core never imports the auth store.
+   */
+  setAuthTokenProvider(getToken: AuthTokenGetter): void {
+    this.authTokenProvider = getToken;
   }
 
   /**
@@ -854,7 +874,7 @@ export class NaviAgent {
    * Persists the choice to localStorage for next session.
    */
   async switchBackend(
-    type: 'webllm' | 'openrouter',
+    type: 'webllm' | 'openrouter' | 'managed',
     opts: {
       apiKey?: string;
       webllmPreset?: keyof typeof LLM_PRESETS;
@@ -863,7 +883,16 @@ export class NaviAgent {
     } = {},
     onProgress?: (progress: number, text: string) => void,
   ): Promise<void> {
-    if (type === 'openrouter') {
+    if (type === 'managed') {
+      // NAVI-managed cloud — no key, no download; needs a signed-in session at call time.
+      this.ls?.setItem('navi_backend_pref', 'managed');
+      if (!this.managedProvider) {
+        this.managedProvider = new ManagedCloudProvider(() => this.authTokenProvider?.() ?? null);
+        this.models.register(this.managedProvider);
+      }
+      this.llm = this.managedProvider;
+      this.llmBackend = 'managed';
+    } else if (type === 'openrouter') {
       const envKey = (import.meta as unknown as { env: Record<string, string> }).env?.VITE_OPENROUTER_API_KEY?.split(',')[0]?.trim() ?? '';
       const key = opts.apiKey?.trim() ?? this.ls?.getItem('navi_openrouter_key') ?? envKey ?? '';
       if (!key) throw new Error('An OpenRouter API key is required. Get a free one at openrouter.ai.');

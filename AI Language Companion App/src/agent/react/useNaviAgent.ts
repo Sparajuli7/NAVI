@@ -50,9 +50,9 @@ export interface UseNaviAgentReturn {
   ollamaModel: string | null;
   /** Switch the active Ollama model */
   switchOllamaModel: (model: string) => Promise<void>;
-  /** Switch the active LLM backend (webllm or openrouter) */
+  /** Switch the active LLM backend (webllm, openrouter, or managed NAVI Cloud) */
   switchBackend: (
-    type: 'webllm' | 'openrouter',
+    type: 'webllm' | 'openrouter' | 'managed',
     opts?: { apiKey?: string; webllmPreset?: string; openRouterTier?: OpenRouterTier; openRouterModels?: string[] },
     onProgress?: (progress: number, text: string) => void,
   ) => Promise<void>;
@@ -168,7 +168,7 @@ export function useNaviAgent(config?: NaviAgentConfig): UseNaviAgentReturn {
   }, []);
 
   const switchBackend = useCallback(async (
-    type: 'webllm' | 'openrouter',
+    type: 'webllm' | 'openrouter' | 'managed',
     opts?: { apiKey?: string; webllmPreset?: string; openRouterTier?: OpenRouterTier; openRouterModels?: string[] },
     onProgress?: (progress: number, text: string) => void,
   ) => {

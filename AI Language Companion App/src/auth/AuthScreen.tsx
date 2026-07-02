@@ -51,7 +51,7 @@ export function AuthScreen({ onAuthenticated, onSkip }: Props) {
     clearMessages();
     const { error: authError } = await supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo: window.location.origin },
+      options: { redirectTo: `${window.location.origin}/app` },
     });
     if (authError) setError(authError.message);
     // onAuthenticated() will be called by the onAuthStateChange listener in useAuth

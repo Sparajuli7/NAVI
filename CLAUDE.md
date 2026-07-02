@@ -51,8 +51,9 @@ AI Language Companion App/src/
 │   ├── react/useNaviAgent.ts
 │   └── index.ts            # NaviAgent (createNaviAgent)
 ├── app/
-│   ├── App.tsx             # Root — phase state machine
+│   ├── App.tsx             # Root — phase state machine (the companion experience, served at /app)
 │   └── components/         # Screens + chat UI (see below)
+├── marketing/              # Public responsive LandingPage (served at /)
 ├── auth/                   # Supabase auth: AuthScreen, AccountPanel, authStore, useAuth
 ├── db/                     # Repository pattern: local (IndexedDB) / cloud (Supabase) / sync
 ├── services/               # Thin browser-API wrappers: location, stt, tts
@@ -61,9 +62,11 @@ AI Language Companion App/src/
 ├── utils/                  # storage, responseParser, tokenEstimator, countryFlag,
 │                           #   formatBytes, locationHelpers, avatarProfileHelpers, platform, ...
 ├── config/                 # Editable data: avatarTemplates, dialectMap, scenarioContexts, cities
+│   ├── monetization.ts     # SINGLE source of truth for free/paid tiers, caps, pool (see MONETIZATION.md)
 │   └── prompts/            # *.json prompt configs (edit here to change model behavior)
 └── styles/
 ```
+Top-level (outside `src/`): `api/` — Vercel Edge functions (`chat.ts` = managed-cloud proxy, `usage.ts` = allowance readout); `supabase/migrations/` — SQL schema (`cloud_usage`, `subscriptions`). Neither is covered by `tsc`/vite (Vercel builds `api/` separately).
 Key UI components: `AvatarSelectScreen` (onboarding), `ConversationScreen` (chat), `CameraOverlay`, `SettingsPanel`, `HomeScreen`, `Navbar`, `FlashcardDeck`, `KnowledgeGraph{Screen,Explorer}`, `ScenarioLauncher`, `ExpandedPhraseCard`, `CityPicker`/`LanguagePicker`, `BackendSelectScreen`, `ModelDownloadScreen`.
 
 Top-level docs: `navi-prd-v3.md` (PRD), `audit.md` (code audit), `EXPERIMENT_LOG.md` + `RESEARCH_ROUND*.md` + `FLUENCY_JOURNEY.md` (prompt-engineering research & designs), `src/agent/ARCHITECTURE.md` / `MODEL_REGISTRY.md`.
@@ -92,7 +95,9 @@ Theme: dark luxury black `#0A0A0F`, cream `#F5F0EB`, gold `#D4A853`, teal `#6BBA
 
 ## Architecture
 
-**App phases** (`App.tsx`): `init` → (first launch) `onboarding`/`backend_select` → `downloading` → `chat`; returning users go straight to `home`/`chat`.
+**Routing** (`main.tsx`, react-router): `/` → responsive `LandingPage` (marketing + pricing); `/app` → the `App` companion experience (centered phone-frame over a desktop backdrop); unknown paths redirect to `/`. Vercel SPA rewrites serve `index.html` for all non-asset paths. The heavy machinery (WebGPU, agent init, LLM load) only mounts under `/app`, so the landing page stays light.
+
+**App phases** (`App.tsx`, under `/app`): `init` → (first launch) `onboarding`/`backend_select` → `downloading` → `chat`; returning users go straight to `home`/`chat`.
 
 **Agent orchestrator** (`NaviAgent`): on each message, the Router picks a tool (deterministic keyword routing), sub-agents (MemoryRetrieval, Research) and the ConversationDirector enrich context, AvatarContextController assembles the layered system prompt, ExecutionEngine runs the tool under recursion/token/timeout bounds. No extra LLM calls for directing.
 
@@ -115,6 +120,8 @@ await agent.handleImage(photoBlob);                    // OCR → classify → e
 **Inference configs** (temperature / max_tokens, in `toolPrompts.json`): chat 0.7/512, character_gen 0.8/400, camera 0.3/600, memory_gen 0.2/300, phrase 0.4/400.
 
 **Accounts & sync** (`src/auth/`, `src/db/`): optional Supabase account layer, local-first. `useAuth` gates the `auth` phase (sign in / skip → guest). `getDatabase()` returns `LocalDatabase` (IndexedDB) for guests and `CloudDatabase` after login. Cloud repos mirror the *same* `navi_*` IndexedDB keys the app already writes, so first login seeds/pulls and a full-snapshot flush (on tab background/close, `useAuth`) carries ongoing changes up — the app and agent stores keep writing straight to IndexedDB (agent memory stays platform-agnostic; it never imports the db layer). Requires `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` (see `.env.example`); unset ⇒ guest-only. `navi_semantic_memory` (regenerable vectors) is not cloud-synced.
+
+**Monetization** (`src/config/monetization.ts`, `api/`, MONETIZATION.md): initial "NAVI fronts an OpenRouter credit pool, signed-in users get a small free cloud allowance" model. `ManagedCloudProvider` (a `ChatLLM` backend, `backend: 'managed'`) calls the same-origin `/api/chat` Edge proxy with the user's Supabase JWT — the OpenRouter key stays server-side. The proxy enforces three stacked guardrails (per-user daily message cap, per-user monthly $ ceiling, global pool budget), meters usage to `cloud_usage`, and falls users back to on-device when a limit hits. All knobs live in `monetization.ts`. Selectable as **NAVI Cloud** in `BackendSelectScreen` (sign-in required). Stripe/NAVI Plus + in-app usage meter + proxy streaming are not built yet (see MONETIZATION.md).
 
 **Conventions:**
 - Shared state via Zustand stores (no prop-drilling beyond 1 level). All persistence via `utils/storage.ts` (keys prefixed `navi_`).
