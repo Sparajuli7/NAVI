@@ -35,6 +35,7 @@ interface ConversationScreenProps {
   onSaveUserProfile: (text: string) => Promise<void>;
   onOpenScenarios: () => void;
   onShowModelPicker?: () => void;
+  onShowAuth?: () => void;
   onDeleteCompanion?: (charId: string) => Promise<void>;
   isDark: boolean;
 }
@@ -79,6 +80,7 @@ export function ConversationScreen({
   onSaveUserProfile,
   onOpenScenarios,
   onShowModelPicker,
+  onShowAuth,
   onDeleteCompanion,
   isDark,
 }: ConversationScreenProps) {
@@ -598,6 +600,7 @@ export function ConversationScreen({
             onSaveUserProfile={onSaveUserProfile}
             onDeleteCompanion={onDeleteCompanion}
             onShowModelPicker={onShowModelPicker}
+            onShowAuth={onShowAuth}
           />
         )}
       </AnimatePresence>

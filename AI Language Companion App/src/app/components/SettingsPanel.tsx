@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { X, RefreshCw, Trash2, MapPin, Save, ChevronDown, Globe } from 'lucide-react';
+import { AccountPanel } from '../../auth/AccountPanel';
 import { useCharacterStore } from '../../stores/characterStore';
 import { useAppStore } from '../../stores/appStore';
 import { saveMemories, savePreferences, saveLocation, saveCharacterMemories, saveAvatarImage, saveCharacter } from '../../utils/storage';
@@ -17,7 +18,7 @@ import { countryFlag } from '../../utils/countryFlag';
 import type { CityEntry } from './CityPicker';
 import type { UserPreferences, Character } from '../../types/character';
 
-type Section = 'companion' | 'profile' | 'preferences' | 'location' | 'memory' | 'model';
+type Section = 'companion' | 'profile' | 'preferences' | 'location' | 'memory' | 'model' | 'account';
 
 interface SettingsPanelProps {
   onClose: () => void;
@@ -26,9 +27,10 @@ interface SettingsPanelProps {
   onUpdateCharacter: (updates: Partial<Character>) => Promise<void>;
   onSaveUserProfile: (text: string) => Promise<void>;
   onShowModelPicker?: () => void;
+  onShowAuth?: () => void;
 }
 
-export function SettingsPanel({ onClose, onRegenerate, onDeleteCompanion, onUpdateCharacter, onSaveUserProfile: _onSaveUserProfile, onShowModelPicker }: SettingsPanelProps) {
+export function SettingsPanel({ onClose, onRegenerate, onDeleteCompanion, onUpdateCharacter, onSaveUserProfile: _onSaveUserProfile, onShowModelPicker, onShowAuth }: SettingsPanelProps) {
   const [activeSection, setActiveSection] = useState<Section>('companion');
   const [confirmClear, setConfirmClear] = useState(false);
   const [confirmDeleteCompanion, setConfirmDeleteCompanion] = useState(false);
@@ -254,6 +256,7 @@ export function SettingsPanel({ onClose, onRegenerate, onDeleteCompanion, onUpda
     { key: 'location',    label: '📍 Location & Language' },
     { key: 'memory',      label: '🧠 Memory' },
     { key: 'model',       label: '🤖 Model' },
+    { key: 'account',    label: '☁️ Account' },
   ];
 
   return (
@@ -1090,6 +1093,13 @@ export function SettingsPanel({ onClose, onRegenerate, onDeleteCompanion, onUpda
                 </div>
               )}
 
+            </div>
+          )}
+
+          {/* G) Account */}
+          {activeSection === 'account' && (
+            <div className="space-y-4">
+              <AccountPanel onSignIn={() => { onClose(); onShowAuth?.(); }} />
             </div>
           )}
         </div>
