@@ -42,7 +42,25 @@ export function useAuth(onReady: (userId: string | null) => void) {
       }
     });
 
-    return () => subscription.unsubscribe();
+    // Flush the local snapshot to the cloud when the tab is backgrounded or
+    // closed (mobile app-switch, desktop close). The app writes straight to
+    // IndexedDB, so this is what carries post-login changes up to Supabase.
+    let flushing = false;
+    const flush = () => {
+      if (document.visibilityState !== 'hidden') return;
+      const userId = useAuthStore.getState().user?.id;
+      if (!userId || flushing) return;
+      flushing = true;
+      void pushLocalToCloud(userId).finally(() => { flushing = false; });
+    };
+    document.addEventListener('visibilitychange', flush);
+    window.addEventListener('pagehide', flush);
+
+    return () => {
+      subscription.unsubscribe();
+      document.removeEventListener('visibilitychange', flush);
+      window.removeEventListener('pagehide', flush);
+    };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 }
 

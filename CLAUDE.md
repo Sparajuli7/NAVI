@@ -53,6 +53,8 @@ AI Language Companion App/src/
 ├── app/
 │   ├── App.tsx             # Root — phase state machine
 │   └── components/         # Screens + chat UI (see below)
+├── auth/                   # Supabase auth: AuthScreen, AccountPanel, authStore, useAuth
+├── db/                     # Repository pattern: local (IndexedDB) / cloud (Supabase) / sync
 ├── services/               # Thin browser-API wrappers: location, stt, tts
 ├── stores/                 # Zustand: appStore, characterStore, chatStore
 ├── types/                  # Shared TS types (character, chat, config, inference, speech.d.ts)
@@ -75,6 +77,7 @@ Top-level docs: `navi-prd-v3.md` (PRD), `audit.md` (code audit), `EXPERIMENT_LOG
 | Styling | TailwindCSS 4.1 | via `@tailwindcss/vite`; custom components (no shadcn/ui) |
 | State | Zustand 5 | `appStore`, `characterStore`, `chatStore` |
 | Storage | IndexedDB (idb-keyval) | character, conversations, memories, prefs, location |
+| Accounts / cloud sync | Supabase (@supabase/supabase-js) | optional; guest mode when env vars unset |
 | On-device LLM | @mlc-ai/web-llm | WebGPU; default preset `qwen3-1.7b` |
 | OCR | tesseract.js | client-side |
 | TTS / STT | Web Speech API | browser SpeechSynthesis / SpeechRecognition |
@@ -110,6 +113,8 @@ await agent.handleImage(photoBlob);                    // OCR → classify → e
 **Memory** (`MemoryManager`, 9 systems): working (ring buffer + TTL), episodic, semantic (vectors), profile, learner (phrase tracking + dual-track Leitner SR), relationships (per-avatar warmth, 5 tiers), situation, KnowledgeGraph (typed nodes/edges), MemoryMaker (post-exchange graph writer). Learner/relationship/graph data is **scoped per language and per avatar**.
 
 **Inference configs** (temperature / max_tokens, in `toolPrompts.json`): chat 0.7/512, character_gen 0.8/400, camera 0.3/600, memory_gen 0.2/300, phrase 0.4/400.
+
+**Accounts & sync** (`src/auth/`, `src/db/`): optional Supabase account layer, local-first. `useAuth` gates the `auth` phase (sign in / skip → guest). `getDatabase()` returns `LocalDatabase` (IndexedDB) for guests and `CloudDatabase` after login. Cloud repos mirror the *same* `navi_*` IndexedDB keys the app already writes, so first login seeds/pulls and a full-snapshot flush (on tab background/close, `useAuth`) carries ongoing changes up — the app and agent stores keep writing straight to IndexedDB (agent memory stays platform-agnostic; it never imports the db layer). Requires `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` (see `.env.example`); unset ⇒ guest-only. `navi_semantic_memory` (regenerable vectors) is not cloud-synced.
 
 **Conventions:**
 - Shared state via Zustand stores (no prop-drilling beyond 1 level). All persistence via `utils/storage.ts` (keys prefixed `navi_`).

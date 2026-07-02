@@ -87,8 +87,11 @@ export async function pullAll(userId: string): Promise<void> {
 }
 
 /**
- * On first-ever login: push all local IndexedDB data up to Supabase.
- * Only called when cloud is empty (new account).
+ * Push the full local IndexedDB snapshot up to Supabase (idempotent upserts).
+ * Used both on first-ever login (seed a new account) and as the periodic flush
+ * that keeps the cloud current — the app writes straight to IndexedDB (and the
+ * agent memory stores are platform-agnostic, so they don't call the db layer),
+ * so a snapshot flush is how post-login changes reach the cloud.
  */
 export async function pushLocalToCloud(userId: string): Promise<void> {
   const { LocalDatabase } = await import('../local');
