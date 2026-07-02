@@ -105,7 +105,8 @@ export async function pushLocalToCloud(userId: string): Promise<void> {
     local.knowledgeGraph.get(),
   ]);
 
-  const ops: Promise<unknown>[] = [];
+  // Supabase query builders are thenables (PromiseLike), not Promises.
+  const ops: PromiseLike<unknown>[] = [];
 
   if (chars.length) {
     const rows = chars.map(c => ({ id: c.id, user_id: userId, data: c }));
