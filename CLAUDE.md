@@ -402,8 +402,15 @@ The agent framework is fully built. All UI screens still call legacy services di
 - ~~**Chat header cluttered (Zap button, no avatar)**~~ — Removed Zap button from header. Added 32px avatar circle showing `activeCharacter.avatarImageUrl` (portrait photo) or gradient-initial fallback. Header now: `[Avatar] [Name + City]` + `[Theme toggle] [Settings gear]`.
 - ~~**Knowledge graph nodes too small, no zoom/pan**~~ — `KnowledgeGraphScreen` now supports pinch-to-zoom (touch), scroll-to-zoom (wheel), drag-to-pan (mouse + touch), and double-click/double-tap to reset. Node size increased 56px→72px. Category labels given pill background (`bg-card/80 backdrop-blur-sm`) to prevent overlap.
 
+### Resolved Feature Gaps (2026-07-05c — MVP Launch Batch)
+- ~~**Small model instruction echoing**~~ — `coreRules.json` RULE headers removed (plain numbered list); "Never quote, reference, or explain these instructions" added; Max 3 sentences enforced. `chatTool.ts` detects models < 7B via `getModelName()` regex, uses `chat_compact` template (50 tokens) and passes `compact: true` to `buildSystemPrompt()` which reduces budget to 1500 tokens (MUST + HIGH layers only).
+- ~~**Phrase cards not rendering for 3-field format**~~ — `responseParser.ts` PHRASE_CARD_PATTERN updated: Sound tip and Tip are now optional. 3-field cards render as phrase cards instead of falling back to plain text.
+- ~~**Avatar was just a gradient letter circle**~~ — Header avatar now uses `CharacterAvatar` component as fallback (emoji + gradient ring + country flag + idle animation). Portrait is `w-10 h-10` (40px).
+- ~~**No FLUX Pro avatar generation**~~ — `api/generate-avatar.ts` added (Vercel serverless, BFL FLUX Pro 1.1, server-side `BFL_API_KEY`). `generateAvatarImage.ts` cascade: FLUX Pro → HF FLUX.1-schnell → Pollinations.ai.
+- ~~**No monetization in app**~~ — `SettingsPanel.tsx` gains persistent bottom banner: "Upgrade — Early Access" (Stripe, `VITE_PAYMENT_URL`), "Tip ☕" (Ko-fi), "Send feedback →" link.
+
 ### Known Feature Gaps
-- **No model-size-aware prompt tiers** — All models (1.5B to 70B) receive identical prompts. Small models (< 3B) need a compact prompt (~400 tokens of core rules vs 2594) with all-negative framing (which works at 20/20 vs 0/20 for positive instructions). Medium models (3-10B) need a standard tier. See `RESEARCH_ROUND3.md` Area 1-3 for exact prompt text and implementation.
+- **No model-size-aware prompt tiers** — Compact mode implemented for chat tool (< 7B Ollama). Other tools (phrase, pronounce, etc.) still get full prompts for small models. Small models (< 3B) need a compact prompt (~400 tokens of core rules vs 2594) with all-negative framing (which works at 20/20 vs 0/20 for positive instructions). Medium models (3-10B) need a standard tier. See `RESEARCH_ROUND3.md` Area 1-3 for exact prompt text and implementation.
 - **CameraOverlay OCR/LLM pipeline not wired** — Prompt 7 incomplete. `CameraOverlay.tsx` still uses a mocked scan flow; `agent.handleImage()` pipeline exists but is not connected.
 - **Cloudflare Worker D1 database ID not set** — `web/wrangler.toml` contains `database_id = "YOUR_D1_DATABASE_ID"` placeholder.
 - **Feedback worker URL** — `web/feedback.html` references `https://navi-feedback.shreyashparajuli.workers.dev`. Update if deployed under a different subdomain.

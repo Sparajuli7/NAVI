@@ -1095,6 +1095,35 @@ export function SettingsPanel({ onClose, onRegenerate, onDeleteCompanion, onUpda
               <AccountPanel onSignIn={() => { onClose(); onShowAuth?.(); }} />
             </div>
           )}
+
+          {/* Support banner — always visible at bottom */}
+          <div className="pt-2 pb-1 border-t border-border space-y-2">
+            <div className="flex gap-2">
+              <a
+                href={import.meta.env.VITE_PAYMENT_URL || 'https://buy.stripe.com/navi'}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex-1 py-2.5 rounded-xl text-center text-sm font-semibold text-black transition-opacity hover:opacity-90"
+                style={{ background: 'linear-gradient(135deg, #D4A853, #C49240)' }}
+              >
+                Upgrade — Early Access
+              </a>
+              <a
+                href="https://ko-fi.com/naviapp"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-4 py-2.5 rounded-xl text-center text-sm font-medium bg-muted text-muted-foreground hover:bg-muted/80 transition-colors"
+              >
+                Tip ☕
+              </a>
+            </div>
+            <button
+              onClick={() => window.open('/feedback.html', '_blank')}
+              className="w-full py-2 rounded-xl text-center text-xs text-muted-foreground hover:text-foreground transition-colors hover:bg-muted/50"
+            >
+              Send feedback →
+            </button>
+          </div>
         </div>
       </motion.div>
     </motion.div>

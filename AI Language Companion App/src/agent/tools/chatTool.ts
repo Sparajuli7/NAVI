@@ -64,7 +64,11 @@ export function createChatTool(
         scenario: avatarController.getActiveProfile()?.scenario,
       });
 
-      const chatConfig = promptLoader.getRaw('toolPrompts.chat') as {
+      // Detect small Ollama models (< 7B) — use compact mode to prevent instruction echoing
+      const modelName = (llmProvider as { getModelName?: () => string }).getModelName?.() ?? '';
+      const isCompact = /[1-4](\.\d+)?b/i.test(modelName);
+
+      const chatConfig = promptLoader.getRaw(isCompact ? 'toolPrompts.chat_compact' : 'toolPrompts.chat') as {
         temperature: number; max_tokens: number;
       };
 
@@ -84,6 +88,7 @@ export function createChatTool(
         isFirstScenarioMessage,
         learningStage,
         targetLanguage,
+        compact: isCompact,
       });
 
       // In 'listen' translation mode, use the listenAndTranslate template instead of chat
@@ -114,7 +119,11 @@ export function createChatTool(
       }
 
       // Inject the chat-specific behavioral prompt (friend mode, not teaching mode)
-      const chatBehavior = promptLoader.get('toolPrompts.chat.template', { userNativeLanguage });
+      const profile = avatarController.getActiveProfile();
+      const city = (typeof profile?.location === 'string' ? profile.location : '') ?? '';
+      const chatBehavior = isCompact
+        ? promptLoader.get('toolPrompts.chat_compact.template', { userNativeLanguage, city, name: profile?.name ?? '' })
+        : promptLoader.get('toolPrompts.chat.template', { userNativeLanguage });
 
       // Stateful phrase deduplication: append phrases already taught this session
       // so the model avoids repeating them even if instruction-following is imperfect

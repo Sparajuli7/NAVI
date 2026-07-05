@@ -2,8 +2,9 @@ import type { ParsedSegment, PhraseCardData } from '../types/chat';
 
 // Use [\r\n]+ as separator so the pattern works with both Unix and Windows line endings,
 // and is tolerant of blank lines between fields.
+// Sound tip and Tip are optional — small models reliably produce only 3 fields.
 const PHRASE_CARD_PATTERN =
-  /\*\*Phrase:\*\*[ \t]*(.+?)[\r\n]+\*\*Say it:\*\*[ \t]*(.+?)[\r\n]+\*\*Sound tip:\*\*[ \t]*(.+?)[\r\n]+\*\*Means:\*\*[ \t]*(.+?)[\r\n]+\*\*Tip:\*\*[ \t]*(.+?)(?:[\r\n]|$)/gs;
+  /\*\*Phrase:\*\*[ \t]*(.+?)[\r\n]+\*\*Say it:\*\*[ \t]*(.+?)[\r\n]+(?:\*\*Sound tip:\*\*[ \t]*(.+?)[\r\n]+)?\*\*Means:\*\*[ \t]*(.+?)[\r\n]+(?:\*\*Tip:\*\*[ \t]*(.+?)(?:[\r\n]|$))?/gs;
 
 /**
  * Detect and truncate repetition loops in model output.
@@ -79,9 +80,9 @@ export function parseResponse(text: string): ParsedSegment[] {
     const data: PhraseCardData = {
       phrase:    match[1].trim(),
       phonetic:  match[2].trim(),
-      soundTip:  match[3].trim(),
+      soundTip:  match[3]?.trim() ?? '',
       meaning:   match[4].trim(),
-      tip:       match[5].trim(),
+      tip:       match[5]?.trim() ?? '',
     };
 
     // If any required field is a placeholder echoed from the prompt template,

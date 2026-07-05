@@ -108,7 +108,33 @@ export async function generateAvatarImageFromDescription(description: string): P
       imagePrompt = `Pixar 3D animated character, friendly, expressive face, warm studio lighting, full portrait: ${description}`;
     }
 
-    // Step B — generate image with HF FLUX.1-schnell (90s timeout)
+    // Step B — FLUX Pro via /api/generate-avatar proxy (BFL_API_KEY server-side, 90s timeout)
+    try {
+      const bflAbort = new AbortController();
+      const bflTimeout = setTimeout(() => bflAbort.abort(), 90_000);
+      const bflRes = await fetch('/api/generate-avatar', {
+        method: 'POST',
+        signal: bflAbort.signal,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: `${STYLE_PREFIX}${imagePrompt}${STYLE_SUFFIX}` }),
+      });
+      clearTimeout(bflTimeout);
+      if (bflRes.ok) {
+        const { imageUrl } = await bflRes.json() as { imageUrl?: string };
+        if (imageUrl) {
+          // Fetch the BFL CDN URL and convert to base64 for IndexedDB storage
+          const imgRes = await fetch(imageUrl);
+          if (imgRes.ok) {
+            const blob = await imgRes.blob();
+            if (blob.size) return await blobToBase64(blob);
+          }
+        }
+      }
+    } catch {
+      // FLUX Pro unavailable (local dev without proxy) — fall through
+    }
+
+    // Step C — HF FLUX.1-schnell (requires VITE_HF_TOKEN, 90s timeout)
     const hfToken = (import.meta.env.VITE_HF_TOKEN as string) ?? '';
     if (hfToken) {
       try {
@@ -130,16 +156,13 @@ export async function generateAvatarImageFromDescription(description: string): P
         if (hfRes.ok) {
           const blob = await hfRes.blob();
           if (blob.size) return await blobToBase64(blob);
-          console.error('[NAVI] avatar HF FLUX: empty blob response');
-        } else {
-          console.error('[NAVI] avatar HF FLUX failed:', hfRes.status, hfRes.statusText);
         }
-      } catch (e) {
-        console.error('[NAVI] avatar HF FLUX error:', e);
+      } catch {
+        // HF unavailable — fall through
       }
     }
 
-    // Step C — Pollinations.ai fallback (no token needed, 40s timeout)
+    // Step D — Pollinations.ai fallback (no token needed, 40s timeout)
     const encoded = encodeURIComponent(`${STYLE_PREFIX}${imagePrompt}${STYLE_SUFFIX}`);
     const polUrl = `${POLLINATIONS_BASE}/${encoded}?width=512&height=512&nologo=true&model=flux`;
     const polAbort = new AbortController();

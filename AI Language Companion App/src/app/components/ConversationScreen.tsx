@@ -4,6 +4,7 @@ import {
   X as XIcon,
 } from 'lucide-react';
 import { ChatLogEntry } from './NewChatBubble';
+import { CharacterAvatar } from './CharacterAvatar';
 import { QuickActionPill } from './QuickActionPill';
 import { ExpandedPhraseCard } from './ExpandedPhraseCard';
 import { SettingsPanel } from './SettingsPanel';
@@ -381,25 +382,24 @@ export function ConversationScreen({
       {/* Left: avatar + name + scenario badge */}
       <div className="flex items-center gap-2.5 min-w-0">
         {/* Avatar circle */}
-        <div
-          className="w-8 h-8 rounded-full flex-shrink-0 overflow-hidden border-2"
-          style={{ borderColor: character.colors?.primary ?? '#6BBAA7' }}
-        >
+        <div className="flex-shrink-0">
           {activeCharacter?.avatarImageUrl ? (
-            <img
-              src={activeCharacter.avatarImageUrl}
-              alt={character.name}
-              className="w-full h-full object-cover"
-            />
-          ) : (
             <div
-              className="w-full h-full flex items-center justify-center text-sm font-semibold text-white"
-              style={{
-                background: `linear-gradient(135deg, ${character.colors?.primary ?? '#6BBAA7'}, ${character.colors?.secondary ?? '#D4A853'})`,
-              }}
+              className="w-10 h-10 rounded-full overflow-hidden border-2"
+              style={{ borderColor: character.colors?.primary ?? '#6BBAA7' }}
             >
-              {character.name.charAt(0)}
+              <img
+                src={activeCharacter.avatarImageUrl}
+                alt={character.name}
+                className="w-full h-full object-cover"
+              />
             </div>
+          ) : (
+            <CharacterAvatar
+              character={activeCharacter ?? undefined}
+              size="sm"
+              animationState={isGenerating ? 'generating' : 'idle'}
+            />
           )}
         </div>
 

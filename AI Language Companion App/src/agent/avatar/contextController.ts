@@ -213,6 +213,8 @@ export class AvatarContextController {
     learningStage?: string;
     /** Target language selected by user (may differ from dialect language) */
     targetLanguage?: string;
+    /** Compact mode: use reduced budget for small models (< 7B Ollama) */
+    compact?: boolean;
   }): string {
     if (!this.activeProfile) {
       return 'You are a helpful language assistant.';
@@ -360,7 +362,9 @@ export class AvatarContextController {
     // - WebLLM (4K context): 2500 tokens for system prompt
     // - Ollama (8K+ context): 5000 tokens — fits all layers
     // - OpenRouter (128K+ context): 6000 tokens — everything fits
-    const BUDGET = (options as Record<string, unknown>)?.contextBudget as number ?? 3072;
+    const BUDGET = options?.compact
+      ? 1500
+      : ((options as Record<string, unknown>)?.contextBudget as number ?? 3072);
     const selectedIndices = new Set<number>();
 
     // Pass 1: always include MUST layers (priority 0)
