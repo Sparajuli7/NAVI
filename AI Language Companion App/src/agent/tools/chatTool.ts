@@ -122,8 +122,8 @@ export function createChatTool(
       const profile = avatarController.getActiveProfile();
       const city = (typeof profile?.location === 'string' ? profile.location : '') ?? '';
       const chatBehavior = isCompact
-        ? promptLoader.get('toolPrompts.chat_compact.template', { userNativeLanguage, city, name: profile?.name ?? '' })
-        : promptLoader.get('toolPrompts.chat.template', { userNativeLanguage });
+        ? promptLoader.get('toolPrompts.chat_compact.template', { userNativeLanguage, targetLanguage: targetLanguage ?? '', city, name: profile?.name ?? '' })
+        : promptLoader.get('toolPrompts.chat.template', { userNativeLanguage, targetLanguage: targetLanguage ?? '' });
 
       // Stateful phrase deduplication: append phrases already taught this session
       // so the model avoids repeating them even if instruction-following is imperfect

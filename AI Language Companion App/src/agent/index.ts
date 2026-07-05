@@ -369,7 +369,7 @@ export class NaviAgent {
   }
 
   private createOllamaProvider(config: NaviAgentConfig): OllamaProvider {
-    const ollamaModel = config.ollamaModel ?? 'qwen2.5:1.5b';
+    const ollamaModel = config.ollamaModel ?? 'gemma3:4b';
     const preset = OLLAMA_PRESETS[ollamaModel as keyof typeof OLLAMA_PRESETS];
     return new OllamaProvider({
       model: ollamaModel,

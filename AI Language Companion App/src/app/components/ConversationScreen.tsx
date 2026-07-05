@@ -17,7 +17,7 @@ import { useCharacterStore } from '../../stores/characterStore';
 import { countryFlag } from '../../utils/countryFlag';
 import { useAppStore } from '../../stores/appStore';
 import { useNaviAgent } from '../../agent/react/useNaviAgent';
-import { parseResponse, stripThinkTags, truncateRepetition } from '../../utils/responseParser';
+import { parseResponse, stripThinkTags, stripInlineReasoning, truncateRepetition } from '../../utils/responseParser';
 import { saveCharacterConversation } from '../../utils/storage';
 import { startRecording, stopRecording, isSTTSupported, getSTTLangCode } from '../../services/stt';
 import type { Message, PhraseCardData } from '../../types/chat';
@@ -229,11 +229,11 @@ export function ConversationScreen({
           translationMode: sendOptions?.translationMode,
         },
         onToken: (_token: string, fullText: string) => {
-          updateLastMessage(stripThinkTags(fullText), false);
+          updateLastMessage(stripInlineReasoning(stripThinkTags(fullText)), false);
         },
       });
 
-      const fullText = truncateRepetition(stripThinkTags(result.response));
+      const fullText = truncateRepetition(stripInlineReasoning(stripThinkTags(result.response)));
 
       const segments = parseResponse(fullText);
       useChatStore.setState((state) => {

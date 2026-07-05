@@ -35,6 +35,27 @@ export function truncateRepetition(text: string): string {
   return text;
 }
 
+const REASONING_LINE_PATTERN = /^(We are in |User wants |User asked |The user |I need to |I should |I'm [A-Z]|Current situation:|Good phrase ideas:|First, I |Since the user |Since they |Let me |Okay,?\s+so |For the phrase|I can use |- [A-Z])/i;
+
+/**
+ * Strip inline chain-of-thought preamble from thinking models (e.g. qwen3:4b).
+ * These models sometimes leak planning text like "We are in Kathmandu, user wants a phrase..."
+ * even with think:false. Finds the first line that doesn't look like AI planning and returns
+ * everything from there. Falls back to original text if no reasoning detected.
+ */
+export function stripInlineReasoning(text: string): string {
+  const lines = text.split('\n');
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (!line) continue;
+    if (!REASONING_LINE_PATTERN.test(line)) {
+      const result = lines.slice(i).join('\n').trim();
+      return result || text;
+    }
+  }
+  return text;
+}
+
 /** Strip <think>...</think> blocks (and unclosed <think> during streaming) */
 export function stripThinkTags(text: string): string {
   // Remove complete <think>...</think> blocks (case-insensitive, dotall)
