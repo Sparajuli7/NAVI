@@ -8,7 +8,7 @@ import { saveMemories, savePreferences, saveLocation, saveCharacterMemories, sav
 import { detectLocation } from '../../services/location';
 import { useNaviAgent } from '../../agent/react/useNaviAgent';
 import { updateGeminiApiKey } from '../../agent/models/geminiEmbedding';
-import { LLM_PRESETS, OPENROUTER_FREE_MODELS, OPENROUTER_PAID_MODELS } from '../../agent/models';
+import { OPENROUTER_FREE_MODELS, OPENROUTER_PAID_MODELS } from '../../agent/models';
 import { generateAvatarImage } from '../../utils/generateAvatarImage';
 import { CityPicker } from './CityPicker';
 import { LanguagePicker } from './LanguagePicker';
@@ -54,7 +54,7 @@ export function SettingsPanel({ onClose, onRegenerate, onDeleteCompanion, onUpda
   const { activeCharacter, memories, removeMemory, clearMemories } = useCharacterStore();
   const { userPreferences, currentLocation, modelStatus, modelProgress, geminiApiKey, setUserPreferences, setCurrentLocation, setGeminiApiKey } =
     useAppStore();
-  const { agent, backend, ollamaModel, switchOllamaModel, switchBackend, webllmPreset, openRouterTier } = useNaviAgent();
+  const { agent, backend, ollamaModel, switchOllamaModel, switchBackend, openRouterTier } = useNaviAgent();
 
   // Ollama model list state
   const [ollamaModels, setOllamaModels] = useState<Array<{ name: string; size: number }>>([]);
@@ -67,13 +67,12 @@ export function SettingsPanel({ onClose, onRegenerate, onDeleteCompanion, onUpda
   const [geminiKeyDraft, setGeminiKeyDraft] = useState(geminiApiKey);
   const [geminiKeySaved, setGeminiKeySaved] = useState(false);
   // Backend selector state
-  type BackendCard = 'webllm' | 'cloud-free' | 'cloud-paid' | 'ollama';
+  type BackendCard = 'cloud-free' | 'cloud-paid' | 'ollama';
   const [selectedCard, setSelectedCard] = useState<BackendCard>(() => {
     if (backend === 'ollama') return 'ollama';
     if (backend === 'openrouter') return openRouterTier === 'paid' ? 'cloud-paid' : 'cloud-free';
-    return 'webllm';
+    return 'cloud-free';
   });
-  const [pendingWebllmPreset, setPendingWebllmPreset] = useState<string>(webllmPreset);
   const [pendingApiKey, setPendingApiKey] = useState<string>(
     () => typeof localStorage !== 'undefined' ? (localStorage.getItem('navi_openrouter_key') ?? '') : '',
   );
@@ -155,9 +154,7 @@ export function SettingsPanel({ onClose, onRegenerate, onDeleteCompanion, onUpda
     setIsSwitchingBackend(true);
     setBackendSwitchError(null);
     try {
-      if (selectedCard === 'webllm') {
-        await switchBackend('webllm', { webllmPreset: pendingWebllmPreset });
-      } else if (selectedCard === 'cloud-free') {
+      if (selectedCard === 'cloud-free') {
         // Free tier uses keys already in .env — no key input needed
         await switchBackend('openrouter', { openRouterTier: 'free', openRouterModels: OPENROUTER_FREE_MODELS });
       } else {
@@ -798,9 +795,8 @@ export function SettingsPanel({ onClose, onRegenerate, onDeleteCompanion, onUpda
                 }`} />
                 <p className="text-sm text-foreground font-medium truncate">
                   {isSwitchingBackend ? 'Switching…'
-                    : backend === 'openrouter' ? `Cloud ${openRouterTier === 'paid' ? 'Paid' : 'Free'} · ${openRouterTier === 'paid' ? pendingPaidModel.split('/')[1] : 'Gemma 4 + 7 models'}`
-                    : backend === 'ollama' ? `Ollama · ${ollamaModel ?? '—'}`
-                    : `On-Device · ${LLM_PRESETS[webllmPreset as keyof typeof LLM_PRESETS]?.name ?? webllmPreset}`}
+                    : backend === 'openrouter' ? `Cloud ${openRouterTier === 'paid' ? 'Paid' : 'Free'} · ${openRouterTier === 'paid' ? pendingPaidModel.split('/')[1] : 'Qwen3-32B + fallback'}`
+                    : `Ollama · ${ollamaModel ?? '—'}`}
                 </p>
               </div>
 

@@ -72,43 +72,35 @@ function blobToBase64(blob: Blob): Promise<string> {
 export async function generateAvatarImageFromDescription(description: string): Promise<string> {
   if (!description.trim()) return '';
   try {
-    // Step A — convert description to image prompt via OpenRouter 70B (15s timeout)
-    // Falls back to using the raw description directly if OpenRouter is unavailable.
+    // Step A — convert description to image prompt via /api/chat proxy → OpenRouter 70B (15s timeout)
+    // Falls back to using the raw description directly if the proxy is unavailable.
     let imagePrompt = '';
-    const rawKeys = (import.meta.env.VITE_OPENROUTER_API_KEY as string) ?? '';
-    const apiKey = rawKeys.split(',')[0].trim();
-
-    if (apiKey) {
-      try {
-        const orAbort = new AbortController();
-        const orTimeout = setTimeout(() => orAbort.abort(), 15_000);
-        const orRes = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-          method: 'POST',
-          signal: orAbort.signal,
-          headers: {
-            'Authorization': `Bearer ${apiKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            model: 'meta-llama/llama-3.3-70b-instruct',
-            max_tokens: 150,
-            messages: [
-              {
-                role: 'system',
-                content: "You are an expert at writing prompts for AI image generation. Convert the user's character description into a detailed, vivid image generation prompt. Output ONLY the prompt text, no explanation, no preamble. Style: Pixar 3D animated character, friendly, expressive face, warm studio lighting, full portrait.",
-              },
-              { role: 'user', content: description },
-            ],
-          }),
-        });
-        clearTimeout(orTimeout);
-        if (orRes.ok) {
-          const orJson = await orRes.json() as { choices?: { message?: { content?: string } }[] };
-          imagePrompt = orJson.choices?.[0]?.message?.content?.trim() ?? '';
-        }
-      } catch {
-        // OpenRouter timed out or failed — fall through to use raw description
+    try {
+      const orAbort = new AbortController();
+      const orTimeout = setTimeout(() => orAbort.abort(), 15_000);
+      const orRes = await fetch('/api/chat', {
+        method: 'POST',
+        signal: orAbort.signal,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'meta-llama/llama-3.3-70b-instruct',
+          max_tokens: 150,
+          messages: [
+            {
+              role: 'system',
+              content: "You are an expert at writing prompts for AI image generation. Convert the user's character description into a detailed, vivid image generation prompt. Output ONLY the prompt text, no explanation, no preamble. Style: Pixar 3D animated character, friendly, expressive face, warm studio lighting, full portrait.",
+            },
+            { role: 'user', content: description },
+          ],
+        }),
+      });
+      clearTimeout(orTimeout);
+      if (orRes.ok) {
+        const orJson = await orRes.json() as { choices?: { message?: { content?: string } }[] };
+        imagePrompt = orJson.choices?.[0]?.message?.content?.trim() ?? '';
       }
+    } catch {
+      // OpenRouter timed out or failed — fall through to use raw description
     }
 
     // If Step A failed, use the description directly as the image prompt

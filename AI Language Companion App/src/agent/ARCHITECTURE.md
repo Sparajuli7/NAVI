@@ -2,7 +2,7 @@
 
 ## Overview
 
-The NAVI Agent Framework is a modular, local-first AI agent system designed to run entirely on-device. It provides tool routing, structured memory, model abstraction, avatar context control, and pipeline orchestration — all without network dependencies.
+The NAVI Agent Framework is a modular AI agent system. It provides tool routing, structured memory, model abstraction, avatar context control, and pipeline orchestration. LLM inference runs on OpenRouter (cloud) in production and Ollama (local) in development. All other components (memory, TTS, STT, OCR) run client-side.
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -38,15 +38,16 @@ The NAVI Agent Framework is a modular, local-first AI agent system designed to r
 │                      Model Registry                            │
 │        LLM │ TTS │ STT │ Vision │ Embedding │ Translation      │
 ├─────────────────────────────────────────────────────────────────┤
-│                     On-Device Runtimes                         │
-│    WebLLM (WebGPU) │ Ollama │ Tesseract (WASM) │ Browser APIs  │
+│                      Inference Backends                        │
+│  OpenRouter (/api/chat proxy) │ Ollama (local dev) │ Browser APIs │
+│              Tesseract (WASM) │ Web Speech API                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
 ## Design Principles
 
-### 1. Local-First, Offline-First
-Every component runs without network access. Cloud escalation exists only as a stub for future hybrid mode. The app must work in airplane mode.
+### 1. Cloud-First with Local Dev Option
+Production inference uses OpenRouter (Qwen3-32B primary, Llama 3.3-70b fallback) via a Vercel serverless proxy at `/api/chat`. The API key is server-side only — never sent to the client. Ollama is available for local development. All other components (memory, TTS, STT, OCR) run client-side and work offline.
 
 ### 2. Config-Driven Behavior
 Avatar personalities, scenarios, dialects, and slang are defined in JSON config files — not hardcoded in TypeScript. The product team can tune behavior by editing JSON, not code.
@@ -83,7 +84,8 @@ Where existing services work (modelManager.ts, location.ts, ocr.ts), the framewo
 
 ### Models (`agent/models/`)
 - **registry.ts** — ModelRegistry with energy-aware model management
-- **llmProvider.ts** — WebLLM wrapper (Qwen2.5-1.5B / 0.5B)
+- **openRouterProvider.ts** — OpenRouter cloud LLM (Qwen3-32B / Llama 3.3-70b via `/api/chat` proxy)
+- **ollamaProvider.ts** — Ollama local server LLM (local dev only)
 - **ttsProvider.ts** — Browser SpeechSynthesis wrapper
 - **sttProvider.ts** — Browser SpeechRecognition wrapper
 - **visionProvider.ts** — Tesseract.js OCR wrapper
@@ -130,7 +132,7 @@ User types "How do I say hello?"
   → Router: keyword "how to say" → route to 'pronounce' tool
   → ExecutionEngine: check constraints, execute tool
   → PronounceTool: build system prompt (avatar + memory + warmth + learning goals)
-  → LLMProvider.chat(): WebLLM/Ollama inference
+  → OpenRouterProvider.chat(): cloud inference via /api/chat proxy
   → Response with phrase card format
   → Director.postProcess(): detect phrases → update learner profile → record interaction
   → UI renders phrase card with TTS button
@@ -143,7 +145,7 @@ User takes photo of menu
   → CameraReadTool → ImageUnderstandingPipeline:
     1. VisionProvider.extractText() → Tesseract OCR
     2. classifyOCR() → "MENU"
-    3. LLMProvider.chat() → contextual explanation
+    3. OpenRouterProvider.chat() → contextual explanation
   → Response with translated menu items + recommendations
 ```
 
@@ -206,7 +208,7 @@ User takes photo of menu
 3. Done
 
 ### Swapping the LLM
-1. Create new `LLMProvider` with different model config
+1. Create new provider class implementing `ModelProvider<T>` + `ChatLLM`
 2. Register with `ModelRegistry`
 3. Done — all tools use the provider interface
 

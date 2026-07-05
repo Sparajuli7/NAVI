@@ -9,7 +9,6 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { RefreshCw, Server } from 'lucide-react';
 import { useNaviAgent } from '../../agent/react/useNaviAgent';
-import { LLM_PRESETS } from '../../agent/models';
 
 interface BackendSelectScreenProps {
   onDone: () => void;
@@ -41,7 +40,6 @@ const CLOUD_MODELS: CloudModel[] = [
 
 type Selection =
   | { type: 'cloud'; model: CloudModel }
-  | { type: 'ondevice'; presetKey: string }
   | { type: 'ollama'; model: string };
 
 export function BackendSelectScreen({ onDone }: BackendSelectScreenProps) {
@@ -82,8 +80,7 @@ export function BackendSelectScreen({ onDone }: BackendSelectScreenProps) {
         const tier = selected.model.free ? 'free' : 'paid';
         let openRouterModels: string[];
         if (selected.model.free) {
-          // Put selected model first, then remaining free models as fallbacks so
-          // the retry loop has multiple attempts (1 key × N models) instead of 1.
+          // Put selected model first, then remaining free models as fallbacks
           const allFreeIds = CLOUD_MODELS.filter(m => m.free).map(m => m.id);
           openRouterModels = [selected.model.id, ...allFreeIds.filter(id => id !== selected.model.id)];
         } else {
@@ -94,8 +91,6 @@ export function BackendSelectScreen({ onDone }: BackendSelectScreenProps) {
         await switchOllamaModel(selected.model);
         localStorage.setItem('navi_backend_pref', 'ollama');
         localStorage.setItem('navi_ollama_model', selected.model);
-      } else {
-        await switchBackend('webllm', { webllmPreset: selected.presetKey });
       }
       onDone();
     } catch (err) {
@@ -210,41 +205,6 @@ export function BackendSelectScreen({ onDone }: BackendSelectScreenProps) {
           </div>
         )}
 
-        {/* On-device models */}
-        <div>
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1 mb-2">
-            On-Device — private, one-time download
-          </p>
-          <div className="space-y-1.5">
-            {Object.entries(LLM_PRESETS).map(([key, cfg]) => {
-              const sel: Selection = { type: 'ondevice', presetKey: key };
-              const active = isSelected(sel);
-              return (
-                <button
-                  key={key}
-                  onClick={() => setSelected(sel)}
-                  className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border text-left transition-all ${
-                    active
-                      ? 'border-primary bg-primary/10'
-                      : 'border-border bg-card hover:border-primary/40'
-                  }`}
-                >
-                  <div>
-                    <span className={`text-sm font-medium ${active ? 'text-foreground' : 'text-muted-foreground'}`}>
-                      {cfg.name}
-                    </span>
-                    <span className="text-xs text-muted-foreground ml-2">
-                      {(cfg.sizeBytes / 1e9).toFixed(1)} GB
-                    </span>
-                  </div>
-                  <div className={`w-3.5 h-3.5 rounded-full border-2 shrink-0 ml-3 ${
-                    active ? 'border-primary bg-primary' : 'border-border'
-                  }`} />
-                </button>
-              );
-            })}
-          </div>
-        </div>
       </motion.div>
 
       {/* CTA */}
@@ -264,11 +224,6 @@ export function BackendSelectScreen({ onDone }: BackendSelectScreenProps) {
             : 'Start →'
           }
         </button>
-        {selected.type === 'ondevice' && (
-          <p className="text-xs text-muted-foreground text-center mt-2">
-            Model downloads after this step and is cached for future use
-          </p>
-        )}
       </motion.div>
     </div>
   );

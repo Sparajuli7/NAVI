@@ -11,7 +11,7 @@ After completing ANY task, before committing:
 
 ## What Is NAVI?
 
-NAVI is an **AI language companion app** — a local friend in your pocket who speaks the language, knows the slang, understands the culture, and explains everything like a native. It uses a hybrid inference approach: cloud LLMs (OpenRouter) by default for quality and speed, with on-device WebGPU inference (WebLLM) available as a fallback for privacy or offline use.
+NAVI is an **AI language companion app** — a local friend in your pocket who speaks the language, knows the slang, understands the culture, and explains everything like a native. LLM inference runs via OpenRouter (cloud) through a serverless proxy in production, and via Ollama locally for development.
 
 **The core bet:** Most language tools give you translations. NAVI gives you a companion — one that knows where you are, remembers your conversations, adapts to your level, and teaches you how locals actually speak.
 
@@ -101,8 +101,8 @@ NAVI is an **AI language companion app** — a local friend in your pocket who s
 | **Styling** | TailwindCSS | TailwindCSS 4.1.12 | Custom components, no shadcn/ui |
 | **State** | Zustand | ^5.0.11 | 3 stores: app, character, chat |
 | **Storage** | IndexedDB (idb-keyval) | ^6.2.2 | Persists character, messages, memories, prefs |
-| **On-Device LLM** | @mlc-ai/web-llm | ^0.2.81 | WebGPU inference, Qwen2.5-1.5B model |
-| **Local LLM (Alt)** | Ollama | external | Local server backend, any model (qwen, llama, mistral) |
+| **Cloud LLM** | OpenRouter | cloud | Qwen3-32B primary, Llama 3.3-70b fallback via `/api/chat` serverless proxy; key server-side only |
+| **Local LLM (Dev)** | Ollama | external | Local dev only; any model (qwen, llama, mistral); selected from Settings |
 | **OCR** | tesseract.js | ^7.0.0 | Client-side, 6 languages |
 | **TTS** | Web Speech API | browser | Browser SpeechSynthesis |
 | **STT** | Web Speech API | browser | Browser SpeechRecognition |
@@ -120,18 +120,15 @@ NAVI is an **AI language companion app** — a local friend in your pocket who s
 
 ### App Phase State Machine
 ```
-init → [check WebGPU]
-  ├── no_webgpu → backend_select (pick cloud model)
-  └── First launch (WebGPU OK):
-       onboarding (avatar selection) → downloading (model download) → chat
-  └── Returning user:
-       downloading (if needed) → home / chat
+init → auth → onboarding (avatar selection) → chat
+  └── Returning user: home → chat
+  └── Ollama users: downloading (model pull/warm-up) → chat
 ```
 
-### On-Device AI Pipeline
-All AI runs locally on the user's device via WebGPU:
-- **LLM**: Qwen2.5-1.5B-Instruct (q4f16, ~1.1GB) — chat, character gen, memory extraction
-- **OCR**: Tesseract.js — image/document text extraction
+### Inference Architecture
+- **LLM (production)**: OpenRouter — requests go through `/api/chat` Vercel serverless proxy; `OPENROUTER_API_KEY` lives in server env only, never in client code. Primary model: `qwen/qwen3-32b`. Fallback: `meta-llama/llama-3.3-70b-instruct`. Always ready on app open — no download.
+- **LLM (local dev)**: Ollama — selectable from Settings → Model. Any installed model works.
+- **OCR**: Tesseract.js — image/document text extraction (client-side)
 - **TTS**: Browser SpeechSynthesis — phrase playback
 - **STT**: Browser SpeechRecognition — voice input
 
@@ -216,10 +213,10 @@ The agent framework uses an **Orchestrator pattern** with sub-agents:
 - Character generation prompts (config-driven via `characterGen.json`)
 - Configuration data (8 avatar templates, 9 dialects incl. Nepali/Kathmandu, 20 scenarios, city database)
 - Dark/light theme with custom typography (Playfair Display, DM Sans, Source Serif 4)
-- Model download + loading logic (WebLLM + Ollama dual backend)
+- Model loading logic (OpenRouter serverless proxy + Ollama local dev backend)
 - **Agent framework** — full infrastructure (router, tools, memory, models, avatar, pipelines)
 - **6-system memory** — working (ring buffer), episodic, semantic (vectors), profile, learner, relationships
-- **Model abstraction layer** — provider pattern (WebLLM + Ollama + OpenRouter via ChatLLM interface); when `VITE_OPENROUTER_API_KEY` is set, `OpenRouterProvider` becomes the active LLM for all tools and model download is skipped entirely
+- **Model abstraction layer** — provider pattern (OpenRouter + Ollama via ChatLLM interface); OpenRouter is the production default (via `/api/chat` proxy); Ollama available for local dev
 - **Avatar context controller** — config-driven behavior, 11-layer prompt assembly
 - **13 registered tools** — chat, translate, pronounce, camera_read, culture, slang, phrase, memory, scenario, location, tts, stt
 - **Image understanding pipeline** — OCR → classification → LLM explanation
@@ -273,12 +270,13 @@ The agent framework is fully built. All UI screens still call legacy services di
 - ~~**Avatar image generation always failing (DiceBear stuck)**~~ — `generateAvatarImageFromDescription` now logs HF FLUX failures to console and falls back to Pollinations.ai (Step C) when HF returns non-ok or empty blob. Pollinations.ai requires no token and is reliable. Error messages: `[NAVI] avatar HF FLUX failed: <status>` or `[NAVI] avatar falling back to Pollinations.ai`.
 - ~~**New companion always named "Arjun" in Kathmandu**~~ — Added Kathmandu/Nepal names (`Arjun, Sita, Arun, Priya, Ramesh, Anisha, Santosh, Deepa, Rohan, Maya`) to the NAME RULE in both `freeText.template` and `fromTemplate.template` in `characterGen.json` so the LLM picks varied names. `fallbackNameFor('kathmandu')` now randomly picks from the same list instead of always returning `'Arjun'`.
 
+### Resolved Feature Gaps (2026-07-05)
+- ~~**WebLLM (in-browser WebGPU) as production backend**~~ — Removed `@mlc-ai/web-llm` entirely. Production backend is now OpenRouter via `/api/chat` Vercel serverless proxy (key server-side only; Qwen3-32B primary, Llama 3.3-70b fallback). Ollama retained as local dev option. First launch defaults to `openrouter` without any WebGPU check or model download. `llmProvider.ts` deleted; `BackendSelectScreen` strips "On-Device" card; `SettingsPanel` strips WebLLM card; `App.tsx` removes `no_webgpu` phase; `ModelDownloadScreen` copy updated. All 105 tests pass.
+- ~~**VITE_OPENROUTER_API_KEY client-side key exposure**~~ — API key moved entirely to server env var `OPENROUTER_API_KEY` (no VITE_ prefix). `openRouterProvider.ts` calls `/api/chat` proxy with no Authorization header. `generateAvatarImage.ts` also updated to use the proxy. Key is never visible in browser network tab.
+
 ### Resolved Feature Gaps (2026-04-06)
-- ~~**No runtime backend switching**~~ — Added 3-way backend selector to Settings → Model: On-Device (WebGPU), Cloud Free (OpenRouter free models), Cloud Paid (OpenRouter with credits). `NaviAgent.switchBackend()` swaps the active LLM provider at runtime, re-registers all tools, and persists the choice to localStorage (`navi_backend_pref`, `navi_openrouter_key`, `navi_openrouter_tier`, `navi_webllm_preset`). On next startup, the saved backend is restored automatically. `useNaviAgent` exposes `switchBackend`, `webllmPreset`, `openRouterTier`.
-- ~~**OpenRouter key in Settings was cosmetic**~~ — The key saved to `localStorage('navi_openrouter_key')` is now wired to the agent. Selecting Cloud Free or Cloud Paid and tapping Apply actually switches inference to OpenRouter using the provided key.
-- ~~**Only 2 WebLLM models**~~ — Added 4 new WebLLM presets: Phi-3.5 Mini (3.8B, 2.2GB), Gemma 2 2B (1.5GB), Llama 3.2 1B (0.74GB), Llama 3.2 3B (1.9GB). All verified against the installed `@mlc-ai/web-llm` model list.
-- ~~**Model selection never shown to users**~~ — `BackendSelectScreen.tsx` added as a `'backend_select'` AppPhase shown on first launch (when `navi_backend_pref` absent). Presents 3 cards (Cloud Free / Cloud Paid / On-Device) in a clean full-screen UI. After user picks and taps "Get Started →", `switchBackend()` writes the pref and the screen is never shown again. Subsequent launches go straight to the normal flow. Qwen3 presets (1.7B default, 4B, 0.6B) + Gemma 4 as top free model + OpenAI models in paid list.
-- ~~**Qwen2.5 as default WebLLM model despite Qwen3 being available**~~ — Default preset changed to `qwen3-1.7b` (better multilingual performance). All 3 Qwen3 sizes added. FALLBACK_MODELS expanded to 8 (Gemma 4 first for best quality). PAID_MODELS includes OpenAI models accessible via OpenRouter integrations.
+- ~~**No runtime backend switching**~~ — Added 2-way backend selector to Settings → Model: Cloud (OpenRouter free/paid models) and Ollama. `NaviAgent.switchBackend()` swaps the active LLM provider at runtime, re-registers all tools, and persists the choice to localStorage (`navi_backend_pref`, `navi_openrouter_tier`, `navi_openrouter_models`). On next startup, the saved backend is restored automatically.
+- ~~**Model selection never shown to users**~~ — `BackendSelectScreen.tsx` as a `'backend_select'` AppPhase shown on first launch when `navi_backend_pref` absent. Presents Cloud Free / Cloud Paid / Ollama cards. Qwen3-32B default for cloud, Gemma 4 as top free model, OpenAI models in paid list.
 
 ### Resolved Feature Gaps (2026-04-10)
 - ~~**OpenRouter invoked without explicit user choice**~~ — `agent/index.ts` constructor condition tightened from `llmBackend !== 'webllm'` to `llmBackend === 'openrouter'`. `VITE_OPENROUTER_API_KEY` in the build env no longer silently activates OpenRouter on first run (when `navi_backend_pref` is not yet set). Cloud backend now requires the user to explicitly choose it via BackendSelectScreen or Settings.
@@ -583,7 +581,7 @@ pnpm run dev    # Start Vite dev server
 pnpm run build  # Production build
 ```
 
-**Requirements**: Chrome 113+ or Edge 113+ (WebGPU required for on-device LLM)
+**Requirements**: Any modern browser (Chrome, Firefox, Safari, Edge)
 
 ---
 
@@ -592,17 +590,14 @@ pnpm run build  # Production build
 ```typescript
 import { createNaviAgent } from './agent';
 
-// WebLLM (in-browser, default)
+// OpenRouter via /api/chat proxy (production default)
 const agent = createNaviAgent();
 
-// Ollama (local server)
+// Ollama (local dev server)
 const agent = createNaviAgent({ backend: 'ollama', ollamaModel: 'qwen2.5:3b' });
 
-// Auto-detect (Ollama if available, else WebLLM)
-const agent = createNaviAgent({ backend: 'auto' });
-
-await agent.initialize();     // Load memory + detect location + auto-detect backend
-await agent.loadLLM();        // Download/load the LLM model
+await agent.initialize();     // Load memory + detect location
+await agent.loadLLM();        // No-op for OpenRouter; pulls model for Ollama
 
 // Handle user messages (auto-routes to correct tool)
 const result = await agent.handleMessage('How do I say hello?');

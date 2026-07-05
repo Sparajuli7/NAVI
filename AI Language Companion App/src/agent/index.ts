@@ -97,8 +97,6 @@ export { detectPhrases, detectTopics } from './prompts/phraseDetector';
 // Models
 export {
   ModelRegistry,
-  LLMProvider,
-  LLM_PRESETS,
   OllamaProvider,
   OLLAMA_PRESETS,
   isOllamaAvailable,
@@ -128,7 +126,7 @@ export { registerAllTools } from './tools';
 // ─── NaviAgent: The unified agent instance ─────────────────────
 
 import { MemoryManager } from './memory';
-import { ModelRegistry, LLMProvider, LLM_PRESETS, OllamaProvider, OLLAMA_PRESETS, isOllamaAvailable, listOllamaModels, OpenRouterProvider, OPENROUTER_FREE_MODELS, OPENROUTER_PAID_MODELS, TTSProvider, STTProvider, VisionProvider, EmbeddingProvider, TranslationProvider } from './models';
+import { ModelRegistry, OllamaProvider, OLLAMA_PRESETS, isOllamaAvailable, listOllamaModels, OpenRouterProvider, OPENROUTER_FREE_MODELS, OPENROUTER_PAID_MODELS, TTSProvider, STTProvider, VisionProvider, EmbeddingProvider, TranslationProvider } from './models';
 import type { ChatLLM } from './models';
 import { AvatarContextController } from './avatar/contextController';
 import { LocationIntelligence } from './location/locationIntelligence';
@@ -220,15 +218,13 @@ class ModeClassifier {
 }
 
 /** LLM backend selection */
-export type LLMBackend = 'webllm' | 'ollama' | 'openrouter' | 'auto';
+export type LLMBackend = 'ollama' | 'openrouter' | 'auto';
 /** OpenRouter model tier */
 export type OpenRouterTier = 'free' | 'paid';
 
 export interface NaviAgentConfig {
-  /** Which LLM backend to use: 'webllm' (in-browser), 'ollama' (local server), 'auto' (detect) */
+  /** Which LLM backend to use: 'openrouter' (cloud, default), 'ollama' (local dev), 'auto' (= openrouter) */
   backend?: LLMBackend;
-  /** Which WebLLM preset to use (only for 'webllm' backend) */
-  llmPreset?: keyof typeof LLM_PRESETS;
   /** Which Ollama model to use (only for 'ollama' backend) */
   ollamaModel?: string;
   /** Ollama server URL (default: http://localhost:11434) */
@@ -250,14 +246,12 @@ export class NaviAgent {
   readonly memoryRetrieval: MemoryRetrievalAgent;
   readonly research: ResearchAgent;
 
-  // LLM provider — can be WebLLM or Ollama (both implement ChatLLM)
+  // LLM provider — OpenRouter (production) or Ollama (local dev)
   private llm: ChatLLM;
   private llmBackend: LLMBackend;
-  private webllmPresetKey: keyof typeof LLM_PRESETS = 'qwen3-1.7b';
   private openRouterTier: OpenRouterTier = 'free';
 
   // Direct provider references for convenience
-  private webllmProvider: LLMProvider | null = null;
   private ollamaProvider: OllamaProvider | null = null;
   private openRouterProvider: OpenRouterProvider | null = null;
   private ttsProvider: TTSProvider;
@@ -299,17 +293,12 @@ export class NaviAgent {
     this.proactiveEngine = new ProactiveEngine(this.memory.learner, this.memory.episodic);
     this.director.setSessionPlanner(this.sessionPlanner);
 
-    // Restore persisted backend preference from localStorage (overrides env var and config)
+    // Restore persisted backend preference from localStorage (overrides config)
     const savedBackendPref = this.ls?.getItem('navi_backend_pref');
-    const savedORKey = this.ls?.getItem('navi_openrouter_key') ?? '';
     const savedORTier = (this.ls?.getItem('navi_openrouter_tier') ?? 'free') as OpenRouterTier;
-    const savedWebllmPreset = this.ls?.getItem('navi_webllm_preset');
 
-    if (savedBackendPref === 'webllm' || savedBackendPref === 'openrouter' || savedBackendPref === 'ollama') {
+    if (savedBackendPref === 'openrouter' || savedBackendPref === 'ollama') {
       config = { ...config, backend: savedBackendPref as LLMBackend };
-      if (savedBackendPref === 'webllm' && savedWebllmPreset && savedWebllmPreset in LLM_PRESETS) {
-        config = { ...config, llmPreset: savedWebllmPreset as keyof typeof LLM_PRESETS };
-      }
       if (savedBackendPref === 'ollama') {
         const savedOllamaModel = this.ls?.getItem('navi_ollama_model');
         if (savedOllamaModel) {
@@ -317,43 +306,28 @@ export class NaviAgent {
         }
       }
     }
-    if (savedWebllmPreset && savedWebllmPreset in LLM_PRESETS) {
-      this.webllmPresetKey = savedWebllmPreset as keyof typeof LLM_PRESETS;
-    }
     this.openRouterTier = savedORTier;
 
     // Sub-agents — Memory Retrieval + Research
     this.memoryRetrieval = new MemoryRetrievalAgent(this.memory.graph);
     this.research = new ResearchAgent();
 
-    // Determine backend — 'auto' is resolved during initialize()
+    // Determine backend — 'auto' resolves to 'openrouter' (OpenRouter is the default)
     this.llmBackend = config.backend ?? 'auto';
 
-    // OpenRouter takes priority when the env key is present (supports comma-separated keys)
-    // Falls back to localStorage key if env var is absent
-    const rawKey = import.meta.env.VITE_OPENROUTER_API_KEY as string | undefined;
-    const openRouterKeys = rawKey
-      ? rawKey.split(',').map((k: string) => k.trim()).filter(Boolean)
-      : savedORKey ? [savedORKey] : [];
-
-    // Create the LLM provider based on backend selection
-    // Only use OpenRouter when the user explicitly chose it (savedBackendPref === 'openrouter').
-    // An env key alone must NOT override 'auto' or 'webllm' — that would fire OpenRouter before
-    // the user has visited BackendSelectScreen on first run.
-    if (openRouterKeys.length > 0 && this.llmBackend === 'openrouter') {
-      // OpenRouter cloud mode — no local model download needed
-      this.openRouterProvider = new OpenRouterProvider(openRouterKeys);
-      this.llm = this.openRouterProvider;
-      this.llmBackend = 'openrouter';
-    } else if (this.llmBackend === 'ollama') {
+    // Create the LLM provider based on backend selection.
+    // 'auto' and 'openrouter' both use OpenRouter (cloud, via /api/chat proxy — no key client-side).
+    // 'ollama' uses a local Ollama instance (local dev only).
+    if (this.llmBackend === 'ollama') {
       this.ollamaProvider = this.createOllamaProvider(config);
       this.llm = this.ollamaProvider;
     } else {
-      // 'webllm' or 'auto' (auto defaults to webllm, may switch later in initialize())
-      const presetKey = config.llmPreset ?? 'qwen3-1.7b';
-      this.webllmPresetKey = presetKey;
-      this.webllmProvider = new LLMProvider(LLM_PRESETS[presetKey]);
-      this.llm = this.webllmProvider;
+      // 'openrouter' or 'auto' → default to OpenRouter
+      const savedModels = this.ls?.getItem('navi_openrouter_models');
+      const models = savedModels ? JSON.parse(savedModels) as string[] : undefined;
+      this.openRouterProvider = new OpenRouterProvider(models);
+      this.llm = this.openRouterProvider;
+      this.llmBackend = 'openrouter';
     }
 
     // Create other providers
@@ -365,7 +339,6 @@ export class NaviAgent {
 
     // Register all model providers
     if (this.openRouterProvider) this.models.register(this.openRouterProvider);
-    if (this.webllmProvider) this.models.register(this.webllmProvider);
     if (this.ollamaProvider) this.models.register(this.ollamaProvider);
     this.models.register(this.ttsProvider);
     this.models.register(this.sttProvider);
@@ -415,29 +388,9 @@ export class NaviAgent {
     if (this.initialized) return;
 
     if (this.llmBackend === 'openrouter') {
-      // Cloud mode — key was set in constructor, nothing to detect
-      console.log('[NAVI] Using OpenRouter (cloud mode)');
+      // Cloud mode — requests proxy through /api/chat, key is server-side only
+      console.log('[NAVI] Using OpenRouter (cloud mode via /api/chat)');
       agentBus.emit('model:status', { backend: 'openrouter', status: 'ready' });
-    } else if (this.llmBackend === 'auto') {
-      // Auto-detect: prefer Ollama, fall back to WebLLM
-      const ollamaUp = await isOllamaAvailable(this.config.ollamaBaseUrl);
-      if (ollamaUp) {
-        // Ollama is running — use it (faster startup, better models)
-        this.ollamaProvider = this.createOllamaProvider(this.config);
-        this.llm = this.ollamaProvider;
-        this.llmBackend = 'ollama';
-        this.models.register(this.ollamaProvider);
-
-        // Re-register tools with the new LLM provider
-        registerAllTools(this.buildToolDeps());
-
-        agentBus.emit('model:status', { backend: 'ollama', status: 'detected' });
-      } else {
-        // No Ollama — stick with WebLLM
-        console.log('[NAVI] Using WebLLM (offline mode)');
-        this.llmBackend = 'webllm';
-        agentBus.emit('model:status', { backend: 'webllm', status: 'detected' });
-      }
     }
 
     await Promise.all([
@@ -458,12 +411,10 @@ export class NaviAgent {
     onProgress?: (progress: number, text: string) => void,
   ): Promise<void> {
     if (this.llmBackend === 'openrouter') {
-      // No download needed — OpenRouter is always ready
+      // No download needed — OpenRouter is always ready via /api/chat
       return;
     } else if (this.ollamaProvider && this.llmBackend === 'ollama') {
       await this.ollamaProvider.load(onProgress);
-    } else if (this.webllmProvider) {
-      await this.models.loadModel(this.webllmProvider.info().id, onProgress);
     }
   }
 
@@ -621,8 +572,7 @@ export class NaviAgent {
       learningStage: directorCtx.learningStage.stage,
       // Dynamic token budget based on backend context window size
       contextBudget: this.llmBackend === 'openrouter' ? 6000
-        : this.llmBackend === 'ollama' ? 5000
-        : 2500, // webllm (small 4K context models)
+        : 5000, // ollama (varies by model)
     };
 
     if (options?.history) {
@@ -835,11 +785,6 @@ export class NaviAgent {
     agentBus.emit('model:status', { backend: 'ollama', model, status: 'ready' });
   }
 
-  /** Get the active WebLLM preset key */
-  getWebllmPreset(): keyof typeof LLM_PRESETS {
-    return this.webllmPresetKey;
-  }
-
   /** Get the active OpenRouter tier */
   getOpenRouterTier(): OpenRouterTier {
     return this.openRouterTier;
@@ -847,73 +792,38 @@ export class NaviAgent {
 
   /**
    * Switch the active LLM backend at runtime.
-   * For 'webllm': downloads the model if needed.
-   * For 'openrouter': ready immediately (no download).
+   * For 'openrouter': ready immediately (no download). Persists choice to localStorage.
    * Persists the choice to localStorage for next session.
    */
   async switchBackend(
-    type: 'webllm' | 'openrouter',
+    type: 'openrouter',
     opts: {
-      apiKey?: string;
-      webllmPreset?: keyof typeof LLM_PRESETS;
       openRouterTier?: OpenRouterTier;
       openRouterModels?: string[];
     } = {},
-    onProgress?: (progress: number, text: string) => void,
   ): Promise<void> {
-    if (type === 'openrouter') {
-      const envKey = (import.meta as unknown as { env: Record<string, string> }).env?.VITE_OPENROUTER_API_KEY?.split(',')[0]?.trim() ?? '';
-      const key = opts.apiKey?.trim() ?? this.ls?.getItem('navi_openrouter_key') ?? envKey ?? '';
-      if (!key) throw new Error('An OpenRouter API key is required. Get a free one at openrouter.ai.');
+    const tier = opts.openRouterTier ?? 'free';
+    const models = opts.openRouterModels ?? (tier === 'paid' ? OPENROUTER_PAID_MODELS : OPENROUTER_FREE_MODELS);
 
-      const tier = opts.openRouterTier ?? 'free';
-      const models = opts.openRouterModels ?? (tier === 'paid' ? OPENROUTER_PAID_MODELS : OPENROUTER_FREE_MODELS);
+    this.ls?.setItem('navi_backend_pref', 'openrouter');
+    this.ls?.setItem('navi_openrouter_tier', tier);
+    this.ls?.setItem('navi_openrouter_models', JSON.stringify(models));
 
-      this.ls?.setItem('navi_backend_pref', 'openrouter');
-      this.ls?.setItem('navi_openrouter_key', key);
-      this.ls?.setItem('navi_openrouter_tier', tier);
-
-      if (!this.openRouterProvider) {
-        this.openRouterProvider = new OpenRouterProvider(key, models);
-        this.models.register(this.openRouterProvider);
-      } else {
-        this.openRouterProvider.setApiKeys(key);
-        this.openRouterProvider.setModels(models);
-      }
-
-      this.llm = this.openRouterProvider;
-      this.llmBackend = 'openrouter';
-      this.openRouterTier = tier;
-
+    if (!this.openRouterProvider) {
+      this.openRouterProvider = new OpenRouterProvider(models);
+      this.models.register(this.openRouterProvider);
     } else {
-      // webllm
-      const preset = opts.webllmPreset ?? this.webllmPresetKey;
-      if (!(preset in LLM_PRESETS)) throw new Error(`Unknown WebLLM preset: ${preset}`);
-
-      this.ls?.setItem('navi_backend_pref', 'webllm');
-      this.ls?.setItem('navi_webllm_preset', preset);
-
-      // Create a fresh provider if the preset changed
-      if (!this.webllmProvider || this.webllmPresetKey !== preset) {
-        this.webllmProvider = new LLMProvider(LLM_PRESETS[preset]);
-        this.models.register(this.webllmProvider);
-      }
-
-      this.llm = this.webllmProvider;
-      this.llmBackend = 'webllm';
-      this.webllmPresetKey = preset;
+      this.openRouterProvider.setModels(models);
     }
+
+    this.llm = this.openRouterProvider;
+    this.llmBackend = 'openrouter';
+    this.openRouterTier = tier;
 
     // Re-register all tools with the new LLM
     registerAllTools(this.buildToolDeps());
 
-    agentBus.emit('model:status', { backend: this.llmBackend, status: 'switching' });
-
-    if (type === 'webllm') {
-      await this.loadLLM(onProgress);
-    }
-
-    agentBus.emit('model:status', { backend: this.llmBackend, status: 'ready' });
+    agentBus.emit('model:status', { backend: 'openrouter', status: 'ready' });
   }
 
   /** Register a callback for when mode is silently locked by keyword classifier */

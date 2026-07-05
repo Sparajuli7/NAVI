@@ -13,7 +13,6 @@ import type { ScenarioKey, ParsedScenarioContext, LocationContext } from '../typ
 import type { AvatarTemplate, Character, GeneratedCharacter } from '../types/character';
 import { mapCharacterToUI } from '../types/character';
 import type { Message } from '../types/chat';
-import { isWebGPUSupported } from '../utils/platform';
 import { useNaviAgent } from '../agent/react/useNaviAgent';
 import { useAppStore } from '../stores/appStore';
 import { useCharacterStore } from '../stores/characterStore';
@@ -42,7 +41,7 @@ import {
 import { resolveDialectKey, getDialectInfo, buildLocationContext } from '../utils/locationHelpers';
 import { buildAvatarProfileParams } from '../utils/avatarProfileHelpers';
 
-type AppPhase = 'init' | 'auth' | 'no_webgpu' | 'backend_select' | 'downloading' | 'home' | 'onboarding' | 'chat';
+type AppPhase = 'init' | 'auth' | 'backend_select' | 'downloading' | 'home' | 'onboarding' | 'chat';
 
 export default function App() {
   const [appPhase, setAppPhase]             = useState<AppPhase>('init');
@@ -89,14 +88,6 @@ export default function App() {
         await initAgent();
       } catch (err) {
         console.error('Agent initialization error:', err);
-      }
-
-      const activeBackend = agent.getBackend();
-
-      // If WebLLM backend selected but no WebGPU, show error
-      if (activeBackend === 'webllm' && !isWebGPUSupported()) {
-        setAppPhase('no_webgpu');
-        return;
       }
 
       // Restore all persisted data in parallel
@@ -189,16 +180,9 @@ export default function App() {
 
       const targetPhase: AppPhase = activeChar ? 'home' : 'onboarding';
 
-      // First launch: auto-set webllm default (skip backend selection screen)
+      // First launch: default to OpenRouter (cloud inference, no download needed)
       if (!localStorage.getItem('navi_backend_pref')) {
-        if (isWebGPUSupported()) {
-          localStorage.setItem('navi_backend_pref', 'webllm');
-          localStorage.setItem('navi_webllm_preset', 'qwen3-1.7b');
-        } else {
-          // No WebGPU — user must pick a cloud model
-          setAppPhase('backend_select');
-          return;
-        }
+        localStorage.setItem('navi_backend_pref', 'openrouter');
       }
 
       // First launch (no character): go straight to avatar selection
@@ -224,13 +208,8 @@ export default function App() {
       setAppPhase(targetPhase);
   }
 
-  // Called after the user selects a backend (from Settings or no-WebGPU fallback)
+  // Called after the user selects a backend (from Settings)
   const handleBackendChosen = async () => {
-    const activeBackend = agent.getBackend();
-    if (activeBackend === 'webllm' && !isWebGPUSupported()) {
-      setAppPhase('no_webgpu');
-      return;
-    }
     if (!agent.isLLMReady()) {
       setAppPhase('downloading');
       try {
@@ -527,22 +506,7 @@ export default function App() {
     return <BackendSelectScreen onDone={handleBackendChosen} />;
   }
 
-  // WebGPU not supported (and Ollama not available)
-  if (appPhase === 'no_webgpu') {
-    return (
-      <div className="relative w-full max-w-md mx-auto min-h-screen shadow-2xl flex flex-col items-center justify-center px-8 bg-background text-center gap-4">
-        <p className="text-5xl">😔</p>
-        <h2 className="text-xl font-medium text-foreground">WebGPU not supported</h2>
-        <p className="text-sm text-muted-foreground leading-relaxed">
-          Your browser doesn't support on-device AI.{' '}
-          Try <strong>Chrome 113+</strong> or <strong>Edge 113+</strong> on desktop,
-          or install <strong>Ollama</strong> for local model serving.
-        </p>
-      </div>
-    );
-  }
-
-  // Loading / downloading model
+  // Loading / connecting (e.g. Ollama model pull/warm-up)
   if (appPhase === 'init' || appPhase === 'downloading') {
     return (
       <div className="relative w-full max-w-md mx-auto min-h-screen shadow-2xl">

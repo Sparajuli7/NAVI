@@ -1,29 +1,38 @@
 /**
  * NAVI Agent Framework — OpenRouter LLM Provider
  *
- * Routes all LLM calls to OpenRouter's cloud API.
- * Used when VITE_OPENROUTER_API_KEY is set — replaces WebLLM entirely.
- * No model download required; provider is ready immediately on construction.
+ * Routes all LLM calls through the /api/chat serverless proxy, which
+ * forwards to OpenRouter using a server-side API key. The key is never
+ * visible to the client.
  *
- * Rotation strategy: cycles through (key, model) pairs so same-account users
- * still benefit from per-model rate limit pools.
- * Endpoint: https://openrouter.ai/api/v1/chat/completions
+ * Primary model: qwen/qwen3-32b
+ * Fallback model: meta-llama/llama-3.3-70b-instruct
+ *
+ * On failure (timeout, 5xx, rate limit), retries once with the fallback
+ * before surfacing an error. Logs which model served each response.
  */
 
 import type { ModelInfo, ModelProvider, ModelStatus } from '../core/types';
 import type { ChatLLM, ChatOptions } from './chatLLM';
 
-const OPENROUTER_ENDPOINT = 'https://openrouter.ai/api/v1/chat/completions';
+const PROXY_ENDPOINT = '/api/chat';
+
+/** Primary + fallback for production inference */
+const PRIMARY_MODEL = 'qwen/qwen3-32b';
+const FALLBACK_MODEL = 'meta-llama/llama-3.3-70b-instruct';
+
+/** Extended free-tier model list — used by BackendSelectScreen for user selection */
 export const FALLBACK_MODELS = [
-  'google/gemma-4-27b-it:free',                    // top — Gemma 4
-  'google/gemma-3-27b-it:free',                    // Gemma 3 fallback
-  'deepseek/deepseek-r1:free',                     // strong reasoning, own rate pool
-  'deepseek/deepseek-v3:free',                     // fast + capable
-  'qwen/qwen3-32b:free',                           // best multilingual
-  'meta-llama/llama-3.3-70b-instruct:free',        // reliable
-  'mistralai/mistral-small-3.1-24b-instruct:free', // solid fallback
-  'microsoft/phi-4:free',                          // fast, smart
+  'google/gemma-4-27b-it:free',
+  'google/gemma-3-27b-it:free',
+  'deepseek/deepseek-r1:free',
+  'deepseek/deepseek-v3:free',
+  'qwen/qwen3-32b:free',
+  'meta-llama/llama-3.3-70b-instruct:free',
+  'mistralai/mistral-small-3.1-24b-instruct:free',
+  'microsoft/phi-4:free',
 ];
+
 export const PAID_MODELS = [
   'openai/gpt-4o-mini',
   'openai/gpt-4o',
@@ -33,22 +42,23 @@ export const PAID_MODELS = [
   'mistralai/mistral-medium',
   'meta-llama/llama-3.1-70b-instruct',
 ];
-const DEFAULT_TIMEOUT = 90_000;
-const MAX_RETRY_AFTER_MS = 30_000;
 
-/** Status codes that warrant rotating to the next key+model rather than throwing. */
-const RETRYABLE_STATUSES = new Set([402, 408, 429, 500, 502, 503, 504]);
+const DEFAULT_TIMEOUT = 90_000;
+
+/** Status codes that warrant a retry with the fallback model. */
+const RETRYABLE_STATUSES = new Set([408, 429, 500, 502, 503, 504]);
 
 export class OpenRouterProvider implements ModelProvider<null>, ChatLLM {
   private status: ModelStatus = 'ready'; // no download — always ready
-  private apiKeys: string[];
-  private currentKeyIndex: number = 0;
   private models: string[];
   private abortController: AbortController | null = null;
 
-  constructor(apiKeys: string | string[], models?: string[]) {
-    this.apiKeys = Array.isArray(apiKeys) ? apiKeys : [apiKeys];
-    this.models = models ?? FALLBACK_MODELS;
+  /**
+   * @param models Optional override model list (e.g. user-selected free models from
+   *               BackendSelectScreen). When omitted, defaults to primary + fallback.
+   */
+  constructor(models?: string[]) {
+    this.models = models ?? [PRIMARY_MODEL, FALLBACK_MODEL];
   }
 
   info(): ModelInfo {
@@ -64,17 +74,13 @@ export class OpenRouterProvider implements ModelProvider<null>, ChatLLM {
     };
   }
 
-  /** Replace API keys at runtime (e.g. when user updates their key in Settings). */
-  setApiKeys(keys: string | string[]): void {
-    const arr = Array.isArray(keys) ? keys : [keys];
-    this.apiKeys.splice(0, this.apiKeys.length, ...arr);
-    this.currentKeyIndex = 0;
-  }
-
-  /** Replace the active model list at runtime. */
+  /** Update the active model list at runtime (called from SettingsPanel). */
   setModels(models: string[]): void {
     this.models.splice(0, this.models.length, ...models);
   }
+
+  /** No-op — key is managed server-side. Kept for call-site backward compat. */
+  setApiKeys(_keys: string | string[]): void { /* key lives in server env */ }
 
   /** No-op — OpenRouter needs no local download. */
   async load(_onProgress?: (progress: number, text: string) => void): Promise<void> {
@@ -103,35 +109,19 @@ export class OpenRouterProvider implements ModelProvider<null>, ChatLLM {
   ): Promise<string> {
     const useStream = !!(options?.stream && options?.onToken);
 
-    // Try every key × model combination before giving up
-    const totalAttempts = this.apiKeys.length * this.models.length;
+    // Try each model in sequence; stop on first success
     let lastError: Error | null = null;
 
-    for (let attempt = 0; attempt < totalAttempts; attempt++) {
-      // Rotate key and model independently so each attempt tries a unique combination
-      const keyIdx = (this.currentKeyIndex + attempt) % this.apiKeys.length;
-      const modelIdx = attempt % this.models.length;
-      const apiKey = this.apiKeys[keyIdx];
-      const modelId = this.models[modelIdx];
-
-      // Exponential backoff between retries (skip on first attempt)
-      if (attempt > 0) {
-        const backoffMs = Math.min(200 * Math.pow(2, attempt - 1), 8_000);
-        await new Promise<void>(r => setTimeout(r, backoffMs));
-      }
+    for (let i = 0; i < this.models.length; i++) {
+      const modelId = this.models[i];
 
       this.abortController = new AbortController();
       const timeoutId = setTimeout(() => this.abortController?.abort(), DEFAULT_TIMEOUT);
 
       try {
-        const response = await fetch(OPENROUTER_ENDPOINT, {
+        const response = await fetch(PROXY_ENDPOINT, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${apiKey}`,
-            'HTTP-Referer': 'https://navi.app',
-            'X-Title': 'NAVI Language Companion',
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             model: modelId,
             messages,
@@ -146,22 +136,9 @@ export class OpenRouterProvider implements ModelProvider<null>, ChatLLM {
         clearTimeout(timeoutId);
 
         if (RETRYABLE_STATUSES.has(response.status)) {
-          // Respect Retry-After header on 429s before moving on
-          if (response.status === 429) {
-            const retryAfterSec = parseInt(response.headers.get('Retry-After') ?? '0', 10);
-            if (retryAfterSec > 0) {
-              const waitMs = Math.min(retryAfterSec * 1000, MAX_RETRY_AFTER_MS);
-              console.warn(`[NAVI] OpenRouter 429 — waiting ${waitMs}ms (Retry-After: ${retryAfterSec}s)`);
-              await new Promise<void>(r => setTimeout(r, waitMs));
-            }
-          }
           const errorBody = await response.text().catch(() => '');
-          console.warn(`[NAVI] OpenRouter ${response.status} on key ${keyIdx} model ${modelId}: ${errorBody}`);
-          // Advance the sticky key index for future calls
-          this.currentKeyIndex = (keyIdx + 1) % this.apiKeys.length;
-          lastError = new Error(`retryable_${response.status}_key_${keyIdx}_model_${modelIdx}`);
-          const nextModelId = this.models[(modelIdx + 1) % this.models.length];
-          console.warn(`[NAVI] Rotating to model ${nextModelId}`);
+          console.warn(`[NAVI] OpenRouter ${response.status} on model ${modelId}: ${errorBody}`);
+          lastError = new Error(`openrouter_${response.status}_model_${i}`);
           continue;
         }
 
@@ -171,17 +148,19 @@ export class OpenRouterProvider implements ModelProvider<null>, ChatLLM {
         }
 
         if (useStream && options?.onToken && response.body) {
-          return await this.handleStream(response.body, options.onToken);
+          const result = await this.handleStream(response.body, options.onToken);
+          console.log(`[NAVI] OpenRouter served by: ${modelId}`);
+          return result;
         }
 
         const data = await response.json() as { choices?: Array<{ message?: { content?: string } }> };
         const result = data.choices?.[0]?.message?.content ?? '';
         if (!result) {
-          // Advance key index on empty response so next call tries a different key
-          this.currentKeyIndex = (keyIdx + 1) % this.apiKeys.length;
-          lastError = new Error(`empty_response_key_${keyIdx}_model_${modelIdx}`);
+          lastError = new Error(`empty_response_model_${i}`);
           continue;
         }
+
+        console.log(`[NAVI] OpenRouter served by: ${modelId}`);
         return result;
       } catch (err) {
         clearTimeout(timeoutId);
@@ -189,8 +168,11 @@ export class OpenRouterProvider implements ModelProvider<null>, ChatLLM {
           throw new Error(`OpenRouter request timed out after ${DEFAULT_TIMEOUT}ms`);
         }
         lastError = err as Error;
-        // Only continue retrying for known retryable errors; rethrow others immediately
-        if (lastError.message.startsWith('retryable_') || lastError.message.startsWith('empty_response_')) continue;
+        // Only retry for flagged errors; rethrow unexpected ones immediately
+        if (
+          lastError.message.startsWith('openrouter_') ||
+          lastError.message.startsWith('empty_response_')
+        ) continue;
         throw lastError;
       }
     }
