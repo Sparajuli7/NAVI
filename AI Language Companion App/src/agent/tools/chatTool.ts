@@ -116,16 +116,21 @@ export function createChatTool(
       // Inject the chat-specific behavioral prompt (friend mode, not teaching mode)
       const chatBehavior = promptLoader.get('toolPrompts.chat.template', { userNativeLanguage });
 
-      // Build final system message: avatar prompt + chat behavior
-      // Chat behavior template contains adaptive language scaffolding instructions
-      // that tell the LLM to read the conversation and adjust its own language mix
-      const fullSystem = `${systemPrompt}\n\n${chatBehavior}`;
+      // Stateful phrase deduplication: append phrases already taught this session
+      // so the model avoids repeating them even if instruction-following is imperfect
+      const taughtPhrases = memoryManager.working.get('session_taught_phrases') as string[] | undefined;
+      const dedupSuffix = taughtPhrases && taughtPhrases.length > 0
+        ? `\n\nDO NOT REPEAT: You already taught these phrases this session — do not use them again: ${taughtPhrases.slice(-10).join(', ')}`
+        : '';
 
-      // Build message array — keep sliding window tight (last 8 turns)
-      // to prevent context degradation and character drift in long conversations
+      // Build final system message: avatar prompt + chat behavior + dedup
+      const fullSystem = `${systemPrompt}\n\n${chatBehavior}${dedupSuffix}`;
+
+      // Build message array — history is pre-limited by the caller (ConversationScreen)
+      // based on the active backend's context window size
       const messages = [
         { role: 'system', content: fullSystem },
-        ...history.slice(-8),
+        ...history,
         { role: 'user', content: message },
       ];
 

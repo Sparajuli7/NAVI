@@ -67,11 +67,13 @@ function detectEmotionalState(message: string): EmotionalState {
   if (hasFrustrationWords && len < 60) return 'frustrated';
   if (isShortTerse && hasFrustrationWords) return 'frustrated';
 
-  // Anxiety signals
+  // Anxiety signals — require absence of positive counter-signals to avoid false positives
+  // e.g. "I guess that's cool?" has hedging but is NOT anxious
   const anxietyPatterns = /\bnervous\b|\bscared\b|\bworried\b|\bafraid\b|\bwhat if\b|\bis it okay\b|\bam i\b.*\bwrong\b|\bdo i look\b|\bwill they\b/i;
   const hasHedging = /\bmaybe\b|\bI think\b|\bI guess\b|\bnot sure\b|\bsorry\b/i.test(trimmed);
-  if (anxietyPatterns.test(trimmed)) return 'anxious';
-  if (hasHedging && trimmed.includes('?') && len < 80) return 'anxious';
+  const hasPositiveCounterSignal = /\bcool\b|\bgreat\b|\bnice\b|\bawesome\b|\bfun\b|\bexcited\b|\bhaha\b|\blol\b|\bperfect\b|\blove it\b|[😊🎉👏🔥💪✨🥳😂🤣😄]/i.test(trimmed);
+  if (anxietyPatterns.test(trimmed) && !hasPositiveCounterSignal) return 'anxious';
+  if (hasHedging && trimmed.includes('?') && len < 80 && !hasPositiveCounterSignal) return 'anxious';
 
   // Pride signals
   const pridePatterns = /\bi did it\b|\bi said\b|\bthey understood\b|\bit worked\b|\bnailed\b|\bgot it right\b|\bfinally\b/i;
@@ -152,9 +154,11 @@ export class ConversationDirector {
   private assessmentQuestionIndex = 0;
 
   // Language tier advancement tracking
+  // These are initialized lazily from WorkingMemory (24h TTL) so they survive app restarts
   private consecutiveTargetLangMessages = 0;
   private consecutiveHelpRequests = 0;
   private exchangesSinceTierChange = 0;
+  private _tierCountersLoaded = false;
   private readonly TIER_ADVANCE_THRESHOLD = 3;
   private readonly TIER_DROP_THRESHOLD = 2;
   private readonly MIN_EXCHANGES_FOR_TIER_CHANGE = 3;
@@ -260,10 +264,14 @@ export class ConversationDirector {
       const currentTurn = ((this.working.get(scenarioTurnKey) as number) ?? 0) + 1;
       this.working.set(scenarioTurnKey, currentTurn, 2 * 60 * 60 * 1000); // 2h TTL
 
+      // Detect task-completion signals in the user's message
+      const completionSignals = /\b(thank you|thanks|got it|ok great|sounds good|perfect|see you|bye|that's all|i'm done|all good|got what i needed)\b/i;
+      const userSignaledCompletion = currentTurn > 3 && completionSignals.test(message);
+
       let phaseHint: string;
       if (currentTurn <= 2) {
         phaseHint = `SCENARIO PHASE: OPENING (turn ${currentTurn}/8) — Set the scene, introduce key phrases for this situation. Ground the user in where they are and what's about to happen.`;
-      } else if (currentTurn <= 5) {
+      } else if (currentTurn <= 5 && !userSignaledCompletion) {
         phaseHint = `SCENARIO PHASE: MIDDLE (turn ${currentTurn}/8) — This is the core interaction. Let the user practice. Coach them through the real moments. Correct by recasting, not lecturing.`;
       } else {
         phaseHint = `SCENARIO PHASE: WRAPPING UP (turn ${currentTurn}/8) — Start closing the scenario naturally. Hint that a debrief is coming. If the user hasn't used a key phrase yet, create one last natural opportunity.`;
@@ -812,6 +820,15 @@ export class ConversationDirector {
       });
     }
 
+    // Store taught phrases in WorkingMemory for stateful session deduplication.
+    // chatTool reads this list and appends it to the chat behavior prompt.
+    if (this.working && detectedPhrases.length > 0) {
+      const existing = (this.working.get('session_taught_phrases') as string[]) ?? [];
+      const newPhrases = detectedPhrases.map(p => p.phrase);
+      const updated = [...new Set([...existing, ...newPhrases])].slice(-20); // keep last 20
+      this.working.set('session_taught_phrases', updated, 2 * 60 * 60 * 1000);
+    }
+
     // 2. Detect topics
     const topics = detectTopics(userMessage + ' ' + llmResponse);
     for (const topic of topics) {
@@ -1042,6 +1059,14 @@ export class ConversationDirector {
   // ── Language Tier Advancement ───────────────────────────────
 
   private async assessLanguageTier(userMessage: string): Promise<void> {
+    // Lazily load counters from WorkingMemory on first call — survives app restarts (24h TTL)
+    if (!this._tierCountersLoaded && this.working) {
+      this._tierCountersLoaded = true;
+      this.consecutiveTargetLangMessages = (this.working.get('tier_consecutive_target') as number) ?? 0;
+      this.consecutiveHelpRequests = (this.working.get('tier_consecutive_help') as number) ?? 0;
+      this.exchangesSinceTierChange = (this.working.get('tier_exchanges_since_change') as number) ?? 0;
+    }
+
     this.exchangesSinceTierChange++;
 
     const usesTargetLang = this.detectsTargetLanguageUse(userMessage);
@@ -1057,6 +1082,14 @@ export class ConversationDirector {
       this.consecutiveTargetLangMessages = 0;
     }
 
+    // Persist counters to WorkingMemory so they survive app restarts within 24h
+    if (this.working) {
+      const TTL_24H = 24 * 60 * 60 * 1000;
+      this.working.set('tier_consecutive_target', this.consecutiveTargetLangMessages, TTL_24H);
+      this.working.set('tier_consecutive_help', this.consecutiveHelpRequests, TTL_24H);
+      this.working.set('tier_exchanges_since_change', this.exchangesSinceTierChange, TTL_24H);
+    }
+
     if (this.exchangesSinceTierChange < this.MIN_EXCHANGES_FOR_TIER_CHANGE) return;
 
     const currentTier = this.learner.languageComfortTier;
@@ -1065,10 +1098,20 @@ export class ConversationDirector {
       await this.learner.setComfortTier(currentTier + 1);
       this.consecutiveTargetLangMessages = 0;
       this.exchangesSinceTierChange = 0;
+      if (this.working) {
+        const TTL_24H = 24 * 60 * 60 * 1000;
+        this.working.set('tier_consecutive_target', 0, TTL_24H);
+        this.working.set('tier_exchanges_since_change', 0, TTL_24H);
+      }
     } else if (this.consecutiveHelpRequests >= this.TIER_DROP_THRESHOLD && currentTier > 1) {
       await this.learner.setComfortTier(currentTier - 1);
       this.consecutiveHelpRequests = 0;
       this.exchangesSinceTierChange = 0;
+      if (this.working) {
+        const TTL_24H = 24 * 60 * 60 * 1000;
+        this.working.set('tier_consecutive_help', 0, TTL_24H);
+        this.working.set('tier_exchanges_since_change', 0, TTL_24H);
+      }
     }
   }
 

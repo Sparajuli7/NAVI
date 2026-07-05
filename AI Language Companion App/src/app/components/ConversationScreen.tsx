@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
-  Settings, Sun, Moon, Camera, Mic, RotateCcw, Zap, Send,
+  Settings, Sun, Moon, Camera, Mic, RotateCcw, Send,
   X as XIcon,
 } from 'lucide-react';
 import { ChatLogEntry } from './NewChatBubble';
@@ -107,7 +107,7 @@ export function ConversationScreen({
   const { activeCharacter, addMemory: _addMemory } = useCharacterStore();
   const { currentLocation } = useAppStore();
 
-  const { agent, isLLMReady } = useNaviAgent();
+  const { agent, isLLMReady, backend } = useNaviAgent();
   const { userMode } = useAppStore();
 
   const languageName = currentLocation?.dialectInfo?.language ?? 'English';
@@ -206,9 +206,12 @@ export function ConversationScreen({
     addMessage(placeholderMsg);
 
     try {
+      // OpenRouter has a 128K context window — send more history for better continuity.
+      // Ollama models vary; keep tight to avoid blowing small context windows.
+      const historyLimit = backend === 'openrouter' ? -20 : -8;
       const history = historySnapshot
         .filter(m => (m.role === 'user' || m.role === 'character') && !m.metadata?.isProactive)
-        .slice(-8)
+        .slice(historyLimit)
         .map(m => ({
           role: m.role === 'user' ? 'user' : 'assistant',
           // Truncate long character messages — prevents verbose first_messages from
@@ -374,13 +377,45 @@ export function ConversationScreen({
 
   // ── Header ───────────────────────────────────────────────────────────────
   const header = (
-    <div className="flex-shrink-0 flex items-center justify-between px-4 py-2 border-b border-border bg-card/50">
-      <div className="flex items-center gap-2 min-w-0">
-        <p className="font-medium text-foreground text-sm truncate">{character.name}</p>
+    <div className="flex-shrink-0 flex items-center justify-between px-4 py-2.5 border-b border-border bg-card/50">
+      {/* Left: avatar + name + scenario badge */}
+      <div className="flex items-center gap-2.5 min-w-0">
+        {/* Avatar circle */}
+        <div
+          className="w-8 h-8 rounded-full flex-shrink-0 overflow-hidden border-2"
+          style={{ borderColor: character.colors?.primary ?? '#6BBAA7' }}
+        >
+          {activeCharacter?.avatarImageUrl ? (
+            <img
+              src={activeCharacter.avatarImageUrl}
+              alt={character.name}
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <div
+              className="w-full h-full flex items-center justify-center text-sm font-semibold text-white"
+              style={{
+                background: `linear-gradient(135deg, ${character.colors?.primary ?? '#6BBAA7'}, ${character.colors?.secondary ?? '#D4A853'})`,
+              }}
+            >
+              {character.name.charAt(0)}
+            </div>
+          )}
+        </div>
+
+        <div className="flex flex-col min-w-0">
+          <p className="font-medium text-foreground text-sm truncate leading-tight">{character.name}</p>
+          {dialectIndicator && (
+            <span className="text-[11px] text-muted-foreground leading-tight" title={currentLocation?.dialectInfo?.dialect ?? ''}>
+              {dialectIndicator} {currentLocation?.city ?? ''}
+            </span>
+          )}
+        </div>
+
         {activeScenario && SCENARIOS[activeScenario] && (
           <button
             onClick={isScenarioActive ? handleEndScenario : undefined}
-            className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors
+            className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors ml-1
               ${isScenarioActive
                 ? 'bg-primary/20 text-primary hover:bg-primary/30'
                 : 'bg-primary/10 text-primary/70'}`}
@@ -392,24 +427,14 @@ export function ConversationScreen({
             {isScenarioActive && <XIcon className="w-3 h-3 ml-0.5 opacity-60" />}
           </button>
         )}
-        {dialectIndicator && (
-          <span className="text-sm" title={currentLocation?.dialectInfo?.dialect ?? ''}>
-            {dialectIndicator}
-          </span>
-        )}
       </div>
 
-      <div className="flex items-center gap-1 flex-shrink-0">
-        <button
-          onClick={onOpenScenarios}
-          className="p-2 hover:bg-muted/50 rounded-lg transition-colors"
-          title="Practice a scenario"
-        >
-          <Zap className="w-4 h-4 text-muted-foreground" />
-        </button>
+      {/* Right: theme toggle + settings only */}
+      <div className="flex items-center gap-0.5 flex-shrink-0">
         <button
           onClick={onToggleTheme}
           className="p-2 hover:bg-muted/50 rounded-lg transition-colors"
+          title="Toggle theme"
         >
           {isDark ? (
             <Sun className="w-4 h-4 text-muted-foreground" />
@@ -420,6 +445,7 @@ export function ConversationScreen({
         <button
           onClick={() => setShowSettings(true)}
           className="p-2 hover:bg-muted/50 rounded-lg transition-colors"
+          title="Settings"
         >
           <Settings className="w-4 h-4 text-muted-foreground" />
         </button>

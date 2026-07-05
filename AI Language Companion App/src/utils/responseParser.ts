@@ -52,6 +52,18 @@ export function stripInlineMarkdown(text: string): string {
     .replace(/(?<!\w)_([^_\n]+?)_(?!\w)/g, '$1');   // _italic_ → italic
 }
 
+/**
+ * Detect if a phrase card field contains a placeholder echoed from the prompt template
+ * rather than real content. e.g. "(write the actual phrase in French)" is a placeholder.
+ */
+function isPlaceholderField(s: string): boolean {
+  const lower = s.toLowerCase();
+  return (s.startsWith('(') && (lower.includes('write') || lower.includes('describe') || lower.includes('actual')))
+    || lower === 'n/a'
+    || lower === 'none'
+    || s.trim().length === 0;
+}
+
 export function parseResponse(text: string): ParsedSegment[] {
   const segments: ParsedSegment[] = [];
   let lastIndex = 0;
@@ -71,7 +83,15 @@ export function parseResponse(text: string): ParsedSegment[] {
       meaning:   match[4].trim(),
       tip:       match[5].trim(),
     };
-    segments.push({ type: 'phrase_card', data });
+
+    // If any required field is a placeholder echoed from the prompt template,
+    // render as plain text instead of a broken phrase card
+    if (isPlaceholderField(data.phrase) || isPlaceholderField(data.meaning)) {
+      const raw = match[0].trim();
+      segments.push({ type: 'text', content: stripInlineMarkdown(raw) });
+    } else {
+      segments.push({ type: 'phrase_card', data });
+    }
 
     lastIndex = matchStart + match[0].length;
   }
