@@ -93,7 +93,9 @@
 ### API keys exposed in client bundle
 `VITE_OPENROUTER_API_KEY` is baked into the JS bundle (Vite `VITE_` prefix = client-side). Anyone can find it in DevTools. Fine for founder testing, not for public launch.
 
-**Fix when ready:** Add a Vercel serverless function (`/api/chat.ts`) that holds keys server-side (non-`VITE_` env vars) and proxies OpenRouter requests. ~50 lines of TypeScript.
+**Managed-cloud path (resolved):** the **NAVI Cloud** backend (`ManagedCloudProvider`, `backend: 'managed'`) routes through the same-origin Vercel Edge proxy `api/chat.ts`, which holds the non-`VITE_` `OPENROUTER_API_KEY` server-side, verifies the caller's Supabase JWT, and enforces per-user + global usage guardrails (`api/usage.ts`, `src/config/monetization.ts`, MONETIZATION.md). The key never reaches the bundle on this path.
+
+**Still exposed:** the legacy direct **Cloud (OpenRouter)** backend still reads `VITE_OPENROUTER_API_KEY` client-side, so it remains founder-testing-only. Migrate remaining direct-OpenRouter usage onto the managed proxy before public launch.
 
 ---
 
@@ -101,7 +103,7 @@
 
 **Runtime (installed):**
 - React 18.3.1, React DOM 18.3.1 (peer deps)
-- **Routing:** `react-router` 7.13.0 — installed but NOT used; `App.tsx` uses manual `useState` to switch screens
+- **Routing:** `react-router-dom` 7.x — in use in `main.tsx` (`/` → `LandingPage`, `/app` → `App`, `*` → redirect to `/`). Within `/app`, screen switching is still manual `useState` (`AppPhase`).
 - **Animation:** `motion` 12.23.24 (Framer Motion v12)
 - **UI:** Full Radix UI suite + shadcn/ui wrappers + `vaul` 1.1.2 (bottom sheet) + `sonner` 2.0.3 (toasts)
 - **Icons:** `lucide-react` 0.487.0
@@ -125,7 +127,7 @@
 ## State Management
 
 - **Zustand** is in use — 3 stores: `appStore` (model status, location, preferences), `characterStore` (active character, memories), `chatStore` (messages, scenario, generation state)
-- App-level phase switching in `App.tsx` via `useState` (`phase`: init → onboarding (avatar select) → downloading → chat; backend_select only for Settings or no-WebGPU fallback)
+- App-level phase switching in `App.tsx` via `useState` (`AppPhase`: init → auth → backend_select/no_webgpu → downloading → home/onboarding → chat; `auth` phase gates optional Supabase sign-in, skippable to guest mode)
 - All stores persist to IndexedDB via `utils/storage.ts` (idb-keyval)
 - Full state survives page refresh
 
@@ -133,8 +135,8 @@
 
 ## Routing
 
-- `react-router` is installed but **not used**
-- Navigation is manual: `App.tsx` renders `<NewOnboardingScreen>` or `<ConversationScreen>` based on `hasOnboarded` boolean
+- `react-router-dom` is **in use** (`main.tsx`): `/` → `marketing/LandingPage` (public marketing + pricing), `/app` → `App` (the companion experience, centered phone-frame over a desktop backdrop), `*` → redirect to `/`. Vercel SPA rewrites serve `index.html` for all non-asset paths; heavy machinery (WebGPU, agent, LLM) only mounts under `/app`.
+- Within `/app`, screen navigation is still manual via `App.tsx`'s `AppPhase` state machine.
 
 ---
 
@@ -262,24 +264,26 @@
 
 ## Wiring Status
 
-Items from original audit, updated to reflect current implementation state (Prompts 1–6, 8 complete; Prompt 7 incomplete; Master Plan Batches 1–4 complete):
+Items from original audit, updated to reflect current implementation state (camera pipeline now wired; remaining open items tracked in CLAUDE.md "Known Gaps"):
 
 | # | What | Where | Status |
 |---|---|---|---|
-| 1 | Character generation | `NewOnboardingScreen` | ✅ Wired to `llm.generateCharacter()` |
-| 2 | Location detection | `NewOnboardingScreen` | ✅ Wired to `location.ts` + `dialectMap.json` |
+| 1 | Character generation | `AvatarSelectScreen` | ✅ Wired to `llm.generateCharacter()` |
+| 2 | Location detection | `AvatarSelectScreen` | ✅ Wired to `location.ts` + `dialectMap.json` |
 | 3 | All bot responses | `ConversationScreen` | ✅ Wired to `llm.streamMessage()` with streaming |
 | 4 | Message persistence | `ConversationScreen` | ✅ IndexedDB via `storage.ts` |
-| 5 | Camera capture | `CameraOverlay` | ⬜ Not wired — Prompt 7 incomplete |
-| 6 | OCR | `CameraOverlay` | ⬜ Not wired — Prompt 7 incomplete |
-| 7 | Camera LLM results | `CameraOverlay` | ⬜ Not wired — Prompt 7 incomplete |
-| 8 | TTS | `NewChatBubble`, `CameraOverlay`, `ExpandedPhraseCard` | ✅ Wired to `tts.speakPhrase()` |
-| 9 | STT | `ConversationScreen` mic button, `ExpandedPhraseCard` Practice | ✅ Wired to `stt.startRecording()` |
+| 5 | Camera capture | `CameraOverlay` | ✅ Wired — `<input capture>` → `agent.handleImage()` |
+| 6 | OCR | `CameraOverlay` | ✅ Wired — tesseract via `agent.handleImage()` pipeline |
+| 7 | Camera LLM results | `CameraOverlay` | ✅ Wired — OCR → classify → LLM explain |
+| 8 | TTS | `CameraOverlay`, `ExpandedPhraseCard` | ✅ Wired to `tts.speakPhrase()` |
+| 9 | STT | `ConversationScreen` mic button, `ExpandedPhraseCard` Practice | ✅ Wired to `stt.startRecording()` (Practice discards transcript — see Known Gaps) |
 | 10 | Quick action pills | `ConversationScreen` | ✅ Dynamic from `scenarioContexts.json` |
 | 11 | Settings panel | `ConversationScreen` | ✅ `SettingsPanel.tsx` built and wired |
 | 12 | "Regenerate companion" | `ConversationScreen` profile card | ✅ Resets to onboarding phase |
-| 13 | "Help me order this" | `CameraOverlay` | ⬜ Not wired — Prompt 7 incomplete |
+| 13 | "Help me with this" | `CameraOverlay` | ✅ Wired — camera result → agent explanation |
 | 14 | Save phrase | `ExpandedPhraseCard` | ✅ Persists to IndexedDB |
+| 15 | Accounts / cloud sync | `auth/`, `db/` | ✅ Optional Supabase (`useAuth`); guest mode when env unset |
+| 16 | Managed cloud inference | `BackendSelectScreen` → `ManagedCloudProvider` | ✅ NAVI Cloud backend via `api/chat.ts` proxy (sign-in required) |
 
 ---
 
