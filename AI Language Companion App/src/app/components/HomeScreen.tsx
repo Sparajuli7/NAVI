@@ -10,6 +10,7 @@ const ALL_SCENARIO_KEYS = Object.keys(SCENARIOS);
 
 interface HomeScreenProps {
   companions: Character[];
+  activeCharacterId?: string | null;
   messageCount: number;
   lastMessagePreview: string;
   memoryCount: number;
@@ -33,6 +34,7 @@ function charToAvatarShape(c: Character) {
 
 export function HomeScreen({
   companions,
+  activeCharacterId,
   messageCount,
   lastMessagePreview,
   memoryCount,
@@ -105,114 +107,9 @@ export function HomeScreen({
     );
   }
 
-  // Single companion — keep the detailed single-card view
-  if (companions.length === 1) {
-    const solo = companions[0];
-    return (
-      <div className="min-h-[calc(100vh-57px)] bg-background flex flex-col px-6 py-8 relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-purple-950/20 via-background to-teal-950/20 dark:from-purple-950/10 dark:via-background dark:to-teal-950/10" />
-
-        <div className="relative z-10 flex-1 flex flex-col gap-6 max-w-sm mx-auto w-full">
-          {/* Character card */}
-          <motion.div
-            className="bg-card border border-border rounded-2xl p-6 text-center"
-            initial={{ y: 20, opacity: 0 }}
-            animate={{ y: 0, opacity: 1 }}
-            transition={{ delay: 0.1 }}
-          >
-            <CharacterAvatar character={charToAvatarShape(solo)} size="lg" animationState="idle" />
-            <h2
-              className="text-xl mt-4 text-foreground"
-              style={{ fontFamily: 'var(--font-display)' }}
-            >
-              {solo.name}
-            </h2>
-            <p className="text-sm text-muted-foreground mt-1">
-              {solo.location_city}, {solo.location_country}
-            </p>
-            <p className="text-sm text-foreground/70 mt-3 italic">"{solo.summary}"</p>
-          </motion.div>
-
-          {/* Conversation stats */}
-          {messageCount > 0 && (
-            <motion.div
-              className="bg-card border border-border rounded-2xl p-5"
-              initial={{ y: 20, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              transition={{ delay: 0.2 }}
-            >
-              <div className="flex items-center gap-3 mb-3">
-                <MessageSquare className="w-4 h-4 text-primary" />
-                <span className="text-sm text-foreground font-medium">
-                  {messageCount} message{messageCount !== 1 ? 's' : ''}
-                </span>
-                {memoryCount > 0 && (
-                  <>
-                    <span className="text-border">|</span>
-                    <Brain className="w-4 h-4 text-secondary" />
-                    <span className="text-sm text-foreground font-medium">
-                      {memoryCount} memor{memoryCount !== 1 ? 'ies' : 'y'}
-                    </span>
-                  </>
-                )}
-              </div>
-              {lastMessagePreview && (
-                <p className="text-sm text-muted-foreground line-clamp-2">{lastMessagePreview}</p>
-              )}
-            </motion.div>
-          )}
-
-          {/* Scenario strip */}
-          <ScenarioStrip />
-
-          {/* Action buttons */}
-          <div className="flex flex-col gap-3 mt-auto">
-            {messageCount > 0 && (
-              <motion.button
-                className="w-full px-6 py-4 bg-primary text-primary-foreground rounded-full font-medium hover:shadow-[0_0_20px_rgba(212,168,83,0.3)] transition-all flex items-center justify-center gap-3"
-                onClick={onContinueChat}
-                whileTap={{ scale: 0.97 }}
-                initial={{ y: 20, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                transition={{ delay: 0.5 }}
-              >
-                Continue conversation
-                <ArrowRight className="w-5 h-5" />
-              </motion.button>
-            )}
-
-            {messageCount === 0 && (
-              <motion.button
-                className="w-full px-6 py-4 bg-primary text-primary-foreground rounded-full font-medium hover:shadow-[0_0_20px_rgba(212,168,83,0.3)] transition-all flex items-center justify-center gap-3"
-                onClick={() => onSelectCompanion(solo.id)}
-                whileTap={{ scale: 0.97 }}
-                initial={{ y: 20, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                transition={{ delay: 0.5 }}
-              >
-                Start chatting
-                <ArrowRight className="w-5 h-5" />
-              </motion.button>
-            )}
-
-            <motion.button
-              className="w-full px-6 py-3 bg-card border border-border text-foreground rounded-full font-medium hover:bg-muted/50 transition-all flex items-center justify-center gap-3"
-              onClick={onNewCompanion}
-              whileTap={{ scale: 0.97 }}
-              initial={{ y: 20, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              transition={{ delay: 0.6 }}
-            >
-              <Plus className="w-4 h-4" />
-              New companion
-            </motion.button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // Multiple companions — show a scrollable list
+  // One or more companions — a picker: tap an existing avatar, or make a new one.
+  // Works the same whether you have a single companion or many.
+  const heading = companions.length === 1 ? 'Your companion' : 'Your companions';
   return (
     <div className="min-h-[calc(100vh-57px)] bg-background flex flex-col px-6 py-8 relative overflow-hidden">
       <div className="absolute inset-0 bg-gradient-to-br from-purple-950/20 via-background to-teal-950/20 dark:from-purple-950/10 dark:via-background dark:to-teal-950/10" />
@@ -224,10 +121,12 @@ export function HomeScreen({
           animate={{ opacity: 1 }}
           transition={{ delay: 0.1 }}
         >
-          Your companions
+          {heading}
         </motion.p>
 
-        {companions.map((comp, i) => (
+        {companions.map((comp, i) => {
+          const isActive = comp.id === activeCharacterId;
+          return (
           <motion.div
             key={comp.id}
             className="w-full bg-card border border-border rounded-2xl overflow-hidden"
@@ -263,45 +162,75 @@ export function HomeScreen({
               ) : (
                 <motion.div
                   key="normal"
-                  className="p-4 flex items-center gap-4"
+                  className="p-4 flex flex-col gap-3"
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
                 >
-                  <button className="flex-1 flex items-center gap-4 text-left min-w-0" onClick={() => onSelectCompanion(comp.id)}>
-                    <CharacterAvatar character={charToAvatarShape(comp)} size="md" animationState="none" />
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-foreground" style={{ fontFamily: 'var(--font-display)' }}>
-                        {comp.name}
-                      </p>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        {comp.location_city}, {comp.location_country}
-                      </p>
-                      <p className="text-xs text-foreground/60 mt-1 line-clamp-1 italic">
-                        {comp.summary}
-                      </p>
-                    </div>
-                    <ArrowRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                  </button>
-                  {onDeleteCompanion && (
+                  <div className="flex items-center gap-4">
                     <button
-                      onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(comp.id); }}
-                      className="p-2 rounded-full hover:bg-red-500/10 transition-colors flex-shrink-0"
-                      title="Delete companion"
+                      className="flex-1 flex items-center gap-4 text-left min-w-0"
+                      onClick={() => (isActive ? onContinueChat() : onSelectCompanion(comp.id))}
                     >
-                      <Trash2 className="w-4 h-4 text-muted-foreground hover:text-red-400 transition-colors" />
+                      <CharacterAvatar character={charToAvatarShape(comp)} size="md" animationState={isActive ? 'idle' : 'none'} />
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium text-foreground" style={{ fontFamily: 'var(--font-display)' }}>
+                          {comp.name}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {comp.location_city}, {comp.location_country}
+                        </p>
+                        <p className="text-xs text-foreground/60 mt-1 line-clamp-1 italic">
+                          {comp.summary}
+                        </p>
+                      </div>
+                      <ArrowRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />
                     </button>
+                    {onDeleteCompanion && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(comp.id); }}
+                        className="p-2 rounded-full hover:bg-red-500/10 transition-colors flex-shrink-0"
+                        title="Delete companion"
+                      >
+                        <Trash2 className="w-4 h-4 text-muted-foreground hover:text-red-400 transition-colors" />
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Conversation stats for the companion you last chatted with */}
+                  {isActive && messageCount > 0 && (
+                    <div className="pt-3 border-t border-border/60">
+                      <div className="flex items-center gap-3 mb-1.5">
+                        <MessageSquare className="w-4 h-4 text-primary" />
+                        <span className="text-xs text-foreground font-medium">
+                          {messageCount} message{messageCount !== 1 ? 's' : ''}
+                        </span>
+                        {memoryCount > 0 && (
+                          <>
+                            <span className="text-border">|</span>
+                            <Brain className="w-4 h-4 text-secondary" />
+                            <span className="text-xs text-foreground font-medium">
+                              {memoryCount} memor{memoryCount !== 1 ? 'ies' : 'y'}
+                            </span>
+                          </>
+                        )}
+                      </div>
+                      {lastMessagePreview && (
+                        <p className="text-xs text-muted-foreground line-clamp-2">{lastMessagePreview}</p>
+                      )}
+                    </div>
                   )}
                 </motion.div>
               )}
             </AnimatePresence>
           </motion.div>
-        ))}
+          );
+        })}
 
         <ScenarioStrip />
 
         <motion.button
-          className="w-full px-6 py-3 bg-card border border-border text-foreground rounded-full font-medium hover:bg-muted/50 transition-all flex items-center justify-center gap-3"
+          className="w-full px-6 py-4 bg-primary text-primary-foreground rounded-full font-medium hover:shadow-[0_0_20px_rgba(212,168,83,0.3)] transition-all flex items-center justify-center gap-3"
           onClick={onNewCompanion}
           whileTap={{ scale: 0.97 }}
           initial={{ y: 20, opacity: 0 }}
@@ -309,7 +238,7 @@ export function HomeScreen({
           transition={{ delay: 0.1 + companions.length * 0.07 }}
         >
           <Plus className="w-4 h-4" />
-          New companion
+          New avatar
         </motion.button>
       </div>
     </div>

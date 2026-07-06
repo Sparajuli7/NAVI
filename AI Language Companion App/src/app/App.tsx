@@ -588,6 +588,7 @@ export default function App() {
       {appPhase === 'home' ? (
         <HomeScreen
           companions={companions}
+          activeCharacterId={activeChar?.id ?? null}
           messageCount={messages.length}
           lastMessagePreview={lastMsg?.content?.slice(0, 120) ?? ''}
           memoryCount={memoryCount}
