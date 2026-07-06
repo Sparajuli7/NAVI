@@ -2,8 +2,9 @@ import type { ParsedSegment, PhraseCardData } from '../types/chat';
 
 // Use [\r\n]+ as separator so the pattern works with both Unix and Windows line endings,
 // and is tolerant of blank lines between fields.
+// Sound tip and Tip are optional — small models reliably produce only 3 fields.
 const PHRASE_CARD_PATTERN =
-  /\*\*Phrase:\*\*[ \t]*(.+?)[\r\n]+\*\*Say it:\*\*[ \t]*(.+?)[\r\n]+\*\*Sound tip:\*\*[ \t]*(.+?)[\r\n]+\*\*Means:\*\*[ \t]*(.+?)[\r\n]+\*\*Tip:\*\*[ \t]*(.+?)(?:[\r\n]|$)/gs;
+  /\*\*Phrase:\*\*[ \t]*(.+?)[\r\n]+\*\*Say it:\*\*[ \t]*(.+?)[\r\n]+(?:\*\*Sound tip:\*\*[ \t]*(.+?)[\r\n]+)?\*\*Means:\*\*[ \t]*(.+?)[\r\n]+(?:\*\*Tip:\*\*[ \t]*(.+?)(?:[\r\n]|$))?/gs;
 
 /**
  * Detect and truncate repetition loops in model output.
@@ -34,6 +35,27 @@ export function truncateRepetition(text: string): string {
   return text;
 }
 
+const REASONING_LINE_PATTERN = /^(We are in |User wants |User asked |The user |I need to |I should |I'm [A-Z]|Current situation:|Good phrase ideas:|First, I |Since the user |Since they |Let me |Okay,?\s+so |For the phrase|I can use |- [A-Z])/i;
+
+/**
+ * Strip inline chain-of-thought preamble from thinking models (e.g. qwen3:4b).
+ * These models sometimes leak planning text like "We are in Kathmandu, user wants a phrase..."
+ * even with think:false. Finds the first line that doesn't look like AI planning and returns
+ * everything from there. Falls back to original text if no reasoning detected.
+ */
+export function stripInlineReasoning(text: string): string {
+  const lines = text.split('\n');
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (!line) continue;
+    if (!REASONING_LINE_PATTERN.test(line)) {
+      const result = lines.slice(i).join('\n').trim();
+      return result || text;
+    }
+  }
+  return text;
+}
+
 /** Strip <think>...</think> blocks (and unclosed <think> during streaming) */
 export function stripThinkTags(text: string): string {
   // Remove complete <think>...</think> blocks (case-insensitive, dotall)
@@ -52,6 +74,18 @@ export function stripInlineMarkdown(text: string): string {
     .replace(/(?<!\w)_([^_\n]+?)_(?!\w)/g, '$1');   // _italic_ → italic
 }
 
+/**
+ * Detect if a phrase card field contains a placeholder echoed from the prompt template
+ * rather than real content. e.g. "(write the actual phrase in French)" is a placeholder.
+ */
+function isPlaceholderField(s: string): boolean {
+  const lower = s.toLowerCase();
+  return (s.startsWith('(') && (lower.includes('write') || lower.includes('describe') || lower.includes('actual')))
+    || lower === 'n/a'
+    || lower === 'none'
+    || s.trim().length === 0;
+}
+
 export function parseResponse(text: string): ParsedSegment[] {
   const segments: ParsedSegment[] = [];
   let lastIndex = 0;
@@ -67,11 +101,19 @@ export function parseResponse(text: string): ParsedSegment[] {
     const data: PhraseCardData = {
       phrase:    match[1].trim(),
       phonetic:  match[2].trim(),
-      soundTip:  match[3].trim(),
+      soundTip:  match[3]?.trim() ?? '',
       meaning:   match[4].trim(),
-      tip:       match[5].trim(),
+      tip:       match[5]?.trim() ?? '',
     };
-    segments.push({ type: 'phrase_card', data });
+
+    // If any required field is a placeholder echoed from the prompt template,
+    // render as plain text instead of a broken phrase card
+    if (isPlaceholderField(data.phrase) || isPlaceholderField(data.meaning)) {
+      const raw = match[0].trim();
+      segments.push({ type: 'text', content: stripInlineMarkdown(raw) });
+    } else {
+      segments.push({ type: 'phrase_card', data });
+    }
 
     lastIndex = matchStart + match[0].length;
   }

@@ -140,9 +140,9 @@ The agent framework, memory, providers, prompt engine, and all UI screens are bu
 - Flashcards and the memory graph are reachable from the My phrases pill → My Dictionary header (2 taps); consider first-class entry points if usage warrants.
 
 **Model / prompt quality:**
-- No model-size-aware prompt tiers — all models (1.5B–70B) get the same prompt. Small models (<3B) need a compact, all-negative tier (see `RESEARCH_ROUND3.md`). 1.5B is unreliable for persona conversation; invest in 5B+ availability over 1.5B tuning.
+- Model-size-aware prompt tiers exist for chat only: `chatTool` detects small Ollama models (~1–4B, by name) and swaps to the compact `toolPrompts.chat_compact` tier. Other tools/models still share one prompt; 1.5B remains unreliable for persona conversation (invest in 5B+ over 1.5B tuning).
 - `chatTool.ts` appends the chat template outside `buildSystemPrompt()`'s token budget — can overflow small models' attention window.
-- `OllamaProvider` doesn't pass `think: false` for conversation mode, so thinking models (qwen3, gemma) can spend their whole budget reasoning and return empty.
+- `OllamaProvider` still doesn't pass `think: false`, so thinking models (qwen3, gemma) can burn their budget reasoning and return empty. Mitigated (not fixed) by `responseParser.stripInlineReasoning()`, which strips leaked chain-of-thought preamble from replies; prefer non-thinking instruct models (qwen2.5, llama3.2, hermes3) for Ollama.
 - Quality degrades after ~turn 8 in long sessions (hooks/sensory collapse first); session pacing kicks in at 8–10 turns. Sensory grounding is the weakest dimension (~30–60%, high variance).
 - Script enforcement and emotional-override (beyond language frustration) are only partially handled outside the production language-enforcement layer.
 

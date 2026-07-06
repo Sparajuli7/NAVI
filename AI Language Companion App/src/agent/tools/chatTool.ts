@@ -65,7 +65,11 @@ export function createChatTool(
         scenario: avatarController.getActiveProfile()?.scenario,
       });
 
-      const chatConfig = promptLoader.getRaw('toolPrompts.chat') as {
+      // Detect small Ollama models (< 7B) — use compact mode to prevent instruction echoing
+      const modelName = (llmProvider as { getModelName?: () => string }).getModelName?.() ?? '';
+      const isCompact = /[1-4](\.\d+)?b/i.test(modelName);
+
+      const chatConfig = promptLoader.getRaw(isCompact ? 'toolPrompts.chat_compact' : 'toolPrompts.chat') as {
         temperature: number; max_tokens: number;
       };
 
@@ -85,6 +89,7 @@ export function createChatTool(
         isFirstScenarioMessage,
         learningStage,
         targetLanguage,
+        compact: isCompact,
       });
 
       // In 'listen' translation mode, use the listenAndTranslate template instead of chat
@@ -115,18 +120,27 @@ export function createChatTool(
       }
 
       // Inject the chat-specific behavioral prompt (friend mode, not teaching mode)
-      const chatBehavior = promptLoader.get('toolPrompts.chat.template', { userNativeLanguage });
+      const profile = avatarController.getActiveProfile();
+      const city = (typeof profile?.location === 'string' ? profile.location : '') ?? '';
+      const chatBehavior = isCompact
+        ? promptLoader.get('toolPrompts.chat_compact.template', { userNativeLanguage, targetLanguage: targetLanguage ?? '', city, name: profile?.name ?? '' })
+        : promptLoader.get('toolPrompts.chat.template', { userNativeLanguage, targetLanguage: targetLanguage ?? '' });
 
-      // Build final system message: avatar prompt + chat behavior
-      // Chat behavior template contains adaptive language scaffolding instructions
-      // that tell the LLM to read the conversation and adjust its own language mix
-      const fullSystem = `${systemPrompt}\n\n${chatBehavior}`;
+      // Stateful phrase deduplication: append phrases already taught this session
+      // so the model avoids repeating them even if instruction-following is imperfect
+      const taughtPhrases = memoryManager.working.get('session_taught_phrases') as string[] | undefined;
+      const dedupSuffix = taughtPhrases && taughtPhrases.length > 0
+        ? `\n\nDO NOT REPEAT: You already taught these phrases this session — do not use them again: ${taughtPhrases.slice(-10).join(', ')}`
+        : '';
 
-      // Build message array — keep sliding window tight (last 8 turns)
-      // to prevent context degradation and character drift in long conversations
+      // Build final system message: avatar prompt + chat behavior + dedup
+      const fullSystem = `${systemPrompt}\n\n${chatBehavior}${dedupSuffix}`;
+
+      // Build message array — history is pre-limited by the caller (ConversationScreen)
+      // based on the active backend's context window size
       const messages = [
         { role: 'system', content: fullSystem },
-        ...history.slice(-8),
+        ...history,
         { role: 'user', content: message },
       ];
 

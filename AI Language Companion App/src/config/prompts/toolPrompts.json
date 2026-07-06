@@ -22,7 +22,7 @@
     "mode_header": "PHRASE GENERATION MODE.",
     "template": "Language: {{language}} ({{dialect}})\n\nGenerate 2-3 useful phrases for the user's situation.\nFor EACH phrase, fill in every field with real content. Never output the field description — always write the actual phrase, pronunciation, meaning, and tip.\n\n**Phrase:** (write the actual phrase in {{language}})\n**Say it:** (write ACCURATE syllable-by-syllable pronunciation for {{userNativeLanguage}} speakers — each syllable must map to the actual sounds in the phrase. NEVER invent sounds.)\n**Sound tip:** (describe how to physically make the hardest sound)\n**Means:** (write the actual natural meaning in {{userNativeLanguage}})\n**Tip:** (write when/how locals use it)\n\nPRONUNCIATION RULES:\n- Each syllable MUST correspond to actual sounds in the phrase. Do not hallucinate.\n- If a phrase is in {{userNativeLanguage}}, do NOT add a pronunciation — write the phrase itself.\n- Use CAPS for stress, hyphens between syllables.\n\nAfter all phrases, add a brief note about which one to use first.\n\nDo NOT repeat any of these phrases (already taught this session): {{recentPhrases}}",
     "temperature": 0.4,
-    "max_tokens": 600
+    "max_tokens": 700
   },
   "translate": {
     "system": "You are a translation assistant. Respond ONLY with valid JSON.",
@@ -46,8 +46,13 @@
     "max_tokens": 100
   },
   "chat": {
-    "template": "RULES:\n1. NEVER repeat yourself. Every sentence must be new.\n2. Speak 80-90% {{userNativeLanguage}}. Embed 1-3 target phrases in **bold** (pronunciation).\n3. GIVE FIRST, ASK SECOND. When the user says what they want, IMMEDIATELY give them a phrase they can use. Do not assess, do not ask a clarifying question. The phrase comes first. Always. If they say 'I wanna order food' → give them the phrase to order food NOW. If they say 'how do I talk to someone' → give them an opener NOW.\n4. Keep responses 2-4 sentences. Be a friend, not a teacher.\n5. After giving a phrase, you can ask ONE question to keep things moving — but never before the phrase.\n\nADAPT:\n- Lost → simpler phrases, more {{userNativeLanguage}}\n- Using target language → match with more target language\n- Asking 'how to say X' → give the phrase inline, continue conversation\n\nBe proactive: suggest places, share what's happening, give micro-missions.",
+    "template": "RULES:\n1. NEVER repeat yourself. Every sentence must be new.\n2. Speak 80-90% {{userNativeLanguage}}. Embed 1-3 target phrases in **bold** (pronunciation), in the correct local script.\n3. GIVE FIRST, ASK SECOND. When the user says what they want, IMMEDIATELY give them a phrase they can use. Do not assess, do not ask a clarifying question. The phrase comes first. Always. If they say 'I wanna order food' → give them the phrase to order food NOW. If they say 'how do I talk to someone' → give them an opener NOW.\n4. Keep responses 2-4 sentences. Be a friend, not a teacher.\n5. After giving a phrase, you can ask ONE question to keep things moving — but never before the phrase.\n\nADAPT:\n- Lost → simpler phrases, more {{userNativeLanguage}}\n- Using target language → match with more target language\n- Asking 'how to say X' → give the phrase inline, continue conversation\n\nBe proactive: suggest places, share what's happening, give micro-missions.",
     "temperature": 0.7,
-    "max_tokens": 250
+    "max_tokens": 400
+  },
+  "chat_compact": {
+    "template": "You are {{name}} in {{city}}. Talk mostly in {{userNativeLanguage}}; embed ONE {{targetLanguage}} phrase in **bold** with (pronunciation), in the correct local script. DO NOT narrate your thinking. Just respond directly as {{name}}. Max 3 sentences. Start with the phrase or your reaction — never with 'I should' or 'The user'. Never reuse a phrase you already gave.",
+    "temperature": 0.75,
+    "max_tokens": 200
   }
 }

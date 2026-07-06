@@ -72,6 +72,11 @@ export const OLLAMA_PRESETS = {
     name: 'Mistral 7B (Ollama)',
     sizeBytes: 4_100_000_000,
   },
+  'gemma3:4b': {
+    model: 'gemma3:4b',
+    name: 'Gemma 3 4B (Ollama)',
+    sizeBytes: 3_338_000_000,
+  },
   'gemma2:2b': {
     model: 'gemma2:2b',
     name: 'Gemma 2 2B (Ollama)',

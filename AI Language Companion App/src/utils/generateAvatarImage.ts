@@ -59,3 +59,123 @@ function blobToBase64(blob: Blob): Promise<string> {
     reader.readAsDataURL(blob);
   });
 }
+
+/**
+ * Two-step HF FLUX avatar generation from a user's appearance description.
+ *
+ * Step A: OpenRouter Llama 70B converts the raw description into a vivid
+ *         image generation prompt.
+ * Step B: HF FLUX.1-schnell generates the image → returned as a base64
+ *         data URI so it persists across page refreshes.
+ *
+ * Returns '' on any failure — caller should fall back to AIAvatarDisplay.
+ */
+export async function generateAvatarImageFromDescription(description: string): Promise<string> {
+  if (!description.trim()) return '';
+  try {
+    // Step A — convert description to image prompt via /api/chat proxy → OpenRouter 70B (15s timeout)
+    // Falls back to using the raw description directly if the proxy is unavailable.
+    let imagePrompt = '';
+    try {
+      const orAbort = new AbortController();
+      const orTimeout = setTimeout(() => orAbort.abort(), 15_000);
+      const orRes = await fetch('/api/chat', {
+        method: 'POST',
+        signal: orAbort.signal,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'meta-llama/llama-3.3-70b-instruct',
+          max_tokens: 150,
+          messages: [
+            {
+              role: 'system',
+              content: "You are an expert at writing prompts for AI image generation. Convert the user's character description into a detailed, vivid image generation prompt. Output ONLY the prompt text, no explanation, no preamble. Style: Pixar 3D animated character, friendly, expressive face, warm studio lighting, full portrait.",
+            },
+            { role: 'user', content: description },
+          ],
+        }),
+      });
+      clearTimeout(orTimeout);
+      if (orRes.ok) {
+        const orJson = await orRes.json() as { choices?: { message?: { content?: string } }[] };
+        imagePrompt = orJson.choices?.[0]?.message?.content?.trim() ?? '';
+      }
+    } catch {
+      // OpenRouter timed out or failed — fall through to use raw description
+    }
+
+    // If Step A failed, use the description directly as the image prompt
+    if (!imagePrompt) {
+      imagePrompt = `Pixar 3D animated character, friendly, expressive face, warm studio lighting, full portrait: ${description}`;
+    }
+
+    // Step B — FLUX Pro via /api/generate-avatar proxy (BFL_API_KEY server-side, 90s timeout)
+    try {
+      const bflAbort = new AbortController();
+      const bflTimeout = setTimeout(() => bflAbort.abort(), 90_000);
+      const bflRes = await fetch('/api/generate-avatar', {
+        method: 'POST',
+        signal: bflAbort.signal,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: `${STYLE_PREFIX}${imagePrompt}${STYLE_SUFFIX}` }),
+      });
+      clearTimeout(bflTimeout);
+      if (bflRes.ok) {
+        const { imageUrl } = await bflRes.json() as { imageUrl?: string };
+        if (imageUrl) {
+          // Fetch the BFL CDN URL and convert to base64 for IndexedDB storage
+          const imgRes = await fetch(imageUrl);
+          if (imgRes.ok) {
+            const blob = await imgRes.blob();
+            if (blob.size) return await blobToBase64(blob);
+          }
+        }
+      }
+    } catch {
+      // FLUX Pro unavailable (local dev without proxy) — fall through
+    }
+
+    // Step C — HF FLUX.1-schnell (requires VITE_HF_TOKEN, 90s timeout)
+    const hfToken = (import.meta.env.VITE_HF_TOKEN as string) ?? '';
+    if (hfToken) {
+      try {
+        const hfAbort = new AbortController();
+        const hfTimeout = setTimeout(() => hfAbort.abort(), 90_000);
+        const hfRes = await fetch(
+          'https://router.huggingface.co/hf-inference/models/black-forest-labs/FLUX.1-schnell',
+          {
+            method: 'POST',
+            signal: hfAbort.signal,
+            headers: {
+              'Authorization': `Bearer ${hfToken}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ inputs: imagePrompt }),
+          },
+        );
+        clearTimeout(hfTimeout);
+        if (hfRes.ok) {
+          const blob = await hfRes.blob();
+          if (blob.size) return await blobToBase64(blob);
+        }
+      } catch {
+        // HF unavailable — fall through
+      }
+    }
+
+    // Step D — Pollinations.ai fallback (no token needed, 40s timeout)
+    const encoded = encodeURIComponent(`${STYLE_PREFIX}${imagePrompt}${STYLE_SUFFIX}`);
+    const polUrl = `${POLLINATIONS_BASE}/${encoded}?width=512&height=512&nologo=true&model=flux`;
+    const polAbort = new AbortController();
+    const polTimeout = setTimeout(() => polAbort.abort(), 40_000);
+    const polRes = await fetch(polUrl, { signal: polAbort.signal });
+    clearTimeout(polTimeout);
+    if (!polRes.ok) { console.error('[NAVI] avatar Pollinations failed:', polRes.status); return ''; }
+    const polBlob = await polRes.blob();
+    if (!polBlob.size) return '';
+    return await blobToBase64(polBlob);
+  } catch (e) {
+    console.error('[NAVI] avatar generation error:', e);
+    return '';
+  }
+}

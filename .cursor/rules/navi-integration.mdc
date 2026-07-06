@@ -1,18 +1,18 @@
 ---
-description: NAVI — on-device AI integration; preserve UI, no cloud APIs
+description: NAVI — AI integration; preserve UI, OpenRouter via serverless proxy
 alwaysApply: true
 ---
 
 # NAVI — Claude Code Integration
 
-The frontend is already built (Vite + React + shadcn/ui + TypeScript). Wire up on-device AI, services, configs, and state **without** touching existing UI styling.
+The frontend is already built (Vite + React + TypeScript). Wire up AI, services, configs, and state **without** touching existing UI styling.
 
-## Model strategy — no cloud APIs
+## Model strategy — OpenRouter via serverless proxy
 
-- **Web prototype:** WebLLM (GGUF in-browser via WebGPU) or wllama (WebAssembly llama.cpp)
-- **Mobile build:** Cactus SDK or llama.rn (React Native on-device inference)
-- **Model:** Qwen3-1.7B (GGUF INT4, ~1.1GB) — 100+ languages. Fallback: Qwen3-0.6B (394MB) for low-end devices
-- **Zero dependency** on OpenAI, Anthropic, or any cloud API
+- **Production:** OpenRouter (Qwen3-32B primary → Llama 3.3-70b fallback) via `/api/chat` Vercel serverless function
+- **Local dev:** Ollama (any model; selected from BackendSelectScreen or Settings → Model)
+- **API key:** Lives in `OPENROUTER_API_KEY` server env var only — never prefixed with `VITE_`, never in client code
+- **Both backends** implement the same `ChatLLM` interface — tools are backend-agnostic
 
 ## Critical rule
 

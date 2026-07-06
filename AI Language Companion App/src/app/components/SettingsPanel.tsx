@@ -8,7 +8,7 @@ import { saveMemories, savePreferences, saveLocation, saveCharacterMemories, sav
 import { detectLocation } from '../../services/location';
 import { useNaviAgent } from '../../agent/react/useNaviAgent';
 import { updateGeminiApiKey } from '../../agent/models/geminiEmbedding';
-import { LLM_PRESETS, OPENROUTER_FREE_MODELS, OPENROUTER_PAID_MODELS } from '../../agent/models';
+import { OPENROUTER_FREE_MODELS, OPENROUTER_PAID_MODELS } from '../../agent/models';
 import { generateAvatarImage } from '../../utils/generateAvatarImage';
 import { formatGB } from '../../utils/formatBytes';
 import { CityPicker } from './CityPicker';
@@ -55,7 +55,7 @@ export function SettingsPanel({ onClose, onRegenerate, onDeleteCompanion, onUpda
   const { activeCharacter, memories, removeMemory, clearMemories } = useCharacterStore();
   const { userPreferences, currentLocation, modelStatus, modelProgress, geminiApiKey, setUserPreferences, setCurrentLocation, setGeminiApiKey } =
     useAppStore();
-  const { agent, backend, ollamaModel, switchOllamaModel, switchBackend, webllmPreset, openRouterTier } = useNaviAgent();
+  const { agent, backend, ollamaModel, switchOllamaModel, switchBackend, openRouterTier } = useNaviAgent();
 
   // Ollama model list state
   const [ollamaModels, setOllamaModels] = useState<Array<{ name: string; size: number }>>([]);
@@ -68,13 +68,12 @@ export function SettingsPanel({ onClose, onRegenerate, onDeleteCompanion, onUpda
   const [geminiKeyDraft, setGeminiKeyDraft] = useState(geminiApiKey);
   const [geminiKeySaved, setGeminiKeySaved] = useState(false);
   // Backend selector state
-  type BackendCard = 'webllm' | 'cloud-free' | 'cloud-paid' | 'ollama';
+  type BackendCard = 'cloud-free' | 'cloud-paid' | 'ollama';
   const [selectedCard, setSelectedCard] = useState<BackendCard>(() => {
     if (backend === 'ollama') return 'ollama';
     if (backend === 'openrouter') return openRouterTier === 'paid' ? 'cloud-paid' : 'cloud-free';
-    return 'webllm';
+    return 'cloud-free';
   });
-  const [pendingWebllmPreset, setPendingWebllmPreset] = useState<string>(webllmPreset);
   const [pendingApiKey, setPendingApiKey] = useState<string>(
     () => typeof localStorage !== 'undefined' ? (localStorage.getItem('navi_openrouter_key') ?? '') : '',
   );
@@ -157,9 +156,7 @@ export function SettingsPanel({ onClose, onRegenerate, onDeleteCompanion, onUpda
     setIsSwitchingBackend(true);
     setBackendSwitchError(null);
     try {
-      if (selectedCard === 'webllm') {
-        await switchBackend('webllm', { webllmPreset: pendingWebllmPreset });
-      } else if (selectedCard === 'cloud-free') {
+      if (selectedCard === 'cloud-free') {
         // Free tier uses keys already in .env — no key input needed
         await switchBackend('openrouter', { openRouterTier: 'free', openRouterModels: OPENROUTER_FREE_MODELS });
       } else {
@@ -800,9 +797,8 @@ export function SettingsPanel({ onClose, onRegenerate, onDeleteCompanion, onUpda
                 }`} />
                 <p className="text-sm text-foreground font-medium truncate">
                   {isSwitchingBackend ? 'Switching…'
-                    : backend === 'openrouter' ? `Cloud ${openRouterTier === 'paid' ? 'Paid' : 'Free'} · ${openRouterTier === 'paid' ? pendingPaidModel.split('/')[1] : 'Gemma 4 + 7 models'}`
-                    : backend === 'ollama' ? `Ollama · ${ollamaModel ?? '—'}`
-                    : `On-Device · ${LLM_PRESETS[webllmPreset as keyof typeof LLM_PRESETS]?.name ?? webllmPreset}`}
+                    : backend === 'openrouter' ? `Cloud ${openRouterTier === 'paid' ? 'Paid' : 'Free'} · ${openRouterTier === 'paid' ? pendingPaidModel.split('/')[1] : 'Qwen3-32B + fallback'}`
+                    : `Ollama · ${ollamaModel ?? '—'}`}
                 </p>
               </div>
 
@@ -1102,6 +1098,35 @@ export function SettingsPanel({ onClose, onRegenerate, onDeleteCompanion, onUpda
               <AccountPanel onSignIn={() => { onClose(); onShowAuth?.(); }} />
             </div>
           )}
+
+          {/* Support banner — always visible at bottom */}
+          <div className="pt-2 pb-1 border-t border-border space-y-2">
+            <div className="flex gap-2">
+              <a
+                href={import.meta.env.VITE_PAYMENT_URL || 'https://buy.stripe.com/navi'}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex-1 py-2.5 rounded-xl text-center text-sm font-semibold text-black transition-opacity hover:opacity-90"
+                style={{ background: 'linear-gradient(135deg, #D4A853, #C49240)' }}
+              >
+                Upgrade — Early Access
+              </a>
+              <a
+                href="https://ko-fi.com/naviapp"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-4 py-2.5 rounded-xl text-center text-sm font-medium bg-muted text-muted-foreground hover:bg-muted/80 transition-colors"
+              >
+                Tip ☕
+              </a>
+            </div>
+            <button
+              onClick={() => window.open('/feedback.html', '_blank')}
+              className="w-full py-2 rounded-xl text-center text-xs text-muted-foreground hover:text-foreground transition-colors hover:bg-muted/50"
+            >
+              Send feedback →
+            </button>
+          </div>
         </div>
       </motion.div>
     </motion.div>

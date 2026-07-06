@@ -9,9 +9,9 @@ interface ModelDownloadScreenProps {
 }
 
 const STATUS_LABEL: Record<ModelStatus, string> = {
-  not_loaded:  'Preparing your AI companion...',
-  downloading: 'Downloading your AI companion...',
-  loading:     'Loading into GPU...',
+  not_loaded:  'Starting up...',
+  downloading: 'Connecting...',
+  loading:     'Connecting to model...',
   ready:       'Ready!',
   error:       'Something went wrong. Retrying...',
   unloaded:    'Preparing your AI companion...',
@@ -69,9 +69,6 @@ export function ModelDownloadScreen({ progress, status, progressText }: ModelDow
           </p>
         )}
 
-        <p className="text-sm text-muted-foreground">
-          This only happens once. After this, NAVI works offline.
-        </p>
       </div>
     </div>
   );

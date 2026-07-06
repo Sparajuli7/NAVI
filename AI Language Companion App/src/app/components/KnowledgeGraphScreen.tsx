@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { ArrowLeft, Search, LayoutList, Brain } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { PhraseDetailSheet } from './PhraseDetailSheet';
@@ -531,6 +531,59 @@ export function KnowledgeGraphScreen({
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
+  // Zoom & pan state
+  const [scale, setScale] = useState(1);
+  const [panX, setPanX] = useState(0);
+  const [panY, setPanY] = useState(0);
+  const isPanning = useRef(false);
+  const lastPanPos = useRef({ x: 0, y: 0 });
+  const lastPinchDist = useRef<number | null>(null);
+
+  const handleWheel = (e: React.WheelEvent) => {
+    e.preventDefault();
+    const delta = e.deltaY > 0 ? 0.9 : 1.1;
+    setScale(s => Math.min(3, Math.max(0.5, s * delta)));
+  };
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    isPanning.current = true;
+    lastPanPos.current = { x: e.clientX, y: e.clientY };
+  };
+  const handleMouseMove = (e: React.MouseEvent) => {
+    if (!isPanning.current) return;
+    setPanX(x => x + e.clientX - lastPanPos.current.x);
+    setPanY(y => y + e.clientY - lastPanPos.current.y);
+    lastPanPos.current = { x: e.clientX, y: e.clientY };
+  };
+  const handleMouseUp = () => { isPanning.current = false; };
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length === 2) {
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      lastPinchDist.current = Math.sqrt(dx * dx + dy * dy);
+    } else {
+      isPanning.current = true;
+      lastPanPos.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    }
+  };
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (e.touches.length === 2 && lastPinchDist.current !== null) {
+      const dx = e.touches[0].clientX - e.touches[1].clientX;
+      const dy = e.touches[0].clientY - e.touches[1].clientY;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      const ratio = dist / lastPinchDist.current;
+      setScale(s => Math.min(3, Math.max(0.5, s * ratio)));
+      lastPinchDist.current = dist;
+    } else if (isPanning.current) {
+      setPanX(x => x + e.touches[0].clientX - lastPanPos.current.x);
+      setPanY(y => y + e.touches[0].clientY - lastPanPos.current.y);
+      lastPanPos.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    }
+  };
+  const handleTouchEnd = () => { isPanning.current = false; lastPinchDist.current = null; };
+  const resetView = () => { setScale(1); setPanX(0); setPanY(0); };
+
   const usingLiveData = trackedPhrases.length > 0;
 
   const { graphPhrases, flag, languageTitle } = useMemo(() => {
@@ -694,12 +747,34 @@ export function KnowledgeGraphScreen({
       )}
 
       <div
-        className="flex-1 relative min-h-0 overflow-hidden"
+        className="flex-1 relative min-h-0 overflow-hidden cursor-grab active:cursor-grabbing"
         style={{
           background:
             'radial-gradient(circle at 50% 50%, rgba(107, 186, 167, 0.03) 0%, transparent 70%)',
         }}
+        onWheel={handleWheel}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={handleMouseUp}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        onDoubleClick={resetView}
       >
+        {/* Reset hint */}
+        <p className="absolute top-2 right-3 text-[10px] text-muted-foreground/50 z-30 pointer-events-none select-none">
+          Pinch or scroll to zoom · Double-tap to reset
+        </p>
+        <div
+          style={{
+            transform: `translate(${panX}px, ${panY}px) scale(${scale})`,
+            transformOrigin: '50% 50%',
+            width: '100%',
+            height: '100%',
+            position: 'relative',
+          }}
+        >
         {categories.map((category) => {
           const categoryPhrases = filteredPhrases.filter((p) => p.category === category);
           if (categoryPhrases.length === 0) return null;
@@ -727,9 +802,9 @@ export function KnowledgeGraphScreen({
                   background: 'rgba(107, 186, 167, 0.05)',
                 }}
               />
-              <p className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-8 text-[10px] font-medium tracking-wider text-primary/70 whitespace-nowrap">
+              <span className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-8 text-[10px] font-medium tracking-wider text-primary/80 whitespace-nowrap px-2 py-0.5 rounded-full bg-card/80 backdrop-blur-sm border border-primary/20">
                 {category}
-              </p>
+              </span>
             </div>
           );
         })}
@@ -780,20 +855,22 @@ export function KnowledgeGraphScreen({
               <div
                 className="absolute inset-0 rounded-full blur-md"
                 style={{
-                  width: '56px',
-                  height: '56px',
+                  width: '72px',
+                  height: '72px',
                   background: masteryColors[phrase.mastery],
                   opacity: 0.35,
                 }}
               />
               <div
-                className="relative w-14 h-14 rounded-full bg-card border-2 flex items-center justify-center overflow-hidden"
+                className="relative rounded-full bg-card border-2 flex items-center justify-center overflow-hidden"
                 style={{
+                  width: '72px',
+                  height: '72px',
                   borderColor: masteryColors[phrase.mastery],
-                  boxShadow: `0 0 12px ${masteryColors[phrase.mastery]}40`,
+                  boxShadow: `0 0 14px ${masteryColors[phrase.mastery]}40`,
                 }}
               >
-                <p className="text-[10px] font-serif text-foreground text-center px-1 leading-tight line-clamp-2 max-w-full break-words">
+                <p className="text-[11px] font-serif text-foreground text-center px-1.5 leading-tight line-clamp-2 max-w-full break-words">
                   {phrase.text.split(/\s+/).slice(0, 2).join(' ')}
                 </p>
               </div>
@@ -803,6 +880,7 @@ export function KnowledgeGraphScreen({
             </div>
           </motion.button>
         ))}
+        </div>{/* end transform wrapper */}
       </div>
 
       {dueCount > 0 && (
