@@ -15,9 +15,11 @@ import { useChatStore } from '../../stores/chatStore';
 import { useCharacterStore } from '../../stores/characterStore';
 import { countryFlag } from '../../utils/countryFlag';
 import { useAppStore } from '../../stores/appStore';
+import { useAvatarPresenceStore } from '../../stores/avatarPresenceStore';
+import { LiveAvatar, RING_COLOR, type LiveAvatarState } from './LiveAvatar';
 import { useNaviAgent } from '../../agent/react/useNaviAgent';
 import { parseResponse, stripThinkTags, truncateRepetition } from '../../utils/responseParser';
-import { saveCharacterConversation } from '../../utils/storage';
+import { saveCharacterConversation, getAvatarImage } from '../../utils/storage';
 import { startRecording, stopRecording, isSTTSupported, getSTTLangCode } from '../../services/stt';
 import type { Message, PhraseCardData } from '../../types/chat';
 import type { ScenarioKey } from '../../types/config';
@@ -98,8 +100,13 @@ export function ConversationScreen({
   const [isAmbientListening, setIsAmbientListening] = useState(false);
   const [llmError, setLlmError]                 = useState(false);
   const [retryText, setRetryText]               = useState('');
+  const [portraitSrc, setPortraitSrc]           = useState<string | null>(null);
+  const [isReacting, setIsReacting]             = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const proactiveShownRef = useRef(false);
+  const lastCharMsgRef = useRef<string | null>(null);
+
+  const avatarSpeaking = useAvatarPresenceStore((s) => s.speaking);
 
   const {
     messages, isGenerating, activeScenario, isScenarioActive, pendingUserMessage,
@@ -151,6 +158,44 @@ export function ConversationScreen({
       setShowQuickActions(true);
     }
   }, [userMsgCount, isGenerating]);
+
+  // Load the character's AI portrait (if one was generated) for the live presence.
+  useEffect(() => {
+    const id = activeCharacter?.id;
+    if (!id) { setPortraitSrc(null); return; }
+    let alive = true;
+    // Prefer an already-hydrated data URI on the character, else read IndexedDB.
+    if (activeCharacter?.avatarImageUrl) { setPortraitSrc(activeCharacter.avatarImageUrl); return; }
+    getAvatarImage(id).then((src) => { if (alive) setPortraitSrc(src); });
+    return () => { alive = false; };
+  }, [activeCharacter?.id, activeCharacter?.avatarImageUrl]);
+
+  // Warm reaction (nod) when a fresh character reply lands.
+  const lastMsg = messages[messages.length - 1];
+  useEffect(() => {
+    if (!lastMsg || lastMsg.role !== 'character') return;
+    if (lastMsg.metadata?.isStreaming) return;   // wait for the reply to finalize
+    if (lastCharMsgRef.current === lastMsg.id) return;
+    const first = lastCharMsgRef.current === null;
+    lastCharMsgRef.current = lastMsg.id;
+    if (first) return; // don't react on initial mount/history load
+    setIsReacting(true);
+    const t = setTimeout(() => setIsReacting(false), 900);
+    return () => clearTimeout(t);
+  }, [lastMsg]);
+
+  // Resolve the live-avatar state from conversation + TTS signals (priority order).
+  const avatarState: LiveAvatarState =
+    isReacting ? 'reacting'
+    : isGenerating ? 'thinking'
+    : avatarSpeaking ? 'speaking'
+    : (isRecording || isAmbientListening) ? 'listening'
+    : 'idle';
+
+  const avatarStatusLabel: Record<LiveAvatarState, string> = {
+    idle: 'online', listening: 'listening…', thinking: 'thinking…',
+    speaking: 'speaking…', reacting: 'online',
+  };
 
   const handleSend = async (textOverride?: string, sendOptions?: { translationMode?: 'listen' | 'speak' }) => {
     const msgText = (textOverride ?? inputValue).trim();
@@ -382,37 +427,12 @@ export function ConversationScreen({
     m => m.role !== 'system' && !(m.metadata?.isStreaming && m.content.length === 0)
   );
 
-  // ── Header ───────────────────────────────────────────────────────────────
+  // ── Header (live presence) ─────────────────────────────────────────────────
+  const statusDotColor = RING_COLOR[avatarState];
   const header = (
-    <div className="flex-shrink-0 flex items-center justify-between px-4 py-2 border-b border-border bg-card/50">
-      <div className="flex items-center gap-2 min-w-0">
-        <p className="font-medium text-foreground text-sm truncate">{character.name}</p>
-        {activeScenario && SCENARIOS[activeScenario] && (
-          <button
-            onClick={isScenarioActive ? handleEndScenario : undefined}
-            disabled={!isScenarioActive}
-            aria-label={isScenarioActive ? `End ${SCENARIOS[activeScenario].label} scenario` : undefined}
-            title={isScenarioActive ? 'Tap to end this scenario' : undefined}
-            className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors
-              ${isScenarioActive
-                ? 'bg-primary/20 text-primary hover:bg-primary/30'
-                : 'bg-primary/10 text-primary/70 cursor-default'}`}
-          >
-            {(SCENARIOS[activeScenario] as { emoji?: string }).emoji && (
-              <span className="text-xs">{(SCENARIOS[activeScenario] as { emoji?: string }).emoji}</span>
-            )}
-            {SCENARIOS[activeScenario].label}
-            {isScenarioActive && <XIcon className="w-3 h-3 ml-0.5 opacity-60" />}
-          </button>
-        )}
-        {dialectIndicator && (
-          <span className="text-sm" title={currentLocation?.dialectInfo?.dialect ?? ''}>
-            {dialectIndicator}
-          </span>
-        )}
-      </div>
-
-      <div className="flex items-center gap-1 flex-shrink-0">
+    <div className="flex-shrink-0 relative flex flex-col items-center px-4 pt-3 pb-3 border-b border-border bg-card/50">
+      {/* Action buttons — top-right */}
+      <div className="absolute top-2 right-2 flex items-center gap-1">
         <button
           onClick={onOpenScenarios}
           className="p-2 hover:bg-muted/50 rounded-lg transition-colors"
@@ -442,6 +462,51 @@ export function ConversationScreen({
           <Settings className="w-4 h-4 text-muted-foreground" />
         </button>
       </div>
+
+      {/* Live avatar presence */}
+      <LiveAvatar
+        imageSrc={portraitSrc}
+        state={avatarState}
+        sizePx={88}
+        character={activeCharacter ?? undefined}
+        onClick={() => setShowSettings(true)}
+      />
+
+      <div className="flex items-center gap-1.5 mt-4">
+        <p className="font-medium text-foreground text-sm truncate max-w-[180px]">{character.name}</p>
+        {dialectIndicator && (
+          <span className="text-sm" title={currentLocation?.dialectInfo?.dialect ?? ''}>
+            {dialectIndicator}
+          </span>
+        )}
+      </div>
+
+      <div className="flex items-center gap-1.5 mt-0.5">
+        <span
+          className="w-1.5 h-1.5 rounded-full"
+          style={{ background: statusDotColor, boxShadow: `0 0 6px ${statusDotColor}` }}
+        />
+        <span className="text-xs text-muted-foreground">{avatarStatusLabel[avatarState]}</span>
+      </div>
+
+      {activeScenario && SCENARIOS[activeScenario] && (
+        <button
+          onClick={isScenarioActive ? handleEndScenario : undefined}
+          disabled={!isScenarioActive}
+          aria-label={isScenarioActive ? `End ${SCENARIOS[activeScenario].label} scenario` : undefined}
+          title={isScenarioActive ? 'Tap to end this scenario' : undefined}
+          className={`mt-2 flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors
+            ${isScenarioActive
+              ? 'bg-primary/20 text-primary hover:bg-primary/30'
+              : 'bg-primary/10 text-primary/70 cursor-default'}`}
+        >
+          {(SCENARIOS[activeScenario] as { emoji?: string }).emoji && (
+            <span className="text-xs">{(SCENARIOS[activeScenario] as { emoji?: string }).emoji}</span>
+          )}
+          {SCENARIOS[activeScenario].label}
+          {isScenarioActive && <XIcon className="w-3 h-3 ml-0.5 opacity-60" />}
+        </button>
+      )}
     </div>
   );
 

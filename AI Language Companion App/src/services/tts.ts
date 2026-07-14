@@ -6,6 +6,8 @@
  * but this wrapper remains for components not yet wired to the agent.
  */
 
+import { avatarPresence } from '../stores/avatarPresenceStore';
+
 const LANG_CODE_MAP: Record<string, string> = {
   Vietnamese: 'vi-VN',
   Japanese:   'ja-JP',
@@ -63,9 +65,15 @@ export function speakPhrase(text: string, languageName: string = 'English', rate
   }
   if (match) utterance.voice = match;
 
+  // Drive the live-avatar "speaking" presence signal for the duration of playback.
+  utterance.onstart = () => avatarPresence.setSpeaking(true);
+  utterance.onend = () => avatarPresence.setSpeaking(false);
+  utterance.onerror = () => avatarPresence.setSpeaking(false);
+
   window.speechSynthesis.speak(utterance);
 }
 
 export function stopSpeaking(): void {
   if (isTTSSupported()) window.speechSynthesis.cancel();
+  avatarPresence.setSpeaking(false);
 }

@@ -102,6 +102,12 @@ export async function saveAvatarImage(characterId: string, base64: string): Prom
   await set(avatarImgKey(characterId), base64);
 }
 
+/** Load a previously-saved AI portrait (base64 data URI) for a character, or null. */
+export async function getAvatarImage(characterId: string): Promise<string | null> {
+  if (!characterId) return null;
+  return (await get<string>(avatarImgKey(characterId))) ?? null;
+}
+
 // ── Per-character cleanup ─────────────────────────────────────────────────────
 
 /** Delete all IndexedDB data for a specific character (conversation, memories, portrait). */

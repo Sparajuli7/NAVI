@@ -41,6 +41,7 @@ import {
 } from '../utils/storage';
 import { resolveDialectKey, getDialectInfo, buildLocationContext } from '../utils/locationHelpers';
 import { buildAvatarProfileParams } from '../utils/avatarProfileHelpers';
+import { ensurePortrait } from '../utils/ensurePortrait';
 
 type AppPhase = 'init' | 'auth' | 'no_webgpu' | 'backend_select' | 'downloading' | 'home' | 'onboarding' | 'chat';
 
@@ -285,6 +286,9 @@ export default function App() {
     await saveCharacters(updated);
     await saveCharacter(newChar);
 
+    // Kick off a free photorealistic portrait in the background (non-blocking).
+    void ensurePortrait(newChar, useAppStore.getState().userPreferences);
+
     if (locationCtx) {
       useAppStore.getState().setCurrentLocation(locationCtx);
       await saveLocation(locationCtx);
@@ -358,6 +362,9 @@ export default function App() {
     useCharacterStore.getState().clearMemories();
     mems.forEach((m) => useCharacterStore.getState().addMemory(m));
     useChatStore.setState({ messages: msgs });
+
+    // Lazily backfill a portrait for older companions that never got one.
+    if (!char.has_portrait) void ensurePortrait(char, useAppStore.getState().userPreferences);
 
     // Update agent avatar for the selected companion
     const dialectKey = resolveDialectKey(char.dialect_key, char.location_city);
