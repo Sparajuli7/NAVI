@@ -55,6 +55,8 @@ export async function analyzeImage(
     avatarContext?: string;
     /** User's native language for translation output */
     userNativeLanguage?: string;
+    /** Tesseract language string (e.g. "vie+eng") */
+    ocrLanguages?: string;
     /** Callback for OCR progress */
     onOCRProgress?: (progress: number) => void;
     /** Callback for streaming explanation */
@@ -67,10 +69,14 @@ export async function analyzeImage(
   const ocrStart = Date.now();
   const ocr: OCRResult = await visionProvider.extractText(
     image,
-    undefined,
+    options?.ocrLanguages,
     options?.onOCRProgress,
   );
   const ocrMs = Date.now() - ocrStart;
+
+  if (!ocr.text.trim()) {
+    throw new Error('No text detected in image');
+  }
 
   // Step 2: Classification
   const classificationStart = Date.now();

@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
-import { CharacterAvatar } from './CharacterAvatar';
+import { CompanionFace } from './CompanionFace';
 import { Volume2 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { speakPhrase } from '../../services/tts';
 import type { ParsedSegment, PhraseCardData, Message, PhraseHighlight } from '../../types/chat';
 import type { GeneratedCharacter } from '../../types/character';
 import { stripInlineMarkdown } from '../../utils/responseParser';
+import { PhraseChipText } from '../../utils/phraseChipText';
 
 interface NewChatBubbleProps {
   type: 'user' | 'character';
@@ -110,9 +111,8 @@ export function SpeechBubble({
 
   const isLong = !hasSegments && message.content.length > EXPAND_THRESHOLD;
   const showFull = isExpanded || !isLong;
-  const displayContent = stripInlineMarkdown(
-    showFull ? message.content : message.content.slice(0, EXPAND_THRESHOLD) + '…'
-  );
+  const rawContent = showFull ? message.content : message.content.slice(0, EXPAND_THRESHOLD) + '…';
+  const displayContent = stripInlineMarkdown(rawContent);
 
   return (
     <motion.div
@@ -150,7 +150,7 @@ export function SpeechBubble({
                     className="text-foreground italic leading-relaxed text-sm"
                     style={{ fontFamily: 'var(--font-character)' }}
                   >
-                    {stripInlineMarkdown(seg.content)}
+                    <PhraseChipText text={seg.content} languageName={languageName} />
                   </p>
                 )}
               </React.Fragment>
@@ -162,7 +162,7 @@ export function SpeechBubble({
               className="text-foreground italic leading-relaxed text-sm"
               style={{ fontFamily: 'var(--font-character)' }}
             >
-              {displayContent}
+              <PhraseChipText text={rawContent} languageName={languageName} />
               {isStreaming && (
                 <span className="inline-block w-0.5 h-4 bg-primary/60 ml-1 animate-pulse align-middle" />
               )}
@@ -233,7 +233,7 @@ interface ChatLogEntryProps {
 export function ChatLogEntry({
   message,
   character,
-  languageName: _languageName = 'English',
+  languageName = 'English',
   onPhraseCardClick,
 }: ChatLogEntryProps) {
   const [isExpanded, setIsExpanded] = useState(false);
@@ -259,9 +259,8 @@ export function ChatLogEntry({
 
   const isLong = !hasSegments && message.content.length > EXPAND_THRESHOLD;
   const showFull = isExpanded || !isLong;
-  const displayContent = stripInlineMarkdown(
-    showFull ? message.content : message.content.slice(0, EXPAND_THRESHOLD) + '…'
-  );
+  const rawContent = showFull ? message.content : message.content.slice(0, EXPAND_THRESHOLD) + '…';
+  const displayContent = stripInlineMarkdown(rawContent);
 
   return (
     <motion.div
@@ -271,7 +270,15 @@ export function ChatLogEntry({
     >
       {character && (
         <div className="flex-shrink-0 mt-0.5">
-          <CharacterAvatar character={character} size="xs" animationState="none" />
+          <CompanionFace
+            imageUrl={character.avatarImageUrl}
+            name={character.name}
+            size="xs"
+            accentColor={{
+              primary: character.colors?.primary ?? '#6BBAA7',
+              secondary: character.colors?.secondary ?? '#D4A853',
+            }}
+          />
         </div>
       )}
 
@@ -296,7 +303,7 @@ export function ChatLogEntry({
                       className="text-foreground/70 text-sm italic leading-relaxed"
                       style={{ fontFamily: 'var(--font-character)' }}
                     >
-                      {stripInlineMarkdown(seg.content)}
+                      <PhraseChipText text={seg.content} languageName={languageName} />
                     </p>
                   )}
                 </React.Fragment>
@@ -308,7 +315,7 @@ export function ChatLogEntry({
                 className="text-foreground/70 text-sm italic leading-relaxed"
                 style={{ fontFamily: 'var(--font-character)' }}
               >
-                {displayContent}
+                <PhraseChipText text={rawContent} languageName={languageName} />
                 {isStreaming && (
                   <span className="inline-block w-0.5 h-3.5 bg-primary/50 ml-1 animate-pulse align-middle" />
                 )}

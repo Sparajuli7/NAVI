@@ -68,8 +68,12 @@ const LANGUAGE_FAMILY_MAP: Record<string, string> = {
   Arabic: 'semitic', Hebrew: 'semitic', Amharic: 'semitic',
   // Southeast Asian
   Thai: 'southeast_asian', Vietnamese: 'southeast_asian', Indonesian: 'southeast_asian',
-  Malay: 'southeast_asian', Tagalog: 'southeast_asian', Khmer: 'southeast_asian',
-  Burmese: 'southeast_asian', Lao: 'southeast_asian',
+  Malay: 'southeast_asian', Tagalog: 'southeast_asian', Filipino: 'southeast_asian',
+  Khmer: 'southeast_asian', Burmese: 'southeast_asian', Lao: 'southeast_asian',
+  // Turkic
+  Turkish: 'turkic', Azerbaijani: 'turkic', Kazakh: 'turkic',
+  // East African / Bantu
+  Swahili: 'east_african',
   // English defaults to 'default' (not listed)
 };
 
@@ -227,6 +231,7 @@ export class AvatarContextController {
     const effectiveLocation = override.location ?? profile.location;
     const effectiveScenario = override.scenario ?? profile.scenario;
     const dialectConfig = this.resolveDialect(effectiveLocation, dialectKey);
+    const targetLangEarly = options?.targetLanguage || dialectConfig?.language || 'the local language';
 
     // ── Pre-compute all layer strings ───────────────────────────────
     // Each entry: [content, priority] — 0=MUST, 1=HIGH, 2=MEDIUM, 3=LOW
@@ -234,7 +239,7 @@ export class AvatarContextController {
     const layerDefs: Array<[string, number]> = [];
 
     // L1: Identity (MUST)
-    layerDefs.push([this.buildIdentityLayer(profile), 0]);
+    layerDefs.push([this.buildIdentityLayer(profile, userLang, targetLangEarly), 0]);
 
     // L2: User preferences (HIGH)
     if (options?.userPreferences) {
@@ -250,6 +255,7 @@ export class AvatarContextController {
       const enforcement = promptLoader.get('systemLayers.languageEnforcement.template', {
         language: dialectConfig.language,
         dialect: dialectConfig.dialect,
+        userNativeLanguage: userLang,
       });
       layerDefs.push([enforcement, 0]);
     } else if (options?.targetLanguage) {
@@ -257,6 +263,7 @@ export class AvatarContextController {
       const enforcement = promptLoader.get('systemLayers.languageEnforcement.template', {
         language: options.targetLanguage,
         dialect: `${options.targetLanguage} (local variety of ${effectiveLocation})`,
+        userNativeLanguage: userLang,
       });
       layerDefs.push([enforcement, 0]);
     }
@@ -342,7 +349,8 @@ export class AvatarContextController {
     }
 
     // L13: Core rules (HIGH — demoted from MUST to allow warmth/goals/memory to fit)
-    layerDefs.push([this.buildCoreRules(userLang), 1]);
+    const targetLang = options?.targetLanguage || dialectConfig?.language || 'the local language';
+    layerDefs.push([this.buildCoreRules(userLang, targetLang), 1]);
 
     // L14: Internal monologue — removed to save tokens
 
@@ -350,6 +358,7 @@ export class AvatarContextController {
     const reinforcement = promptLoader.get('coreRules.reinforcement', {
       name: profile.name,
       userNativeLanguage: userLang,
+      targetLanguage: targetLang,
     }) as string;
     if (reinforcement) layerDefs.push([reinforcement, 1]);
 
@@ -395,7 +404,7 @@ export class AvatarContextController {
 
   // ── Layer Builders ──────────────────────────────────────────
 
-  private buildIdentityLayer(profile: AvatarProfile): string {
+  private buildIdentityLayer(profile: AvatarProfile, userNativeLanguage: string, targetLanguage: string): string {
     const slangKey = profile.slangLevel > 0.6
       ? 'slang_high'
       : profile.slangLevel > 0.3
@@ -409,9 +418,31 @@ export class AvatarContextController {
       speaksLike: profile.speaksLike,
       energyLevel: profile.energyLevel,
       humorStyle: profile.humorStyle,
+      targetLanguage,
+      userNativeLanguage,
     });
 
-    return `${identity} ${slangInstruction}`;
+    let detailsBlock = '';
+    if (profile.personalityDetails) {
+      const d = profile.personalityDetails;
+      try {
+        detailsBlock = '\n\n' + promptLoader.get('systemLayers.personalityDetails', {
+          strong_opinion: d.strong_opinion,
+          funny_anecdote: d.funny_anecdote,
+          sensory_anchor: d.sensory_anchor,
+          pet_peeve: d.pet_peeve,
+          recurring_character: d.recurring_character,
+          favorite_spot: d.favorite_spot ? `\nFavorite spot: ${d.favorite_spot}` : '',
+          unpopular_take: d.unpopular_take ? `\nUnpopular take: ${d.unpopular_take}` : '',
+          userNativeLanguage,
+          targetLanguage,
+        });
+      } catch {
+        detailsBlock = `\n\nYOUR PERSONALITY — reveal one detail at a time:\n${d.strong_opinion}\n${d.sensory_anchor}`;
+      }
+    }
+
+    return `${identity} ${slangInstruction}${detailsBlock}`;
   }
 
   private buildPreferenceLayer(prefs: Record<string, unknown>): string {
@@ -471,7 +502,7 @@ export class AvatarContextController {
     if (dialectConfig) {
       layer += ` You are a native ${dialectConfig.language} speaker. Your language is ${dialectConfig.language} (${dialectConfig.dialect}).`;
       layer += ` When using ${dialectConfig.language}, use the ${dialectConfig.dialect} variety, not textbook standard.`;
-      layer += ` Talk to the user mostly in ${userNativeLanguage}. Embed ${dialectConfig.language} phrases in bold with pronunciation. Increase ${dialectConfig.language} gradually as the user shows comfort.`;
+      layer += ` Reply mostly in ${userNativeLanguage}. Every message embeds exactly ONE ${dialectConfig.language} phrase as **phrase** (phonetic) — short meaning.`;
       if (dialectConfig.cultural_notes) {
         layer += ` ${dialectConfig.cultural_notes}`;
       }
@@ -508,7 +539,7 @@ export class AvatarContextController {
         `[NAVI:avatar] No dialect config found for location="${location}" dialectKey="${dialectKey ?? ''}". ` +
         'Using universal location personality layers. Avatar will use LLM knowledge of the city.',
       );
-      layer += ` You speak the local language of ${location} natively. Talk to the user mostly in ${userNativeLanguage}, embedding local language phrases in bold with pronunciation. Increase local language gradually as the user shows comfort.`;
+      layer += ` You speak the local language of ${location} natively. Reply mostly in ${userNativeLanguage}. Every message embeds exactly ONE local-language phrase as **phrase** (phonetic) — short meaning.`;
     }
 
     // Universal location personality layers — injected for ALL cities to ensure rich personality
@@ -567,8 +598,11 @@ export class AvatarContextController {
     return layer;
   }
 
-  private buildCoreRules(userNativeLanguage: string): string {
-    return promptLoader.get('coreRules.rules', { userNativeLanguage });
+  private buildCoreRules(userNativeLanguage: string, targetLanguage?: string): string {
+    return promptLoader.get('coreRules.rules', {
+      userNativeLanguage,
+      targetLanguage: targetLanguage || 'the local language',
+    });
   }
 
   // ── Config Management (for runtime swapping) ────────────────

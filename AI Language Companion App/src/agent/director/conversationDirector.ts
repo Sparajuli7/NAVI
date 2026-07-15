@@ -30,11 +30,38 @@ import type { RelationshipStore } from '../memory/relationshipStore';
 import type { EpisodicMemoryStore } from '../memory/episodicMemory';
 import type { SituationAssessor } from '../memory/situationAssessor';
 import type { WorkingMemory } from '../memory/workingMemory';
+import type { EmotionalMemoryStore } from '../memory/emotionalMemory';
+import type { ConversationThreadStore } from '../memory/conversationThreads';
 import type { TrackedPhrase, LearningStageInfo, UserMode, ConversationGoal } from '../core/types';
 import { detectPhrases, detectTopics } from '../prompts/phraseDetector';
 import { promptLoader } from '../prompts/promptLoader';
 import type { SessionPlanner } from './SessionPlanner';
 import avatarTemplates from '../../config/avatarTemplates.json';
+import {
+  buildArcPromptInjection,
+  resolveScenarioArcBeat,
+} from './scenarioArc';
+import {
+  scoreEmotionalPeak,
+  pickEmotionalReference,
+  inferResolution,
+} from '../memory/emotionalMemory';
+import {
+  detectThreadCandidates,
+  formatThreadsForPrompt,
+} from '../memory/conversationThreads';
+import {
+  extractOpenLoopFromResponse,
+  storeOpenLoop,
+  getOpenLoops,
+  formatOpenLoopsForPrompt,
+  persistOpenLoopEpisode,
+  loadOpenLoopsFromEpisodic,
+} from '../memory/openLoops';
+import {
+  updateDialectBridge,
+  consumeDialectBridge,
+} from '../memory/dialectBridge';
 
 // ─── Emotional State Detection ──────────────────────────────
 
@@ -131,6 +158,10 @@ export interface DirectorContext {
   situationContext: string;
   /** Current learning stage info (computed, never stored) */
   learningStage: LearningStageInfo;
+  /** True when the active scenario arc is complete — UI may suggest wrap/debrief */
+  suggestScenarioWrap?: boolean;
+  /** Active scenario arc beat id (for debugging / UI progress) */
+  scenarioPhaseId?: string;
 }
 
 // ─── Assessment Question Queue ──────────────────────────────
@@ -152,6 +183,8 @@ const ASSESSMENT_QUESTIONS = [
 export class ConversationDirector {
   private situationAssessor: SituationAssessor | null = null;
   private assessmentQuestionIndex = 0;
+  private emotional: EmotionalMemoryStore | null = null;
+  private threads: ConversationThreadStore | null = null;
 
   // Language tier advancement tracking
   // These are initialized lazily from WorkingMemory (24h TTL) so they survive app restarts
@@ -189,6 +222,14 @@ export class ConversationDirector {
     this.sessionPlanner = planner;
   }
 
+  setEmotionalMemory(store: EmotionalMemoryStore): void {
+    this.emotional = store;
+  }
+
+  setThreadStore(store: ConversationThreadStore): void {
+    this.threads = store;
+  }
+
   // ── Pre-Processing ─────────────────────────────────────────
 
   /**
@@ -207,6 +248,9 @@ export class ConversationDirector {
       previousScenario?: string;
       /** Current target language — scopes phrase queries to this language */
       language?: string;
+      /** Dialect key + city for dialect-bridge detection */
+      dialectKey?: string;
+      city?: string;
     },
   ): DirectorContext {
     const goals: ConversationGoal[] = [];
@@ -258,25 +302,35 @@ export class ConversationDirector {
       this.working.set('session_message_count', currentCount + 1, 2 * 60 * 60 * 1000); // 2h TTL
     }
 
-    // Scenario phase tracking — increment turn counter when scenario is active
+    // Scenario arc tracking — beat-specific TBLT hints (falls back to OPENING/MIDDLE/WRAPPING)
+    let suggestScenarioWrap = false;
+    let scenarioPhaseId: string | undefined;
     if (activeScenario && this.working) {
       const scenarioTurnKey = `scenario_turn_${activeScenario}`;
       const currentTurn = ((this.working.get(scenarioTurnKey) as number) ?? 0) + 1;
       this.working.set(scenarioTurnKey, currentTurn, 2 * 60 * 60 * 1000); // 2h TTL
 
-      // Detect task-completion signals in the user's message
-      const completionSignals = /\b(thank you|thanks|got it|ok great|sounds good|perfect|see you|bye|that's all|i'm done|all good|got what i needed)\b/i;
-      const userSignaledCompletion = currentTurn > 3 && completionSignals.test(message);
+      const complicationKey = `scenario_complication_${activeScenario}`;
+      const complicationAlreadyUsed = Boolean(this.working.get(complicationKey));
 
-      let phaseHint: string;
-      if (currentTurn <= 2) {
-        phaseHint = `SCENARIO PHASE: OPENING (turn ${currentTurn}/8) — Set the scene, introduce key phrases for this situation. Ground the user in where they are and what's about to happen.`;
-      } else if (currentTurn <= 5 && !userSignaledCompletion) {
-        phaseHint = `SCENARIO PHASE: MIDDLE (turn ${currentTurn}/8) — This is the core interaction. Let the user practice. Coach them through the real moments. Correct by recasting, not lecturing.`;
-      } else {
-        phaseHint = `SCENARIO PHASE: WRAPPING UP (turn ${currentTurn}/8) — Start closing the scenario naturally. Hint that a debrief is coming. If the user hasn't used a key phrase yet, create one last natural opportunity.`;
+      const beat = resolveScenarioArcBeat({
+        scenarioKey: activeScenario,
+        turn: currentTurn,
+        userMessage: message,
+        complicationAlreadyUsed,
+      });
+
+      if (beat.complication) {
+        this.working.set(complicationKey, beat.complication, 2 * 60 * 60 * 1000);
       }
-      goalInstructions.push(phaseHint);
+
+      suggestScenarioWrap = beat.suggestWrap;
+      scenarioPhaseId = beat.phaseId;
+      if (suggestScenarioWrap) {
+        this.working.set(`scenario_wrap_${activeScenario}`, true, 2 * 60 * 60 * 1000);
+      }
+
+      goalInstructions.push(buildArcPromptInjection(activeScenario, beat));
     }
 
     // Auto-suggest scenarios based on user messages
@@ -402,15 +456,83 @@ export class ConversationDirector {
       );
     }
 
-    // Avatar mood injection — 40% chance on session start
-    if (options?.isSessionStart) {
-      const moods = ['cheerful', 'tired', 'nostalgic', 'excited', 'restless', 'contemplative', 'playful'] as const;
+    // Avatar mood — 40% on session start, once per session (aligned with RESEARCH_ROUND6)
+    if (options?.isSessionStart && this.working && !this.working.has('session_mood_set')) {
       if (Math.random() < 0.4) {
+        const moods = ['cheerful', 'tired', 'nostalgic', 'excited', 'restless', 'contemplative', 'playful'] as const;
         const mood = moods[Math.floor(Math.random() * moods.length)];
         const moodText = promptLoader.get(`systemLayers.avatarMoods.${mood}`) as string;
         if (moodText) {
           goalInstructions.push(`TODAY'S MOOD: ${moodText}`);
         }
+      }
+      this.working.set('session_mood_set', true, 2 * 60 * 60 * 1000);
+    }
+
+    // Avatar agency — once per session (~50% chance)
+    if (options?.isSessionStart && this.working && !this.working.has('session_agency_set')) {
+      if (Math.random() < 0.5) {
+        const agencyText = promptLoader.get('systemLayers.avatarAgency') as string;
+        if (agencyText) goalInstructions.push(agencyText);
+      }
+      this.working.set('session_agency_set', true, 2 * 60 * 60 * 1000);
+    }
+
+    // Conversation threads — top unfinished threads
+    if (this.threads && (options?.isSessionStart || Math.random() < 0.25)) {
+      const top = this.threads.topThreads(avatarId, 2);
+      if (top.length > 0) {
+        const threadText = formatThreadsForPrompt(top);
+        if (threadText) {
+          goals.push('continue_thread');
+          goalInstructions.push(threadText);
+          for (const t of top) {
+            this.threads.markReferenced(t.id).catch((e) => console.warn('[NAVI]', e));
+          }
+        }
+      }
+    }
+
+    // Cross-session open loops (WM 48h + episodic breadcrumb)
+    if (this.working) {
+      let loops = getOpenLoops(this.working, avatarId);
+      if (loops.length === 0 && options?.isSessionStart) {
+        loops = loadOpenLoopsFromEpisodic(this.episodic, avatarId);
+        for (const loop of loops) storeOpenLoop(this.working, loop);
+      }
+      if (loops.length > 0 && options?.isSessionStart) {
+        const openLoopCtx = formatOpenLoopsForPrompt(loops);
+        if (openLoopCtx) goalInstructions.push(openLoopCtx);
+      }
+    }
+
+    // Dialect bridge — first messages after city/dialect shift within same language
+    if (this.working && options?.city) {
+      updateDialectBridge(this.working, {
+        dialectKey: options.dialectKey ?? '',
+        city: options.city,
+        language: options.language,
+      });
+      const bridgeText = consumeDialectBridge(this.working);
+      if (bridgeText) {
+        goals.push('dialect_bridge');
+        goalInstructions.push(bridgeText);
+      }
+    }
+
+    // Emotional memory safe callbacks (max 1/session)
+    if (this.emotional && this.working) {
+      const already = Boolean(this.working.get('emotional_callback_used'));
+      const ref = pickEmotionalReference(
+        this.emotional.getForAvatar(avatarId),
+        emotionalState,
+        already,
+      );
+      if (ref) {
+        goals.push('reference_emotional_memory');
+        goalInstructions.push(ref.injection);
+        this.working.set('emotional_callback_used', true, 2 * 60 * 60 * 1000);
+        this.emotional.markReferenced(avatarId, ref.memory.id).catch((e) => console.warn('[NAVI]', e));
       }
     }
 
@@ -450,11 +572,11 @@ export class ConversationDirector {
       }
     }
 
-    // 0g. World event injection — give the avatar an ongoing life (25% chance per message)
-    // 50% environmental event (worldEvents.json), 50% personal ongoing event (avatarTemplates.json)
-    if (Math.random() < 0.25) {
+    // 0g. World event — max 1 per session, 30% chance (RESEARCH_ROUND6); not every message
+    if (this.working && !this.working.has('session_world_event') && Math.random() < 0.3) {
       const templateId = this.relationships.getRelationship(avatarId).avatarId;
       const usePersonalEvent = Math.random() < 0.5;
+      let injected = false;
 
       if (usePersonalEvent) {
         const template = (avatarTemplates as Array<{ id: string; world_events?: string[] }>).find(
@@ -464,24 +586,35 @@ export class ConversationDirector {
         if (personalEvents && personalEvents.length > 0) {
           const event = personalEvents[Math.floor(Math.random() * personalEvents.length)];
           goalInstructions.push(
-            `YOUR ONGOING LIFE (this is something happening in YOUR life right now — share it naturally as a friend would, not as a teaching exercise. The user should feel like they're part of your world): ${event}`,
+            `YOUR ONGOING LIFE (share naturally as a friend — not a teaching exercise): ${event}`,
           );
+          injected = true;
         }
       }
 
-      if (!usePersonalEvent || goalInstructions[goalInstructions.length - 1]?.startsWith('YOUR ONGOING') !== true) {
-        const worldEvents = promptLoader.getRaw('worldEvents') as Record<string, string[]>;
-        const categories = Object.keys(worldEvents).filter(k => k !== '_comment');
-        const matchedCategory = categories.find(c => templateId?.includes(c)) ?? categories[Math.floor(Math.random() * categories.length)];
-        if (matchedCategory) {
-          const events = worldEvents[matchedCategory];
-          if (events && events.length > 0) {
-            const event = events[Math.floor(Math.random() * events.length)];
-            goalInstructions.push(
-              `WORLD EVENT (happening right now around you — react to it naturally, use it as a conversation starter or teaching moment): ${event}`,
-            );
+      if (!injected) {
+        try {
+          const worldEvents = promptLoader.getRaw('worldEvents') as Record<string, string[]> | undefined;
+          const categories = worldEvents ? Object.keys(worldEvents).filter(k => k !== '_comment') : [];
+          const matchedCategory = categories.find(c => templateId?.includes(c))
+            ?? categories[Math.floor(Math.random() * categories.length)];
+          if (matchedCategory && worldEvents) {
+            const events = worldEvents[matchedCategory];
+            if (events && events.length > 0) {
+              const event = events[Math.floor(Math.random() * events.length)];
+              goalInstructions.push(
+                `WORLD EVENT (happening around you — react naturally; stay mostly in user's language with one target phrase): ${event}`,
+              );
+              injected = true;
+            }
           }
+        } catch {
+          // world events are optional flavor — safe to skip on config error
         }
+      }
+
+      if (injected) {
+        this.working.set('session_world_event', true, 2 * 60 * 60 * 1000);
       }
     }
 
@@ -781,6 +914,8 @@ export class ConversationDirector {
       warmthInstruction,
       situationContext,
       learningStage: stageInfo,
+      suggestScenarioWrap,
+      scenarioPhaseId,
     };
   }
 
@@ -904,6 +1039,48 @@ export class ConversationDirector {
         if (active.target && combined.includes(active.target.toLowerCase())) {
           this.sessionPlanner.markAchieved(avatarId);
         }
+      }
+    }
+
+    // 11. Emotional peak storage
+    if (this.emotional) {
+      const state = detectEmotionalState(userMessage);
+      const peak = scoreEmotionalPeak(state, userMessage);
+      if (peak) {
+        const sessionNumber = this.learner.stats.totalSessions || 1;
+        this.emotional
+          .add({
+            timestamp: Date.now(),
+            sessionNumber,
+            emotion: peak.emotion,
+            valence: peak.valence,
+            intensity: peak.intensity,
+            trigger: userMessage.trim().slice(0, 120),
+            userQuote: userMessage.trim().slice(0, 160),
+            avatarResponse: llmResponse.trim().slice(0, 160),
+            resolution: inferResolution(peak.emotion, peak.valence, llmResponse),
+            avatarId,
+            location: '',
+            associatedPhrases: detectedPhrases.map((p) => p.phrase).slice(0, 3),
+          })
+          .catch((e) => console.warn('[NAVI]', e));
+      }
+    }
+
+    // 12. Conversation thread detection
+    if (this.threads) {
+      const candidates = detectThreadCandidates(userMessage, llmResponse, avatarId);
+      for (const c of candidates) {
+        this.threads.add(c).catch((e) => console.warn('[NAVI]', e));
+      }
+    }
+
+    // 13. Cross-session open loops
+    if (this.working) {
+      const loop = extractOpenLoopFromResponse(llmResponse, avatarId);
+      if (loop) {
+        storeOpenLoop(this.working, loop);
+        persistOpenLoopEpisode(this.episodic, loop);
       }
     }
   }

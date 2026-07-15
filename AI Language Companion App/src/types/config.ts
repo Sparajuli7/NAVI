@@ -15,6 +15,32 @@ export interface DialectInfo {
 /** Type alias for the dialect map JSON shape (keyed by dialect key). */
 export type DialectMap = Record<string, DialectInfo>;
 
+/** Pretask phrase seed for a TBLT scenario arc (localized by the avatar at runtime). */
+export interface ScenarioPretaskPhrase {
+  phrase: string;
+  context: string;
+  priority: number;
+}
+
+/** One beat in a scenario arc — turn or turns range + coach prompt. */
+export interface ScenarioArcPhase {
+  id: string;
+  /** Single turn this phase applies to */
+  turn?: number;
+  /** Inclusive turn range this phase applies to */
+  turns?: number[];
+  /** Coach-on-the-side instruction for this beat */
+  prompt: string;
+}
+
+/** Per-scenario TBLT arc: pretask → task beats → complication pool → debrief. */
+export interface ScenarioArc {
+  pretask_phrases: ScenarioPretaskPhrase[];
+  phases: ScenarioArcPhase[];
+  expected_turns: number;
+  complications: string[];
+}
+
 export interface ScenarioContext {
   label: string;
   emoji?: string;
@@ -26,6 +52,8 @@ export interface ScenarioContext {
   debrief_focus?: string;
   auto_suggestions: string[];
   pronunciation_priority: string[];
+  /** Optional TBLT arc — when present, ConversationDirector injects beat-specific hints */
+  arc?: ScenarioArc;
 }
 
 /** User-provided context before starting a scenario session */

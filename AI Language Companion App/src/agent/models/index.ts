@@ -8,7 +8,13 @@ export { ModelRegistry } from './registry';
 export type { ChatLLM, ChatOptions } from './chatLLM';
 export { LLMProvider, PRESET_CONFIGS as LLM_PRESETS } from './llmProvider';
 export { OllamaProvider, OLLAMA_PRESETS, isOllamaAvailable, listOllamaModels } from './ollamaProvider';
-export { OpenRouterProvider, FALLBACK_MODELS as OPENROUTER_FREE_MODELS, PAID_MODELS as OPENROUTER_PAID_MODELS } from './openRouterProvider';
+export {
+  OpenRouterProvider,
+  FALLBACK_MODELS as OPENROUTER_FREE_MODELS,
+  PAID_MODELS as OPENROUTER_PAID_MODELS,
+  LLMRequestError,
+  isLLMRequestError,
+} from './openRouterProvider';
 export { ManagedCloudProvider, ManagedCloudLimitError } from './managedCloudProvider';
 export type { AuthTokenGetter } from './managedCloudProvider';
 export { TTSProvider } from './ttsProvider';

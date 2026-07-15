@@ -19,6 +19,7 @@ export const COUNTRY_NAMES: Record<string, string> = {
   SE: 'Sweden', NO: 'Norway', DK: 'Denmark', FI: 'Finland', NL: 'Netherlands',
   BE: 'Belgium', PT: 'Portugal', CH: 'Switzerland', AT: 'Austria', IE: 'Ireland',
   CO: 'Colombia', PE: 'Peru', CL: 'Chile', EC: 'Ecuador', VE: 'Venezuela',
+  KE: 'Kenya', TZ: 'Tanzania', UG: 'Uganda', RW: 'Rwanda', BI: 'Burundi',
 };
 
 /**

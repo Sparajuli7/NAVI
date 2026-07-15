@@ -35,20 +35,19 @@ describe('OpenRouterProvider', () => {
 
   // ── Constructor defaults ──────────────────────────────────────────────────────
   describe('constructor', () => {
-    it('accepts a string key and defaults to FALLBACK_MODELS', () => {
-      const p = new OpenRouterProvider('key1');
+    it('defaults to FALLBACK_MODELS (:free) when no models provided', () => {
+      const p = new OpenRouterProvider();
       expect(p.isReady()).toBe(true);
-      // 8 models means 8 total attempts with 1 key
-      // (we verify this indirectly via retry count tests)
+      expect(p.info().id).toBe(`openrouter:${FALLBACK_MODELS[0]}`);
     });
 
-    it('accepts an array of keys', () => {
-      const p = new OpenRouterProvider(['key1', 'key2'], ['model-a']);
+    it('accepts an array of models', () => {
+      const p = new OpenRouterProvider(['model-a', 'model-b']);
       expect(p.isReady()).toBe(true);
     });
 
     it('is always ready (no download needed)', async () => {
-      const p = new OpenRouterProvider('key1');
+      const p = new OpenRouterProvider();
       expect(p.isReady()).toBe(true);
       await p.load(); // no-op
       expect(p.isReady()).toBe(true);
@@ -59,7 +58,7 @@ describe('OpenRouterProvider', () => {
   describe('successful responses', () => {
     it('returns content on first attempt', async () => {
       global.fetch = vi.fn().mockReturnValue(okResponse('Xin chào!'));
-      const p = new OpenRouterProvider('key1', ['model-a']);
+      const p = new OpenRouterProvider(['model-a']);
 
       const promise = p.chat([{ role: 'user', content: 'hi' }]);
       await vi.runAllTimersAsync();
@@ -69,23 +68,22 @@ describe('OpenRouterProvider', () => {
       expect(fetch).toHaveBeenCalledTimes(1);
     });
 
-    it('sends Authorization header with Bearer token', async () => {
+    it('does NOT send an Authorization header (proxy handles auth)', async () => {
       global.fetch = vi.fn().mockReturnValue(okResponse('hi'));
-      const p = new OpenRouterProvider('my-secret-key', ['model-a']);
+      const p = new OpenRouterProvider(['model-a']);
 
       const promise = p.chat([{ role: 'user', content: 'test' }]);
       await vi.runAllTimersAsync();
       await promise;
 
       const [, init] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0];
-      expect((init as RequestInit).headers).toBeDefined();
-      const headers = init.headers as Record<string, string>;
-      expect(headers['Authorization']).toBe('Bearer my-secret-key');
+      const headers = (init as RequestInit).headers as Record<string, string>;
+      expect(headers['Authorization']).toBeUndefined();
     });
 
     it('passes temperature and max_tokens to the API', async () => {
       global.fetch = vi.fn().mockReturnValue(okResponse('ok'));
-      const p = new OpenRouterProvider('key1', ['model-a']);
+      const p = new OpenRouterProvider(['model-a']);
 
       const promise = p.chat([{ role: 'user', content: 'test' }], { temperature: 0.3, max_tokens: 200 });
       await vi.runAllTimersAsync();
@@ -96,6 +94,19 @@ describe('OpenRouterProvider', () => {
       expect(body.temperature).toBe(0.3);
       expect(body.max_tokens).toBe(200);
     });
+
+    it('calls /api/chat (the local proxy), never openrouter.ai directly', async () => {
+      global.fetch = vi.fn().mockReturnValue(okResponse('ok'));
+      const p = new OpenRouterProvider(['model-a']);
+
+      const promise = p.chat([{ role: 'user', content: 'test' }]);
+      await vi.runAllTimersAsync();
+      await promise;
+
+      const [url] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0];
+      expect(url).toBe('/api/chat');
+      expect(url).not.toContain('openrouter.ai');
+    });
   });
 
   // ── Retry / rotation ─────────────────────────────────────────────────────────
@@ -105,7 +116,7 @@ describe('OpenRouterProvider', () => {
         .mockReturnValueOnce(errResponse(429))
         .mockReturnValue(okResponse('Hello from model-b'));
 
-      const p = new OpenRouterProvider('key1', ['model-a', 'model-b']);
+      const p = new OpenRouterProvider(['model-a', 'model-b']);
       const promise = p.chat([{ role: 'user', content: 'hi' }]);
       await vi.runAllTimersAsync();
       const result = await promise;
@@ -119,7 +130,7 @@ describe('OpenRouterProvider', () => {
         .mockReturnValueOnce(errResponse(503, 'overloaded'))
         .mockReturnValue(okResponse('Works now'));
 
-      const p = new OpenRouterProvider('key1', ['model-a', 'model-b']);
+      const p = new OpenRouterProvider(['model-a', 'model-b']);
       const promise = p.chat([{ role: 'user', content: 'hi' }]);
       await vi.runAllTimersAsync();
 
@@ -131,48 +142,61 @@ describe('OpenRouterProvider', () => {
         .mockReturnValueOnce(errResponse(502))
         .mockReturnValue(okResponse('ok'));
 
-      const p = new OpenRouterProvider('key1', ['m1', 'm2']);
+      const p = new OpenRouterProvider(['m1', 'm2']);
       const promise = p.chat([{ role: 'user', content: 'hi' }]);
       await vi.runAllTimersAsync();
 
       expect(await promise).toBe('ok');
     });
 
-    it('retries on 402 (payment required) instead of crashing', async () => {
-      global.fetch = vi.fn()
-        .mockReturnValueOnce(errResponse(402, 'insufficient credits'))
-        .mockReturnValue(okResponse('ok'));
-
-      const p = new OpenRouterProvider('key1', ['m1', 'm2']);
-      const promise = p.chat([{ role: 'user', content: 'hi' }]);
-      await vi.runAllTimersAsync();
-
-      expect(await promise).toBe('ok');
-    });
-
-    it('tries all key×model combinations before giving up', async () => {
+    it('tries all models before giving up', async () => {
       global.fetch = vi.fn().mockReturnValue(errResponse(429));
 
-      const p = new OpenRouterProvider(['k1', 'k2'], ['m1', 'm2']); // 4 total
-      // Register rejects expectation BEFORE flushing timers to avoid unhandled rejection
+      const p = new OpenRouterProvider(['m1', 'm2']); // 2 models total
       const chatPromise = p.chat([{ role: 'user', content: 'hi' }]);
       const assertion = expect(chatPromise).rejects.toThrow('high demand');
       await vi.runAllTimersAsync();
       await assertion;
 
-      expect(fetch).toHaveBeenCalledTimes(4); // 2 keys × 2 models
+      expect(fetch).toHaveBeenCalledTimes(2); // 2 models tried
     });
 
-    it('throws "high demand" after exhausting 1 key × 8 FALLBACK_MODELS', async () => {
+    it('throws "high demand" after exhausting all FALLBACK_MODELS', async () => {
       global.fetch = vi.fn().mockReturnValue(errResponse(503));
 
-      const p = new OpenRouterProvider('single-key'); // uses all 8 FALLBACK_MODELS
+      const p = new OpenRouterProvider(); // defaults to FALLBACK_MODELS
       const chatPromise = p.chat([{ role: 'user', content: 'hi' }]);
       const assertion = expect(chatPromise).rejects.toThrow('high demand');
       await vi.runAllTimersAsync();
       await assertion;
 
-      expect(fetch).toHaveBeenCalledTimes(FALLBACK_MODELS.length); // 1 × 8
+      expect(fetch).toHaveBeenCalledTimes(FALLBACK_MODELS.length);
+    });
+
+    it('retries on 402 payment/rate errors', async () => {
+      global.fetch = vi.fn()
+        .mockReturnValueOnce(errResponse(402))
+        .mockReturnValue(okResponse('Recovered'));
+
+      const p = new OpenRouterProvider(['m1', 'm2']);
+      const promise = p.chat([{ role: 'user', content: 'hi' }]);
+      await vi.runAllTimersAsync();
+      const result = await promise;
+
+      expect(result).toBe('Recovered');
+      expect(fetch).toHaveBeenCalledTimes(2);
+    });
+
+    it('throws "high demand" after exhausting explicit FALLBACK_MODELS list', async () => {
+      global.fetch = vi.fn().mockReturnValue(errResponse(503));
+
+      const p = new OpenRouterProvider(FALLBACK_MODELS);
+      const chatPromise = p.chat([{ role: 'user', content: 'hi' }]);
+      const assertion = expect(chatPromise).rejects.toThrow('high demand');
+      await vi.runAllTimersAsync();
+      await assertion;
+
+      expect(fetch).toHaveBeenCalledTimes(FALLBACK_MODELS.length);
     });
 
     it('retries on empty response and succeeds on next model', async () => {
@@ -186,7 +210,7 @@ describe('OpenRouterProvider', () => {
         } as unknown as Response))
         .mockReturnValue(okResponse('Non-empty response'));
 
-      const p = new OpenRouterProvider('key1', ['m1', 'm2']);
+      const p = new OpenRouterProvider(['m1', 'm2']);
       const promise = p.chat([{ role: 'user', content: 'hi' }]);
       await vi.runAllTimersAsync();
 
@@ -199,7 +223,7 @@ describe('OpenRouterProvider', () => {
     it('throws immediately on 401 (unauthorized) without retrying', async () => {
       global.fetch = vi.fn().mockReturnValue(errResponse(401, 'invalid key'));
 
-      const p = new OpenRouterProvider('bad-key', ['m1', 'm2', 'm3']);
+      const p = new OpenRouterProvider(['m1', 'm2', 'm3']);
       const chatPromise = p.chat([{ role: 'user', content: 'hi' }]);
       const assertion = expect(chatPromise).rejects.toThrow('401');
       await vi.runAllTimersAsync();
@@ -211,7 +235,7 @@ describe('OpenRouterProvider', () => {
     it('throws immediately on 403 (forbidden)', async () => {
       global.fetch = vi.fn().mockReturnValue(errResponse(403, 'forbidden'));
 
-      const p = new OpenRouterProvider('key1', ['m1', 'm2']);
+      const p = new OpenRouterProvider(['m1', 'm2']);
       const chatPromise = p.chat([{ role: 'user', content: 'hi' }]);
       const assertion = expect(chatPromise).rejects.toThrow('403');
       await vi.runAllTimersAsync();
@@ -222,24 +246,25 @@ describe('OpenRouterProvider', () => {
   });
 
   // ── setApiKeys / setModels ────────────────────────────────────────────────────
-  describe('runtime key and model replacement', () => {
-    it('uses new key after setApiKeys()', async () => {
+  describe('runtime model replacement', () => {
+    it('setApiKeys() is a no-op (key lives server-side)', async () => {
       global.fetch = vi.fn().mockReturnValue(okResponse('ok'));
-      const p = new OpenRouterProvider('old-key', ['m1']);
-      p.setApiKeys('new-key');
+      const p = new OpenRouterProvider(['m1']);
+      p.setApiKeys('any-key'); // should not throw or change behavior
 
       const promise = p.chat([{ role: 'user', content: 'hi' }]);
       await vi.runAllTimersAsync();
       await promise;
 
+      // Still no auth header
       const [, init] = (fetch as ReturnType<typeof vi.fn>).mock.calls[0];
       const headers = (init as RequestInit).headers as Record<string, string>;
-      expect(headers['Authorization']).toBe('Bearer new-key');
+      expect(headers['Authorization']).toBeUndefined();
     });
 
     it('uses new models after setModels()', async () => {
       global.fetch = vi.fn().mockReturnValue(okResponse('ok'));
-      const p = new OpenRouterProvider('key1', ['old-model']);
+      const p = new OpenRouterProvider(['old-model']);
       p.setModels(['new-model-a', 'new-model-b']);
 
       const promise = p.chat([{ role: 'user', content: 'hi' }]);

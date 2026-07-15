@@ -1,24 +1,24 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { X, RefreshCw, Trash2, MapPin, Save, ChevronDown, Globe } from 'lucide-react';
+import { X, RefreshCw, Trash2, MapPin, Save, ChevronDown, Globe, User, Cpu } from 'lucide-react';
 import { AccountPanel } from '../../auth/AccountPanel';
 import { useCharacterStore } from '../../stores/characterStore';
 import { useAppStore } from '../../stores/appStore';
-import { saveMemories, savePreferences, saveLocation, saveCharacterMemories, saveAvatarImage, saveCharacter } from '../../utils/storage';
-import { detectLocation } from '../../services/location';
+import { saveMemories, savePreferences, saveLocation, saveCharacterMemories, saveAvatarImage, saveCharacter, saveCharacters } from '../../utils/storage';
 import { useNaviAgent } from '../../agent/react/useNaviAgent';
 import { updateGeminiApiKey } from '../../agent/models/geminiEmbedding';
 import { OPENROUTER_FREE_MODELS, OPENROUTER_PAID_MODELS } from '../../agent/models';
 import { generateAvatarImage } from '../../utils/generateAvatarImage';
 import { formatGB } from '../../utils/formatBytes';
+import { buildPortraitPrompt } from '../../utils/portraitHelpers';
+import { CompanionFace } from './CompanionFace';
 import { CityPicker } from './CityPicker';
 import { LanguagePicker } from './LanguagePicker';
 import { getLanguageByCode } from '../../config/supportedLanguages';
-import { countryFlag } from '../../utils/countryFlag';
 import type { CityEntry } from './CityPicker';
 import type { UserPreferences, Character } from '../../types/character';
 
-type Section = 'companion' | 'profile' | 'preferences' | 'location' | 'memory' | 'model' | 'account';
+type Section = 'companion' | 'place' | 'you' | 'ai';
 
 interface SettingsPanelProps {
   onClose: () => void;
@@ -28,22 +28,19 @@ interface SettingsPanelProps {
   onSaveUserProfile: (text: string) => Promise<void>;
   onShowModelPicker?: () => void;
   onShowAuth?: () => void;
+  onSignOut?: () => void;
 }
 
-export function SettingsPanel({ onClose, onRegenerate, onDeleteCompanion, onUpdateCharacter, onSaveUserProfile: _onSaveUserProfile, onShowModelPicker, onShowAuth }: SettingsPanelProps) {
+export function SettingsPanel({ onClose, onRegenerate, onDeleteCompanion, onUpdateCharacter, onSaveUserProfile: _onSaveUserProfile, onShowModelPicker, onShowAuth, onSignOut }: SettingsPanelProps) {
   const [activeSection, setActiveSection] = useState<Section>('companion');
+  const [showAdvancedYou, setShowAdvancedYou] = useState(false);
+  const [showAdvancedAi, setShowAdvancedAi] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
   const [confirmDeleteCompanion, setConfirmDeleteCompanion] = useState(false);
-  const [manualCity, setManualCity] = useState('');
-  const [isDetectingLocation, setIsDetectingLocation] = useState(false);
-  const [locationError, setLocationError] = useState<string | null>(null);
 
   // Companion edit state
   const [editingSummary, setEditingSummary] = useState(false);
   const [summaryDraft, setSummaryDraft] = useState('');
-  const [editingLocation, setEditingLocation] = useState(false);
-  const [cityDraft, setCityDraft] = useState('');
-  const [countryDraft, setCountryDraft] = useState('');
   const [isSavingCompanion, setIsSavingCompanion] = useState(false);
 
   // Situation model state
@@ -52,7 +49,7 @@ export function SettingsPanel({ onClose, onRegenerate, onDeleteCompanion, onUpda
     nextSituation: string; inCountry: boolean | null; assessmentConfidence: number;
   } | null>(null);
 
-  const { activeCharacter, memories, removeMemory, clearMemories } = useCharacterStore();
+  const { activeCharacter, memories, removeMemory, clearMemories, setActiveCharacter, setCharacters, characters } = useCharacterStore();
   const { userPreferences, currentLocation, modelStatus, modelProgress, geminiApiKey, setUserPreferences, setCurrentLocation, setGeminiApiKey } =
     useAppStore();
   const { agent, backend, ollamaModel, switchOllamaModel, switchBackend, openRouterTier } = useNaviAgent();
@@ -121,8 +118,15 @@ export function SettingsPanel({ onClose, onRegenerate, onDeleteCompanion, onUpda
   };
 
   useEffect(() => {
-    if (activeSection === 'model') {
+    if (activeSection === 'ai') {
       fetchOllamaModels();
+    }
+  }, [activeSection]);
+
+  useEffect(() => {
+    if (activeSection === 'you') {
+      const model = agent.memory.situation.getModel();
+      setSituationModel(model);
     }
   }, [activeSection]);
 
@@ -170,14 +174,6 @@ export function SettingsPanel({ onClose, onRegenerate, onDeleteCompanion, onUpda
     }
   };
 
-  // Load situation model when profile tab is opened
-  useEffect(() => {
-    if (activeSection === 'profile') {
-      const model = agent.memory.situation.getModel();
-      setSituationModel(model);
-    }
-  }, [activeSection]);
-
   const handlePreferenceChange = async (updates: Partial<UserPreferences>) => {
     setUserPreferences(updates);
     await savePreferences(useAppStore.getState().userPreferences);
@@ -212,21 +208,6 @@ export function SettingsPanel({ onClose, onRegenerate, onDeleteCompanion, onUpda
     setConfirmClear(false);
   };
 
-  const handleDetectLocation = async () => {
-    setIsDetectingLocation(true);
-    setLocationError(null);
-    try {
-      const ctx = await detectLocation();
-      setCurrentLocation(ctx);
-      await saveLocation(ctx);
-      setManualCity('');
-    } catch {
-      setLocationError('Could not detect. Try entering city manually.');
-    } finally {
-      setIsDetectingLocation(false);
-    }
-  };
-
   const handleSaveCompanionEdits = async () => {
     if (!activeCharacter) return;
     setIsSavingCompanion(true);
@@ -234,26 +215,18 @@ export function SettingsPanel({ onClose, onRegenerate, onDeleteCompanion, onUpda
     if (editingSummary && summaryDraft.trim() && summaryDraft.trim() !== activeCharacter.summary) {
       updates.summary = summaryDraft.trim();
     }
-    if (editingLocation) {
-      if (cityDraft.trim()) updates.location_city = cityDraft.trim();
-      if (countryDraft.trim()) updates.location_country = countryDraft.trim();
-    }
     if (Object.keys(updates).length > 0) {
       await onUpdateCharacter(updates);
     }
     setEditingSummary(false);
-    setEditingLocation(false);
     setIsSavingCompanion(false);
   };
 
-  const sections: Array<{ key: Section; label: string }> = [
-    { key: 'companion',   label: '👤 Companion' },
-    { key: 'profile',     label: '🧍 Profile' },
-    { key: 'preferences', label: '⚙️ Prefs' },
-    { key: 'location',    label: '📍 Location & Language' },
-    { key: 'memory',      label: '🧠 Memory' },
-    { key: 'model',       label: '🤖 Model' },
-    { key: 'account',    label: '☁️ Account' },
+  const sections: Array<{ key: Section; label: string; icon: React.ComponentType<{ className?: string }> }> = [
+    { key: 'companion', label: 'Companion', icon: User },
+    { key: 'place', label: 'Place', icon: MapPin },
+    { key: 'you', label: 'You', icon: Globe },
+    { key: 'ai', label: 'AI', icon: Cpu },
   ];
 
   return (
@@ -281,20 +254,24 @@ export function SettingsPanel({ onClose, onRegenerate, onDeleteCompanion, onUpda
         </div>
 
         {/* Section tabs */}
-        <div className="flex gap-1 px-3 py-2 border-b border-border overflow-x-auto scrollbar-hide flex-shrink-0">
-          {sections.map((s) => (
-            <button
-              key={s.key}
-              onClick={() => { setActiveSection(s.key); setConfirmClear(false); }}
-              className={`px-3 py-1.5 rounded-lg text-xs whitespace-nowrap transition-colors font-medium ${
-                activeSection === s.key
-                  ? 'bg-primary/20 text-primary'
-                  : 'text-muted-foreground hover:bg-muted/50'
-              }`}
-            >
-              {s.label}
-            </button>
-          ))}
+        <div className="flex gap-1 px-3 py-2 border-b border-border flex-shrink-0">
+          {sections.map((s) => {
+            const Icon = s.icon;
+            return (
+              <button
+                key={s.key}
+                onClick={() => { setActiveSection(s.key); setConfirmClear(false); }}
+                className={`flex-1 flex flex-col items-center gap-0.5 px-2 py-2 rounded-lg text-xs transition-colors font-medium ${
+                  activeSection === s.key
+                    ? 'bg-primary/20 text-primary'
+                    : 'text-muted-foreground hover:bg-muted/50'
+                }`}
+              >
+                <Icon className="w-4 h-4" />
+                <span>{s.label}</span>
+              </button>
+            );
+          })}
         </div>
 
         {/* Scrollable content */}
@@ -307,7 +284,15 @@ export function SettingsPanel({ onClose, onRegenerate, onDeleteCompanion, onUpda
                 <>
                   {/* Identity row */}
                   <div className="flex items-center gap-4 bg-card border border-border rounded-xl p-4">
-                    <span className="text-4xl">{activeCharacter.emoji}</span>
+                    <CompanionFace
+                      imageUrl={activeCharacter.avatarImageUrl}
+                      name={activeCharacter.name}
+                      size="md"
+                      accentColor={{
+                        primary: activeCharacter.avatar_color?.primary ?? '#6BBAA7',
+                        secondary: activeCharacter.avatar_color?.secondary ?? '#D4A853',
+                      }}
+                    />
                     <div>
                       <p className="font-medium text-foreground">{activeCharacter.name}</p>
                       <p className="text-sm text-muted-foreground">
@@ -350,49 +335,7 @@ export function SettingsPanel({ onClose, onRegenerate, onDeleteCompanion, onUpda
                     )}
                   </div>
 
-                  {/* Location (editable) */}
-                  <div className="bg-card border border-border rounded-xl p-4 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <p className="text-xs text-muted-foreground uppercase tracking-wide">Location</p>
-                      {!editingLocation && (
-                        <button
-                          onClick={() => {
-                            setEditingLocation(true);
-                            setCityDraft(activeCharacter.location_city);
-                            setCountryDraft(activeCharacter.location_country);
-                          }}
-                          className="text-xs text-primary hover:underline"
-                        >
-                          Edit
-                        </button>
-                      )}
-                    </div>
-                    {editingLocation ? (
-                      <div className="space-y-2">
-                        <input
-                          type="text"
-                          value={cityDraft}
-                          onChange={(e) => setCityDraft(e.target.value)}
-                          placeholder="City"
-                          className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
-                        />
-                        <input
-                          type="text"
-                          value={countryDraft}
-                          onChange={(e) => setCountryDraft(e.target.value)}
-                          placeholder="Country"
-                          className="w-full px-3 py-2 bg-background border border-border rounded-lg text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
-                        />
-                      </div>
-                    ) : (
-                      <p className="text-sm text-foreground">
-                        {activeCharacter.location_city}, {activeCharacter.location_country}
-                      </p>
-                    )}
-                  </div>
-
-                  {/* Save edits button (only when editing) */}
-                  {(editingSummary || editingLocation) && (
+                  {editingSummary && (
                     <button
                       onClick={handleSaveCompanionEdits}
                       disabled={isSavingCompanion}
@@ -448,8 +391,8 @@ export function SettingsPanel({ onClose, onRegenerate, onDeleteCompanion, onUpda
             </div>
           )}
 
-          {/* B) How NAVI sees you */}
-          {activeSection === 'profile' && (
+          {/* B) You — profile, preferences, memory (advanced) */}
+          {activeSection === 'you' && (
             <div className="space-y-4">
               <div className="bg-card border border-border rounded-xl p-4 space-y-3">
                 <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">How your companion sees you</p>
@@ -549,120 +492,170 @@ export function SettingsPanel({ onClose, onRegenerate, onDeleteCompanion, onUpda
                   </div>
                 )}
               </div>
-            </div>
-          )}
 
-          {/* C) Preferences */}
-          {activeSection === 'preferences' && (
-            <div className="bg-card border border-border rounded-xl p-4 space-y-5">
-              <div>
-                <p className="text-xs text-muted-foreground uppercase tracking-wide mb-2">Your native language</p>
-                <div className="flex flex-wrap gap-2">
-                  {(['English', 'Spanish', 'Mandarin', 'Hindi', 'Arabic', 'Portuguese', 'French', 'Japanese', 'Korean', 'Vietnamese', 'German', 'Italian', 'Russian', 'Thai', 'Indonesian', 'Turkish', 'Polish', 'Dutch'] as const).map((lang) => (
-                    <button
-                      key={lang}
-                      onClick={() => handlePreferenceChange({ native_language: lang })}
-                      className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${
-                        userPreferences.native_language === lang
-                          ? 'bg-primary/20 text-primary'
-                          : 'bg-muted/50 text-muted-foreground hover:bg-muted'
-                      }`}
-                    >
-                      {lang}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="border-t border-border pt-4">
-                <p className="text-xs text-muted-foreground uppercase tracking-wide mb-2">Companion age</p>
-                <div className="flex flex-wrap gap-2">
-                  {(['teen', '20s', '30s', '40s', '50s', '60s+'] as const).map((age) => (
-                    <button
-                      key={age}
-                      onClick={() => handlePreferenceChange({ avatar_age: age })}
-                      className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${
-                        userPreferences.avatar_age === age
-                          ? 'bg-primary/20 text-primary'
-                          : 'bg-muted/50 text-muted-foreground hover:bg-muted'
-                      }`}
-                    >
-                      {age}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="border-t border-border pt-4">
-                <p className="text-xs text-muted-foreground uppercase tracking-wide mb-2">Companion gender</p>
-                <div className="flex flex-wrap gap-2">
-                  {(['male', 'female', 'non-binary', 'no_preference'] as const).map((g) => (
-                    <button
-                      key={g}
-                      onClick={() => handlePreferenceChange({ avatar_gender: g })}
-                      className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${
-                        userPreferences.avatar_gender === g
-                          ? 'bg-primary/20 text-primary'
-                          : 'bg-muted/50 text-muted-foreground hover:bg-muted'
-                      }`}
-                    >
-                      {g === 'no_preference' ? 'No pref' : g.charAt(0).toUpperCase() + g.slice(1)}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="border-t border-border pt-4">
-                <p className="text-xs text-muted-foreground uppercase tracking-wide mb-2">Formality</p>
-                <div className="flex gap-2">
-                  {(['casual', 'neutral', 'formal'] as const).map((f) => (
-                    <button
-                      key={f}
-                      onClick={() => handlePreferenceChange({ formality_default: f })}
-                      className={`flex-1 px-2 py-1.5 rounded-lg text-sm transition-colors ${
-                        userPreferences.formality_default === f
-                          ? 'bg-primary/20 text-primary'
-                          : 'bg-muted/50 text-muted-foreground hover:bg-muted'
-                      }`}
-                    >
-                      {f.charAt(0).toUpperCase() + f.slice(1)}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="border-t border-border pt-4">
-                <p className="text-xs text-muted-foreground uppercase tracking-wide mb-2">Learning focus</p>
-                <div className="flex flex-wrap gap-2">
-                  {(['pronunciation', 'vocabulary', 'cultural_context', 'reading', 'slang'] as const).map((focus) => {
-                    const active = userPreferences.learning_focus.includes(focus);
-                    return (
+              {/* Preferences */}
+              <div className="bg-card border border-border rounded-xl p-4 space-y-5">
+                <p className="text-xs text-muted-foreground uppercase tracking-wide">Your preferences</p>
+                <div>
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide mb-2">Your native language</p>
+                  <div className="flex flex-wrap gap-2">
+                    {(['English', 'Spanish', 'Mandarin', 'Hindi', 'Arabic', 'Portuguese', 'French', 'Japanese', 'Korean', 'Vietnamese', 'German', 'Italian', 'Russian', 'Thai', 'Indonesian', 'Turkish', 'Polish', 'Dutch'] as const).map((lang) => (
                       <button
-                        key={focus}
-                        onClick={() => {
-                          const current = userPreferences.learning_focus;
-                          const updated = active
-                            ? current.filter((f) => f !== focus)
-                            : [...current, focus];
-                          if (updated.length > 0) handlePreferenceChange({ learning_focus: updated });
-                        }}
+                        key={lang}
+                        onClick={() => handlePreferenceChange({ native_language: lang })}
                         className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${
-                          active
+                          userPreferences.native_language === lang
                             ? 'bg-primary/20 text-primary'
                             : 'bg-muted/50 text-muted-foreground hover:bg-muted'
                         }`}
                       >
-                        {focus.replace('_', ' ')}
+                        {lang}
                       </button>
-                    );
-                  })}
+                    ))}
+                  </div>
                 </div>
+
+                <div className="border-t border-border pt-4">
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide mb-2">Companion age</p>
+                  <div className="flex flex-wrap gap-2">
+                    {(['teen', '20s', '30s', '40s', '50s', '60s+'] as const).map((age) => (
+                      <button
+                        key={age}
+                        onClick={() => handlePreferenceChange({ avatar_age: age })}
+                        className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${
+                          userPreferences.avatar_age === age
+                            ? 'bg-primary/20 text-primary'
+                            : 'bg-muted/50 text-muted-foreground hover:bg-muted'
+                        }`}
+                      >
+                        {age}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="border-t border-border pt-4">
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide mb-2">Companion gender</p>
+                  <div className="flex flex-wrap gap-2">
+                    {(['male', 'female', 'non-binary', 'no_preference'] as const).map((g) => (
+                      <button
+                        key={g}
+                        onClick={() => handlePreferenceChange({ avatar_gender: g })}
+                        className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${
+                          userPreferences.avatar_gender === g
+                            ? 'bg-primary/20 text-primary'
+                            : 'bg-muted/50 text-muted-foreground hover:bg-muted'
+                        }`}
+                      >
+                        {g === 'no_preference' ? 'No pref' : g.charAt(0).toUpperCase() + g.slice(1)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="border-t border-border pt-4">
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide mb-2">Formality</p>
+                  <div className="flex gap-2">
+                    {(['casual', 'neutral', 'formal'] as const).map((f) => (
+                      <button
+                        key={f}
+                        onClick={() => handlePreferenceChange({ formality_default: f })}
+                        className={`flex-1 px-2 py-1.5 rounded-lg text-sm transition-colors ${
+                          userPreferences.formality_default === f
+                            ? 'bg-primary/20 text-primary'
+                            : 'bg-muted/50 text-muted-foreground hover:bg-muted'
+                        }`}
+                      >
+                        {f.charAt(0).toUpperCase() + f.slice(1)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="border-t border-border pt-4">
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide mb-2">Learning focus</p>
+                  <div className="flex flex-wrap gap-2">
+                    {(['pronunciation', 'vocabulary', 'cultural_context', 'reading', 'slang'] as const).map((focus) => {
+                      const active = userPreferences.learning_focus.includes(focus);
+                      return (
+                        <button
+                          key={focus}
+                          onClick={() => {
+                            const current = userPreferences.learning_focus;
+                            const updated = active
+                              ? current.filter((f) => f !== focus)
+                              : [...current, focus];
+                            if (updated.length > 0) handlePreferenceChange({ learning_focus: updated });
+                          }}
+                          className={`px-3 py-1.5 rounded-lg text-sm transition-colors ${
+                            active
+                              ? 'bg-primary/20 text-primary'
+                              : 'bg-muted/50 text-muted-foreground hover:bg-muted'
+                          }`}
+                        >
+                          {focus.replace('_', ' ')}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              {/* Advanced: Memory */}
+              <div className="border border-border rounded-xl overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setShowAdvancedYou(!showAdvancedYou)}
+                  className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-foreground hover:bg-muted/30 transition-colors"
+                >
+                  <span>Advanced — Memory</span>
+                  <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${showAdvancedYou ? 'rotate-180' : ''}`} />
+                </button>
+                {showAdvancedYou && (
+                  <div className="px-4 pb-4 space-y-3 border-t border-border pt-3">
+                    {memories.length === 0 ? (
+                      <div className="text-center py-4 space-y-1">
+                        <p className="text-sm text-muted-foreground">No memories yet.</p>
+                        <p className="text-xs text-muted-foreground">Generated automatically every 5 messages.</p>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="space-y-2">
+                          {memories.map((m) => (
+                            <div
+                              key={m.id}
+                              className="flex items-start gap-3 bg-card border border-border rounded-xl px-4 py-3"
+                            >
+                              <p className="flex-1 text-sm text-foreground leading-relaxed">{m.value}</p>
+                              <button
+                                onClick={() => handleDeleteMemory(m.id)}
+                                className="flex-shrink-0 p-1 hover:bg-muted/50 rounded transition-colors mt-0.5"
+                              >
+                                <Trash2 className="w-4 h-4 text-muted-foreground hover:text-destructive transition-colors" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                        <button
+                          onClick={handleClearAll}
+                          className={`w-full px-4 py-2.5 rounded-xl text-sm font-medium transition-colors border ${
+                            confirmClear
+                              ? 'bg-destructive/10 border-destructive/30 text-destructive'
+                              : 'border-border text-muted-foreground hover:border-destructive/30 hover:text-destructive'
+                          }`}
+                        >
+                          {confirmClear ? 'Tap again to confirm' : 'Clear all memories'}
+                        </button>
+                      </>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           )}
 
-          {/* D) Location & Language */}
-          {activeSection === 'location' && (
+          {/* C) Place — location & language */}
+          {activeSection === 'place' && (
             <div className="space-y-4">
               {/* City picker */}
               <div className="space-y-1.5">
@@ -743,49 +736,8 @@ export function SettingsPanel({ onClose, onRegenerate, onDeleteCompanion, onUpda
             </div>
           )}
 
-          {/* E) Memory */}
-          {activeSection === 'memory' && (
-            <div className="space-y-3">
-              {memories.length === 0 ? (
-                <div className="bg-card border border-border rounded-xl p-6 text-center space-y-1">
-                  <p className="text-sm text-muted-foreground">No memories yet.</p>
-                  <p className="text-xs text-muted-foreground">Generated automatically every 5 messages.</p>
-                </div>
-              ) : (
-                <>
-                  <div className="space-y-2">
-                    {memories.map((m) => (
-                      <div
-                        key={m.id}
-                        className="flex items-start gap-3 bg-card border border-border rounded-xl px-4 py-3"
-                      >
-                        <p className="flex-1 text-sm text-foreground leading-relaxed">{m.value}</p>
-                        <button
-                          onClick={() => handleDeleteMemory(m.id)}
-                          className="flex-shrink-0 p-1 hover:bg-muted/50 rounded transition-colors mt-0.5"
-                        >
-                          <Trash2 className="w-4 h-4 text-muted-foreground hover:text-destructive transition-colors" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                  <button
-                    onClick={handleClearAll}
-                    className={`w-full px-4 py-2.5 rounded-xl text-sm font-medium transition-colors border ${
-                      confirmClear
-                        ? 'bg-destructive/10 border-destructive/30 text-destructive'
-                        : 'border-border text-muted-foreground hover:border-destructive/30 hover:text-destructive'
-                    }`}
-                  >
-                    {confirmClear ? 'Tap again to confirm' : 'Clear all memories'}
-                  </button>
-                </>
-              )}
-            </div>
-          )}
-
-          {/* F) AI Model */}
-          {activeSection === 'model' && (
+          {/* D) AI — model + advanced keys/account */}
+          {activeSection === 'ai' && (
             <div className="space-y-4">
 
               {/* Status line */}
@@ -1016,86 +968,105 @@ export function SettingsPanel({ onClose, onRegenerate, onDeleteCompanion, onUpda
                 </button>
               )}
 
-              {/* Gemini API key */}
-              <div className="bg-card border border-border rounded-xl p-4 space-y-3">
-                <div>
-                  <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Gemini API Key</p>
-                  <p className="text-xs text-muted-foreground leading-relaxed mb-2">
-                    Optional. Enables semantic memory search when online. Free at Google AI Studio.
-                  </p>
-                  <div className="flex gap-2">
-                    <input
-                      type="password"
-                      value={geminiKeyDraft}
-                      onChange={(e) => { setGeminiKeyDraft(e.target.value); setGeminiKeySaved(false); }}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') { setGeminiApiKey(geminiKeyDraft.trim()); updateGeminiApiKey(geminiKeyDraft.trim()); setGeminiKeySaved(true); }
-                      }}
-                      placeholder="AIza..."
-                      className="flex-1 px-3 py-2 bg-background border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+              {/* Advanced: keys, portrait, account */}
+              <div className="border border-border rounded-xl overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setShowAdvancedAi(!showAdvancedAi)}
+                  className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-foreground hover:bg-muted/30 transition-colors"
+                >
+                  <span>Advanced — Keys &amp; Account</span>
+                  <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${showAdvancedAi ? 'rotate-180' : ''}`} />
+                </button>
+                {showAdvancedAi && (
+                  <div className="px-4 pb-4 space-y-4 border-t border-border pt-3">
+                    <div className="bg-card border border-border rounded-xl p-4 space-y-3">
+                      <div>
+                        <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Gemini API Key</p>
+                        <p className="text-xs text-muted-foreground leading-relaxed mb-2">
+                          Optional. Enables semantic memory search when online. Free at Google AI Studio.
+                        </p>
+                        <div className="flex gap-2">
+                          <input
+                            type="password"
+                            value={geminiKeyDraft}
+                            onChange={(e) => { setGeminiKeyDraft(e.target.value); setGeminiKeySaved(false); }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') { setGeminiApiKey(geminiKeyDraft.trim()); updateGeminiApiKey(geminiKeyDraft.trim()); setGeminiKeySaved(true); }
+                            }}
+                            placeholder="AIza..."
+                            className="flex-1 px-3 py-2 bg-background border border-border rounded-lg text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50"
+                          />
+                          <button
+                            onClick={() => { setGeminiApiKey(geminiKeyDraft.trim()); updateGeminiApiKey(geminiKeyDraft.trim()); setGeminiKeySaved(true); }}
+                            className="px-3 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium"
+                          >
+                            {geminiKeySaved ? 'Saved' : 'Save'}
+                          </button>
+                        </div>
+                        {geminiApiKey && !geminiKeySaved && (
+                          <p className="text-xs text-green-400 mt-1">Key saved — semantic search active when online.</p>
+                        )}
+                      </div>
+                    </div>
+
+                    {activeCharacter && (
+                      <div className="bg-card border border-border rounded-xl p-4 space-y-2">
+                        <p className="text-xs text-muted-foreground uppercase tracking-wide">AI Portrait</p>
+                        <p className="text-xs text-muted-foreground leading-relaxed">
+                          Re-generate {activeCharacter.name}&apos;s portrait (requires internet).
+                          {activeCharacter.has_portrait ? ' Portrait is active.' : ' Showing initials until portrait loads.'}
+                        </p>
+                        <button
+                          disabled={isRegeneratingPortrait}
+                          onClick={async () => {
+                            if (isRegeneratingPortrait || !activeCharacter) return;
+                            setIsRegeneratingPortrait(true);
+                            setPortraitRegenStatus('idle');
+                            const prompt = activeCharacter.portrait_prompt || buildPortraitPrompt(activeCharacter);
+                            try {
+                              const base64 = await generateAvatarImage(prompt, activeCharacter.id);
+                              if (base64) {
+                                await saveAvatarImage(activeCharacter.id, base64);
+                                const updated: Character = {
+                                  ...activeCharacter,
+                                  avatarImageUrl: base64,
+                                  has_portrait: true,
+                                  portrait_prompt: prompt,
+                                };
+                                await saveCharacter(updated);
+                                setActiveCharacter(updated);
+                                const nextChars = characters.map((c) => (c.id === updated.id ? updated : c));
+                                setCharacters(nextChars);
+                                await saveCharacters(nextChars);
+                                setPortraitRegenStatus('success');
+                              } else {
+                                setPortraitRegenStatus('fail');
+                              }
+                            } catch {
+                              setPortraitRegenStatus('fail');
+                            } finally {
+                              setIsRegeneratingPortrait(false);
+                            }
+                          }}
+                          className="px-3 py-2 bg-muted hover:bg-muted/80 text-foreground rounded-lg text-sm font-medium disabled:opacity-50 transition-colors flex items-center gap-2"
+                        >
+                          <RefreshCw className={`w-3.5 h-3.5 ${isRegeneratingPortrait ? 'animate-spin' : ''}`} />
+                          {isRegeneratingPortrait ? 'Generating…' : 'Regenerate Portrait'}
+                        </button>
+                        {portraitRegenStatus === 'success' && <p className="text-xs text-green-400">Portrait updated!</p>}
+                        {portraitRegenStatus === 'fail' && !activeCharacter.portrait_prompt && <p className="text-xs text-muted-foreground">No portrait description available for this character.</p>}
+                        {portraitRegenStatus === 'fail' && activeCharacter.portrait_prompt && <p className="text-xs text-amber-400">Generation failed — check your internet connection and try again.</p>}
+                      </div>
+                    )}
+
+                    <AccountPanel
+                      onSignIn={() => { onClose(); onShowAuth?.(); }}
+                      onSignOut={() => { onClose(); onSignOut?.(); }}
                     />
-                    <button
-                      onClick={() => { setGeminiApiKey(geminiKeyDraft.trim()); updateGeminiApiKey(geminiKeyDraft.trim()); setGeminiKeySaved(true); }}
-                      className="px-3 py-2 bg-primary text-primary-foreground rounded-lg text-sm font-medium"
-                    >
-                      {geminiKeySaved ? '✓' : 'Save'}
-                    </button>
                   </div>
-                  {geminiApiKey && !geminiKeySaved && (
-                    <p className="text-xs text-green-400 mt-1">Key saved — semantic search active when online.</p>
-                  )}
-                </div>
+                )}
               </div>
-
-              {/* Regenerate portrait */}
-              {activeCharacter && (
-                <div className="bg-card border border-border rounded-xl p-4 space-y-2">
-                  <p className="text-xs text-muted-foreground uppercase tracking-wide">AI Portrait</p>
-                  <p className="text-xs text-muted-foreground leading-relaxed">
-                    Re-generate {activeCharacter.name}&apos;s portrait using Pollinations.ai (requires internet).
-                    {activeCharacter.has_portrait ? ' Portrait is active.' : ' Using DiceBear illustration currently.'}
-                  </p>
-                  <button
-                    disabled={isRegeneratingPortrait || !activeCharacter.portrait_prompt}
-                    onClick={async () => {
-                      if (!activeCharacter.portrait_prompt || isRegeneratingPortrait) return;
-                      setIsRegeneratingPortrait(true);
-                      setPortraitRegenStatus('idle');
-                      try {
-                        const base64 = await generateAvatarImage(activeCharacter.portrait_prompt, activeCharacter.id);
-                        if (base64) {
-                          await saveAvatarImage(activeCharacter.id, base64);
-                          const updated: Character = { ...activeCharacter, has_portrait: true };
-                          await saveCharacter(updated);
-                          setPortraitRegenStatus('success');
-                        } else {
-                          setPortraitRegenStatus('fail');
-                        }
-                      } catch (err) {
-                        console.warn('[NAVI] portrait regeneration failed:', err);
-                        setPortraitRegenStatus('fail');
-                      } finally {
-                        setIsRegeneratingPortrait(false);
-                      }
-                    }}
-                    className="px-3 py-2 bg-muted hover:bg-muted/80 text-foreground rounded-lg text-sm font-medium disabled:opacity-50 transition-colors flex items-center gap-2"
-                  >
-                    <RefreshCw className={`w-3.5 h-3.5 ${isRegeneratingPortrait ? 'animate-spin' : ''}`} />
-                    {isRegeneratingPortrait ? 'Generating…' : 'Regenerate Portrait'}
-                  </button>
-                  {portraitRegenStatus === 'success' && <p className="text-xs text-green-400">Portrait updated! Reload the chat to see it.</p>}
-                  {portraitRegenStatus === 'fail' && !activeCharacter.portrait_prompt && <p className="text-xs text-muted-foreground">No portrait description available for this character.</p>}
-                  {portraitRegenStatus === 'fail' && activeCharacter.portrait_prompt && <p className="text-xs text-amber-400">Generation failed — check your internet connection and try again.</p>}
-                </div>
-              )}
-
-            </div>
-          )}
-
-          {/* G) Account */}
-          {activeSection === 'account' && (
-            <div className="space-y-4">
-              <AccountPanel onSignIn={() => { onClose(); onShowAuth?.(); }} />
             </div>
           )}
 

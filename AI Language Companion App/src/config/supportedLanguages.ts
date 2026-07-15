@@ -30,7 +30,7 @@ export const SUPPORTED_LANGUAGES: SupportedLanguage[] = [
   { code: 'ru', name: 'Russian', nativeName: 'Русский', scripts: ['Cyrillic'], defaultForCountries: ['RU', 'BY', 'KZ', 'KG'] },
   { code: 'tr', name: 'Turkish', nativeName: 'Türkçe', scripts: ['Latin'], defaultForCountries: ['TR', 'CY'] },
   { code: 'id', name: 'Indonesian', nativeName: 'Bahasa Indonesia', scripts: ['Latin'], defaultForCountries: ['ID'] },
-  { code: 'tl', name: 'Tagalog', nativeName: 'Tagalog', scripts: ['Latin'], defaultForCountries: ['PH'] },
+  { code: 'tl', name: 'Tagalog', nativeName: 'Filipino / Tagalog', scripts: ['Latin'], defaultForCountries: ['PH'] },
   { code: 'sw', name: 'Swahili', nativeName: 'Kiswahili', scripts: ['Latin'], defaultForCountries: ['KE', 'TZ', 'UG', 'RW', 'BI'] },
   { code: 'nl', name: 'Dutch', nativeName: 'Nederlands', scripts: ['Latin'], defaultForCountries: ['NL'] },
   { code: 'pl', name: 'Polish', nativeName: 'Polski', scripts: ['Latin'], defaultForCountries: ['PL'] },

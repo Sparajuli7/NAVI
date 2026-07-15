@@ -9,6 +9,7 @@ function makeLearner(overrides: {
   lastSessionDate?: number;
   currentStreak?: number;
   strugglingPhrases?: number;
+  totalSessions?: number;
 }): LearnerProfileStore {
   return {
     stats: {
@@ -17,7 +18,7 @@ function makeLearner(overrides: {
       totalPhrases: 0,
       masteredPhrases: 0,
       longestStreak: 0,
-      totalSessions: 0,
+      totalSessions: overrides.totalSessions ?? 0,
     },
     getStrugglingPhrases: vi.fn().mockReturnValue(
       Array(overrides.strugglingPhrases ?? 0).fill({ text: 'xin chào' }),
@@ -105,5 +106,29 @@ describe('ProactiveEngine', () => {
       fakeEpisodic,
     );
     expect(eng.getProactiveMessage()).toBeNull();
+  });
+
+  it('fires unfinished-story month-3 intervention when forced', () => {
+    const eng = new ProactiveEngine(
+      makeLearner({ lastSessionDate: Date.now() - 5 * DAY_MS, totalSessions: 70 }),
+      fakeEpisodic,
+    );
+    const msg = eng.getProactiveMessage(0, undefined, 0.5, {
+      forceIntervention: 'unfinished_story',
+      personalityDetails: {
+        strong_opinion: 'x'.repeat(25),
+        funny_anecdote: 'y'.repeat(55),
+        sensory_anchor: 'z'.repeat(25),
+        pet_peeve: 'a'.repeat(25),
+        recurring_character: 'Suzuki-san from the corner shop',
+      },
+    });
+    expect(msg).toMatch(/Suzuki-san/i);
+  });
+
+  it('detects month-3 risk window heuristically', () => {
+    const eng = new ProactiveEngine(makeLearner({}), fakeEpisodic);
+    expect(eng.isMonth3Risk(70, 3)).toBe(true);
+    expect(eng.isMonth3Risk(10, 3)).toBe(false);
   });
 });

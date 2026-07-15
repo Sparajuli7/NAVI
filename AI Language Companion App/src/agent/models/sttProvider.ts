@@ -33,9 +33,13 @@ const STT_LANG_CODE_MAP: Record<string, string> = {
   Thai: 'th-TH',
   Arabic: 'ar-SA',
   Hindi: 'hi-IN',
+  Nepali: 'ne-NP',
   Russian: 'ru-RU',
   Indonesian: 'id-ID',
   Tagalog: 'tl-PH',
+  Filipino: 'fil-PH',
+  Turkish: 'tr-TR',
+  Swahili: 'sw-KE',
   Mandarin: 'zh-CN',
   Cantonese: 'zh-HK',
 };

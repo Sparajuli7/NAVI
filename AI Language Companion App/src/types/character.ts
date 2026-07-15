@@ -30,6 +30,17 @@ export interface CharacterColors {
   accent: string;
 }
 
+/** Rich personality seeds for bonding (from character gen or template bootstrap) */
+export interface PersonalityDetails {
+  strong_opinion: string;
+  funny_anecdote: string;
+  sensory_anchor: string;
+  pet_peeve: string;
+  recurring_character: string;
+  favorite_spot?: string;
+  unpopular_take?: string;
+}
+
 export interface Character {
   id: string;
   name: string;
@@ -56,6 +67,8 @@ export interface Character {
   has_portrait?: boolean;
   /** Base64 data URI from HF FLUX avatar generation during onboarding */
   avatarImageUrl?: string;
+  /** Specific memories/opinions injected into the identity layer */
+  personality_details?: PersonalityDetails;
 }
 
 export interface AvatarTemplate {
@@ -96,6 +109,8 @@ export interface GeneratedCharacter {
     accent: string;
   };
   accessory?: string;
+  /** Base64 data URI portrait — synced from Character.avatarImageUrl */
+  avatarImageUrl?: string;
 }
 
 /** Map a rich Character to the simplified GeneratedCharacter UI shape. */
@@ -107,6 +122,7 @@ export function mapCharacterToUI(c: Character): GeneratedCharacter {
       ? c.avatar_color
       : { primary: '#4A5568', secondary: '#F6AD55', accent: '#48BB78' },
     accessory: c.avatar_accessory || undefined,
+    avatarImageUrl: c.avatarImageUrl,
   };
 }
 

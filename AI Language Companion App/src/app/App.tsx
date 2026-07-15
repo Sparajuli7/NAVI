@@ -41,6 +41,13 @@ import {
 } from '../utils/storage';
 import { resolveDialectKey, getDialectInfo, buildLocationContext } from '../utils/locationHelpers';
 import { buildAvatarProfileParams } from '../utils/avatarProfileHelpers';
+import {
+  applyPortraitToList,
+  buildPortraitPrompt,
+  generateAndSaveCompanionPortrait,
+  resolveCompanionPortrait,
+} from '../utils/portraitHelpers';
+import { buildTemplateFirstMessage } from '../utils/firstMessage';
 
 type AppPhase = 'init' | 'auth' | 'no_webgpu' | 'backend_select' | 'downloading' | 'home' | 'onboarding' | 'chat';
 
@@ -70,24 +77,24 @@ export default function App() {
     agent.setAuthTokenProvider(() => useAuthStore.getState().session?.access_token ?? null);
   }, [agent]);
 
+  const authUser = useAuthStore((s) => s.user);
+
   // Auth check — runs once on mount.
-  // If a session exists (or Supabase isn't configured): boot immediately.
-  // If no session: show auth screen; bootApp() is called after sign-in or skip.
+  // Authenticated users boot into the app; everyone else stays on AuthScreen.
   useAuth((userId) => {
     if (userId !== null) {
-      // Logged in — boot with cloud data already pulled into IndexedDB
       void bootApp();
     } else {
-      const { isGuest } = useAuthStore.getState();
-      if (isGuest) {
-        // Supabase not configured, or already a guest — boot immediately
-        void bootApp();
-      } else {
-        // Show auth screen (user can sign in or skip)
-        setAppPhase('auth');
-      }
+      setAppPhase('auth');
     }
   });
+
+  // Return to AuthScreen after sign-out from anywhere in the app.
+  useEffect(() => {
+    if (authUser === null && appPhase !== 'init' && appPhase !== 'auth') {
+      setAppPhase('auth');
+    }
+  }, [authUser, appPhase]);
 
   async function bootApp() {
       // Initialize agent (loads memory, detects Ollama, sets backend)
@@ -147,12 +154,20 @@ export default function App() {
       // Restore the most-recently-active companion (last in list)
       const activeChar = charList.length > 0 ? charList[charList.length - 1] : null;
       if (activeChar) {
-        useCharacterStore.getState().setActiveCharacter(activeChar);
+        const resolvedChar = await resolveCompanionPortrait(activeChar);
+        if (resolvedChar.avatarImageUrl !== activeChar.avatarImageUrl || resolvedChar.has_portrait !== activeChar.has_portrait) {
+          charList = applyPortraitToList(charList, resolvedChar);
+          setCompanions(charList);
+          useCharacterStore.getState().setCharacters(charList);
+          await saveCharacters(charList);
+          await saveCharacter(resolvedChar);
+        }
+        useCharacterStore.getState().setActiveCharacter(resolvedChar);
 
         // Load per-companion conversation (fall back to legacy navi_conversation for migration)
         const [perCharMsgs, perCharMems] = await Promise.all([
-          loadCharacterConversation(activeChar.id),
-          loadCharacterMemories(activeChar.id),
+          loadCharacterConversation(resolvedChar.id),
+          loadCharacterMemories(resolvedChar.id),
         ]);
         const rawMsgs = perCharMsgs.length > 0 ? perCharMsgs : savedMsgs;
         // Strip persisted error messages so stale failures don't show on reload
@@ -168,28 +183,28 @@ export default function App() {
           useChatStore.setState({ messages: msgs });
           // Migrate: write into per-char key so future loads use it
           if (perCharMsgs.length === 0 && msgs.length > 0) {
-            await saveCharacterConversation(activeChar.id, msgs);
+            await saveCharacterConversation(resolvedChar.id, msgs);
           }
         }
 
         const mems = perCharMems.length > 0 ? perCharMems : savedMemories;
         mems.forEach((m) => useCharacterStore.getState().addMemory(m));
 
-        setCharacter(mapCharacterToUI(activeChar));
+        setCharacter(mapCharacterToUI(resolvedChar));
         setLocation(
           savedLocation
             ? `${savedLocation.city}, ${savedLocation.country}`
-            : `${activeChar.location_city}, ${activeChar.location_country}`,
+            : `${resolvedChar.location_city}, ${resolvedChar.location_country}`,
         );
 
         // Set up the avatar in the agent framework
         const avatarProfile = agent.createAvatarFromTemplate(
-          activeChar.template_id ?? 'default',
-          savedLocation?.city ?? activeChar.location_city,
-          activeChar.dialect_key ?? savedLocation?.dialectKey ?? undefined,
+          resolvedChar.template_id ?? 'default',
+          savedLocation?.city ?? resolvedChar.location_city,
+          resolvedChar.dialect_key ?? savedLocation?.dialectKey ?? undefined,
         );
-        avatarProfile.name = activeChar.name;
-        avatarProfile.personality = activeChar.summary;
+        avatarProfile.name = resolvedChar.name;
+        avatarProfile.personality = resolvedChar.summary;
         agent.setAvatar(avatarProfile);
       }
 
@@ -257,9 +272,10 @@ export default function App() {
 
     // Create character from template (no LLM needed)
     const isCustom = template.id === 'custom';
+    const charName = template.label;
     const newChar: Character = {
       id: `char_${Date.now()}`,
-      name: template.label,
+      name: charName,
       summary: template.base_personality,
       detailed: isCustom ? template.base_personality : '',
       style: template.default_style,
@@ -272,9 +288,24 @@ export default function App() {
       location_country: country,
       dialect_key: dialectKey,
       target_language: languageCode ?? undefined,
-      first_message: isCustom
-        ? `Hey! I'm ${template.label}. Ready to explore ${city} together?`
-        : `Hey! I'm your ${template.label.toLowerCase()}. Ready to explore ${city}?`,
+      first_message: buildTemplateFirstMessage({
+        name: charName,
+        templateLabel: template.label,
+        city,
+        languageCode,
+        isCustom,
+        templateFirstMessage: (template as { first_message?: string }).first_message,
+      }),
+      portrait_prompt: buildPortraitPrompt(
+        {
+          name: charName,
+          summary: template.base_personality,
+          location_city: city,
+          location_country: country,
+          template_id: isCustom ? null : template.id,
+        },
+        template.label,
+      ),
     };
 
     // Save to stores + IndexedDB
@@ -325,11 +356,34 @@ export default function App() {
       );
       avatarProfile.name = newChar.name;
       avatarProfile.personality = newChar.summary;
+      if (newChar.personality_details) {
+        avatarProfile.personalityDetails = newChar.personality_details;
+      }
       agent.setAvatar(avatarProfile);
     }
 
     setCharacter(mapCharacterToUI(newChar));
     setLocation(`${city}, ${country}`);
+
+    // Generate portrait in background — non-blocking so chat opens immediately
+    void (async () => {
+      try {
+        const withPortrait = await generateAndSaveCompanionPortrait(newChar, template.label);
+        if (!withPortrait.avatarImageUrl) return;
+        useCharacterStore.getState().setActiveCharacter(withPortrait);
+        const portraitList = applyPortraitToList(
+          useCharacterStore.getState().characters,
+          withPortrait,
+        );
+        setCompanions(portraitList);
+        useCharacterStore.getState().setCharacters(portraitList);
+        await saveCharacters(portraitList);
+        await saveCharacter(withPortrait);
+        setCharacter(mapCharacterToUI(withPortrait));
+      } catch (e) {
+        console.warn('[NAVI] portrait generation failed:', e);
+      }
+    })();
 
     // Download model if not yet ready, then go to chat
     if (!agent.isLLMReady()) {
@@ -349,35 +403,44 @@ export default function App() {
     const char = companions.find((c) => c.id === charId);
     if (!char) return;
 
+    const resolvedChar = await resolveCompanionPortrait(char);
+    if (resolvedChar.avatarImageUrl !== char.avatarImageUrl || resolvedChar.has_portrait !== char.has_portrait) {
+      const updatedList = applyPortraitToList(companions, resolvedChar);
+      setCompanions(updatedList);
+      useCharacterStore.getState().setCharacters(updatedList);
+      await saveCharacters(updatedList);
+      await saveCharacter(resolvedChar);
+    }
+
     const [msgs, mems] = await Promise.all([
-      loadCharacterConversation(char.id),
-      loadCharacterMemories(char.id),
+      loadCharacterConversation(resolvedChar.id),
+      loadCharacterMemories(resolvedChar.id),
     ]);
 
-    useCharacterStore.getState().setActiveCharacter(char);
+    useCharacterStore.getState().setActiveCharacter(resolvedChar);
     useCharacterStore.getState().clearMemories();
     mems.forEach((m) => useCharacterStore.getState().addMemory(m));
     useChatStore.setState({ messages: msgs });
 
     // Update agent avatar for the selected companion
-    const dialectKey = resolveDialectKey(char.dialect_key, char.location_city);
+    const dialectKey = resolveDialectKey(resolvedChar.dialect_key, resolvedChar.location_city);
     const dialectInfo = getDialectInfo(dialectKey);
 
     const profileParams = buildAvatarProfileParams(
-      char, dialectKey, dialectInfo?.cultural_notes, dialectInfo?.dialect,
+      resolvedChar, dialectKey, dialectInfo?.cultural_notes, dialectInfo?.dialect,
     );
     const avatarProfile = agent.avatar.createFromDescription(
-      char.detailed || char.summary, profileParams, char.location_city,
+      resolvedChar.detailed || resolvedChar.summary, profileParams, resolvedChar.location_city,
     );
     agent.setAvatar(avatarProfile);
 
     // Always sync agent's internal location context — even if no dialect mapping exists
-    const locCtx = buildLocationContext(char.location_city, char.location_country, dialectKey);
+    const locCtx = buildLocationContext(resolvedChar.location_city, resolvedChar.location_country, dialectKey);
     agent.location.setLocation(locCtx, 'manual');
     useAppStore.getState().setCurrentLocation(locCtx);
 
-    setCharacter(mapCharacterToUI(char));
-    setLocation(`${char.location_city}, ${char.location_country}`);
+    setCharacter(mapCharacterToUI(resolvedChar));
+    setLocation(`${resolvedChar.location_city}, ${resolvedChar.location_country}`);
     setAppPhase('chat');
   };
 
@@ -516,15 +579,11 @@ export default function App() {
     await saveUserProfile(text);
   };
 
-  // Auth screen — shown when no session exists and Supabase is configured
+  // Auth screen — required before home/onboarding/chat
   if (appPhase === 'auth') {
     return (
       <AuthScreen
         onAuthenticated={() => { void bootApp(); }}
-        onSkip={() => {
-          useAuthStore.getState().continueAsGuest();
-          void bootApp();
-        }}
       />
     );
   }
@@ -628,6 +687,7 @@ export default function App() {
               setAppPhase('backend_select');
             }}
             onShowAuth={() => setAppPhase('auth')}
+            onSignOut={() => setAppPhase('auth')}
             isDark={isDark}
           />
 
@@ -656,6 +716,10 @@ export default function App() {
             setAppPhase('backend_select');
           }}
           onShowAuth={() => {
+            setShowHomeSettings(false);
+            setAppPhase('auth');
+          }}
+          onSignOut={() => {
             setShowHomeSettings(false);
             setAppPhase('auth');
           }}

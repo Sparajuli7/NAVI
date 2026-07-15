@@ -47,7 +47,11 @@ const ROUTING_RULES: RoutingRule[] = [
   },
   {
     tool: 'pronounce',
-    keywords: ['pronounce', 'pronunciation', 'how to say', 'how do you say', 'say this', 'sound', 'speak', 'practice saying'],
+    keywords: [
+      'pronounce', 'pronunciation', 'how to say', 'how do you say', 'say this',
+      'sound', 'speak', 'practice saying', 'how do i say', 'how should i say',
+      'help me say', 'help me pronounce', 'say it again', 'repeat after',
+    ],
     priority: 9,
   },
   {
@@ -67,7 +71,11 @@ const ROUTING_RULES: RoutingRule[] = [
   },
   {
     tool: 'generate_phrase',
-    keywords: ['teach me', 'phrase', 'how to order', 'what to say', 'useful phrases', 'common phrases'],
+    keywords: [
+      'teach me', 'phrase', 'how to order', 'what to say', 'useful phrases', 'common phrases',
+      'i need to say', 'help me ask', 'what should i say', 'give me a phrase',
+      "i don't know how to say", 'words for', 'vocabulary for',
+    ],
     priority: 7,
   },
   {

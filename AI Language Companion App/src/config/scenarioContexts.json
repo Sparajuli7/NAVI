@@ -9,7 +9,28 @@
     "cultural_guardrails": "Tipping customs vary wildly — know the local norm before advising. Pointing at the menu is always okay. Don't apologize for dietary restrictions — just state them clearly.",
     "debrief_focus": "ordering confidence, pronunciation of dish names, handling unexpected questions from staff",
     "auto_suggestions": ["Help me order", "What's good here?", "Ask for the check", "I can't eat..."],
-    "pronunciation_priority": ["dish names", "ordering phrases", "numbers for quantities"]
+    "pronunciation_priority": ["dish names", "ordering phrases", "numbers for quantities"],
+    "arc": {
+      "pretask_phrases": [
+        { "phrase": "A table for [number], please", "context": "entry", "priority": 1 },
+        { "phrase": "What do you recommend?", "context": "ordering", "priority": 2 },
+        { "phrase": "The check, please", "context": "closing", "priority": 3 }
+      ],
+      "phases": [
+        { "id": "scene_set", "turn": 1, "prompt": "Set the scene. Describe the restaurant (sounds, smells, how busy). Host is looking at you — cue the user to say how many for the table. Stay coach-on-the-side." },
+        { "id": "approach", "turn": 2, "prompt": "User is getting a table. Coach the entry phrase. Celebrate a clear attempt, then signal menus are coming." },
+        { "id": "ordering", "turns": [3, 4], "prompt": "Ordering phase. Waiter approaches — describe what they ask in the target language, then coach drinks/food. Recast mistakes. Add one cultural note if they succeed." },
+        { "id": "food", "turns": [5, 6], "prompt": "Food arrives. Teach a dish-specific opinion phrase (delicious / spicy / etc.). Create a natural moment for the user to react." },
+        { "id": "bill", "turn": 7, "prompt": "Time to pay. Teach the check phrase + local tipping note for this city. Keep it brief." },
+        { "id": "debrief", "turn": 8, "prompt": "Step out of the restaurant scene. Run the structured debrief: one quoted win, one improvement with corrected form, 2 phrase cards." }
+      ],
+      "expected_turns": 8,
+      "complications": [
+        "Waiter asks about allergies",
+        "Item not available — need to pivot order",
+        "Wrong order arrives"
+      ]
+    }
   },
   "directions": {
     "label": "Asking Directions",
@@ -21,7 +42,27 @@
     "cultural_guardrails": "In some cultures, locals will give directions even when they don't know, rather than say 'I don't know.' Always confirm by asking a second person. Eye contact and a smile go a long way.",
     "debrief_focus": "asking confidently, understanding the response, confirming understanding",
     "auto_suggestions": ["Where is the nearest...?", "How do I get to...?", "Is it far?", "Can you repeat that?"],
-    "pronunciation_priority": ["excuse me", "where is", "left/right/straight", "landmark names"]
+    "pronunciation_priority": ["excuse me", "where is", "left/right/straight", "landmark names"],
+    "arc": {
+      "pretask_phrases": [
+        { "phrase": "Excuse me, where is...?", "context": "approach", "priority": 1 },
+        { "phrase": "Left / right / straight", "context": "comprehension", "priority": 2 },
+        { "phrase": "Is it far?", "context": "follow-up", "priority": 3 }
+      ],
+      "phases": [
+        { "id": "scene_set", "turn": 1, "prompt": "Set the street scene. Pick a concrete destination. Point out a passerby the user can ask. Cue the excuse-me approach phrase." },
+        { "id": "asking", "turn": 2, "prompt": "User asks for directions. Coach pronunciation and approach etiquette. Stay beside them as coach, not as the stranger." },
+        { "id": "comprehension", "turns": [3, 4], "prompt": "Simulate a fast local answer with landmarks. Highlight left/right/straight keywords. Check whether they caught it; rephrase if not." },
+        { "id": "confirm", "turn": 5, "prompt": "Teach a confirmation phrase (so I turn left at X?). Note local culture: people may give directions even when unsure — confirm with a second person if possible." },
+        { "id": "debrief", "turn": 6, "prompt": "Step out. Structured debrief: quoted win, one improvement, 2 phrase cards (approach, direction words, confirmation)." }
+      ],
+      "expected_turns": 6,
+      "complications": [
+        "Local speaks too fast — need a repeat politely",
+        "Two people give conflicting directions",
+        "Landmark mentioned is hard to pronounce"
+      ]
+    }
   },
   "market": {
     "label": "Shopping at a Market",
@@ -33,7 +74,28 @@
     "cultural_guardrails": "In fixed-price markets, haggling is rude. In open markets, it's expected. Always smile when negotiating. Walking away is a tactic, not an insult. Never lowball — offer 60-70% of asking, not 20%.",
     "debrief_focus": "negotiation phrases, numbers and prices, reading vendor energy",
     "auto_suggestions": ["How much?", "Too expensive", "Best price?", "I'll take two"],
-    "pronunciation_priority": ["numbers", "too expensive", "how much"]
+    "pronunciation_priority": ["numbers", "too expensive", "how much"],
+    "arc": {
+      "pretask_phrases": [
+        { "phrase": "How much?", "context": "opener", "priority": 1 },
+        { "phrase": "Too expensive", "context": "negotiation", "priority": 2 },
+        { "phrase": "I'll take it", "context": "closing", "priority": 3 }
+      ],
+      "phases": [
+        { "id": "scene_set", "turn": 1, "prompt": "Set the market scene (vendors calling, sensory details). Pick a stall. First rule: never look too interested. Cue asking the price." },
+        { "id": "approach", "turn": 2, "prompt": "User approaches the vendor. Coach 'how much' — don't react to the first number, just nod. Stay coach-on-the-side." },
+        { "id": "negotiation", "turns": [3, 4], "prompt": "Negotiation rounds. Report the tourist price, coach a counter-offer with a smile. If needed, walking away slowly as a tactic." },
+        { "id": "closing", "turns": [5, 6], "prompt": "Closing the deal. Vendor softens — coach final offer + 'I'll take it'. Celebrate a fair deal if they land it." },
+        { "id": "courtesy", "turn": 7, "prompt": "Post-purchase courtesy. Teach thank-you; note vendors remember polite buyers for next time." },
+        { "id": "debrief", "turn": 8, "prompt": "Step out. Structured debrief focused on price asking, negotiation, and closing. Cultural insight: haggling can be relationship-building." }
+      ],
+      "expected_turns": 8,
+      "complications": [
+        "Vendor won't budge on price — need walk-away tactic",
+        "Item quality is questionable — how to ask politely",
+        "Vendor switches to English — user wants to stay in target language"
+      ]
+    }
   },
   "hotel": {
     "label": "Hotel Check-In",
@@ -45,7 +107,27 @@
     "cultural_guardrails": "Always have your passport or ID ready before approaching the desk. In many countries, a passport is legally required at check-in. Tipping porters varies by country — know the local rate.",
     "debrief_focus": "handling unexpected issues (wrong room, no reservation), polite requests, understanding what you're being asked",
     "auto_suggestions": ["I have a reservation", "What time is checkout?", "Do you have Wi-Fi?", "Can I get a wake-up call?"],
-    "pronunciation_priority": ["room numbers", "floor numbers", "reservation / confirmation"]
+    "pronunciation_priority": ["room numbers", "floor numbers", "reservation / confirmation"],
+    "arc": {
+      "pretask_phrases": [
+        { "phrase": "I have a reservation", "context": "check-in", "priority": 1 },
+        { "phrase": "What time is checkout?", "context": "logistics", "priority": 2 },
+        { "phrase": "Is breakfast included?", "context": "amenities", "priority": 3 }
+      ],
+      "phases": [
+        { "id": "scene_set", "turn": 1, "prompt": "Lobby scene. Cue passport/ID ready. Coach the reservation opener. Short, clear requests." },
+        { "id": "checkin", "turn": 2, "prompt": "Front desk asks for name/confirmation. Coach answers. Describe what the clerk says; don't become the clerk." },
+        { "id": "details", "turns": [3, 4], "prompt": "Room type, breakfast, Wi-Fi, key card. Help the user ask one clarifying question. Practice numbers for floor/room." },
+        { "id": "requests", "turns": [5, 6], "prompt": "Optional requests: wake-up call, luggage help, late checkout. Keep formality polite-efficient." },
+        { "id": "debrief", "turn": 7, "prompt": "Step out. Structured debrief on polite requests and handling surprises (wrong room / missing reservation)." }
+      ],
+      "expected_turns": 7,
+      "complications": [
+        "Reservation not found under that name",
+        "Room type is different from booking",
+        "Clerk asks for a deposit or passport copy"
+      ]
+    }
   },
   "social": {
     "label": "Meeting Someone New",
@@ -165,7 +247,27 @@
     "cultural_guardrails": "Emergency numbers vary by country (not always 911). Know the local police number, ambulance number, and your country's embassy number before you need them. In some countries, reporting theft requires going to a police station in person.",
     "debrief_focus": "key emergency phrases, staying calm, what information to give first",
     "auto_suggestions": ["Call the police!", "I need an ambulance", "I've been robbed", "Where is the embassy?"],
-    "pronunciation_priority": ["help / emergency", "police / ambulance", "I am hurt / lost"]
+    "pronunciation_priority": ["help / emergency", "police / ambulance", "I am hurt / lost"],
+    "arc": {
+      "pretask_phrases": [
+        { "phrase": "Help!", "context": "urgent", "priority": 1 },
+        { "phrase": "Call the police / ambulance", "context": "dispatch", "priority": 2 },
+        { "phrase": "I need a doctor", "context": "medical", "priority": 3 }
+      ],
+      "phases": [
+        { "id": "scene_set", "turn": 1, "prompt": "Calm urgency. Name the local emergency numbers for this city. Preview 2-3 critical phrases. User stays in control — you coach, you do not panic." },
+        { "id": "first_phrase", "turn": 2, "prompt": "Practice the single most important phrase clearly under stress. Short sentences only. Recast gently." },
+        { "id": "dispatch", "turns": [3, 4], "prompt": "Simulate calling for help or talking to a first responder. Coach what information to give first (location, what happened, injuries)." },
+        { "id": "followup", "turn": 5, "prompt": "Embassy / police report / pharmacy follow-up. One practical next phrase. Keep calm tone." },
+        { "id": "debrief", "turn": 6, "prompt": "Step out. Structured debrief: calm delivery, key phrases, what info to lead with. No cheerleading — clarity matters." }
+      ],
+      "expected_turns": 6,
+      "complications": [
+        "Phone operator asks for an address you don't know how to say",
+        "Bystander only speaks the local language very fast",
+        "Need to report a theft at a police station in person"
+      ]
+    }
   },
   "landlord": {
     "label": "Renting / Landlord",
@@ -225,7 +327,27 @@
     "cultural_guardrails": "Watch how locals order — sometimes it's point-and-gesture, sometimes a full sentence. Dietary restrictions can be hard to communicate precisely — learn the words for your restrictions before you're hungry. Cash only at most stalls.",
     "debrief_focus": "ordering confidently, asking about ingredients, expressing enthusiasm in the local language",
     "auto_suggestions": ["What is this?", "One of those please", "Is it spicy?", "No meat please"],
-    "pronunciation_priority": ["ordering phrases", "numbers", "dietary terms"]
+    "pronunciation_priority": ["ordering phrases", "numbers", "dietary terms"],
+    "arc": {
+      "pretask_phrases": [
+        { "phrase": "What is this?", "context": "curiosity", "priority": 1 },
+        { "phrase": "One of those, please", "context": "ordering", "priority": 2 },
+        { "phrase": "Not too spicy / no meat", "context": "dietary", "priority": 3 }
+      ],
+      "phases": [
+        { "id": "scene_set", "turn": 1, "prompt": "Stall scene — smells, sizzle, queue. Pointing is fine. Cue 'what is this?' and watch how locals order." },
+        { "id": "order", "turn": 2, "prompt": "User orders. Coach a short order phrase + number. Celebrate enthusiasm; recast quietly." },
+        { "id": "customize", "turns": [3, 4], "prompt": "Spice level / no meat / take away. Teach the dietary phrase that matters. Cash-only note if relevant." },
+        { "id": "enjoy", "turns": [5, 6], "prompt": "Food in hand. Teach an enthusiasm phrase. Optional 'one more please' if they want seconds." },
+        { "id": "debrief", "turn": 7, "prompt": "Step out. Structured debrief on ordering confidently and ingredient questions." }
+      ],
+      "expected_turns": 7,
+      "complications": [
+        "Vendor asks a follow-up question the user didn't expect",
+        "Dish is much spicier than expected — how to say so politely",
+        "Sold out of the item they pointed at"
+      ]
+    }
   },
   "date": {
     "label": "Meeting Someone",

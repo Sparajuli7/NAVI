@@ -1,23 +1,76 @@
 import React, { useState, useRef } from 'react';
-import { X, Zap, ZapOff, Volume2 } from 'lucide-react';
+import {
+  X, Zap, ZapOff, Volume2, Camera, Utensils, Signpost, FileText,
+  File, Tag, ScanText, type LucideIcon,
+} from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { CharacterAvatar } from './CharacterAvatar';
+import { CompanionFace } from './CompanionFace';
 import { useNaviAgent } from '../../agent/react/useNaviAgent';
+import type { ImageAnalysisResult } from '../../agent/pipelines/imageUnderstanding';
 import { speakPhrase } from '../../services/tts';
 import { parseResponse } from '../../utils/responseParser';
 import type { ParsedSegment, PhraseCardSegment } from '../../types/chat';
-import { useCharacterStore } from '../../stores/characterStore';
 import { useAppStore } from '../../stores/appStore';
 import { useChatStore } from '../../stores/chatStore';
+import { useCharacterStore } from '../../stores/characterStore';
 import { FALLBACKS } from '../../utils/fallbacks';
 import type { GeneratedCharacter } from '../../types/character';
+import type { LocationContext } from '../../types/config';
 
 interface CameraOverlayProps {
   character: GeneratedCharacter;
   onClose: () => void;
 }
 
+/** Map dialect/location language names to Tesseract codes */
+const TESSERACT_LANG_MAP: Record<string, string> = {
+  English: 'eng',
+  Vietnamese: 'vie',
+  Japanese: 'jpn',
+  Korean: 'kor',
+  French: 'fra',
+  Mandarin: 'chi_sim',
+  Chinese: 'chi_sim',
+  Spanish: 'spa',
+  Nepali: 'nep',
+  Hindi: 'hin',
+  Thai: 'tha',
+  German: 'deu',
+  Portuguese: 'por',
+  Italian: 'ita',
+  Indonesian: 'ind',
+  Turkish: 'tur',
+  Russian: 'rus',
+  Swahili: 'swa',
+  // Tagalog/Filipino: no dedicated Tesseract pack — Latin script falls back to eng
+  Tagalog: 'eng',
+  Filipino: 'eng',
+};
+
+const DEFAULT_OCR_LANGS = 'eng+vie+jpn+kor+fra+chi_sim';
+
+const TYPE_LABELS: Record<string, { Icon: LucideIcon; label: string }> = {
+  MENU:     { Icon: Utensils, label: 'Menu' },
+  SIGN:     { Icon: Signpost, label: 'Sign' },
+  DOCUMENT: { Icon: FileText, label: 'Document' },
+  PAGE:     { Icon: File, label: 'Page' },
+  LABEL:    { Icon: Tag, label: 'Label' },
+  GENERAL:  { Icon: ScanText, label: 'Text' },
+};
+
+function resolveOcrLanguages(
+  location?: LocationContext | null,
+  targetLanguage?: string,
+): string {
+  const lang = location?.dialectInfo?.language || targetLanguage;
+  if (!lang) return DEFAULT_OCR_LANGS;
+  const code = TESSERACT_LANG_MAP[lang] ?? 'eng';
+  return code === 'eng' ? 'eng' : `${code}+eng`;
+}
+
 export function CameraOverlay({ character, onClose }: CameraOverlayProps) {
+  const { activeCharacter } = useCharacterStore();
+  const portraitUrl = activeCharacter?.avatarImageUrl ?? character.avatarImageUrl;
   const [isScanning, setIsScanning] = useState(false);
   const [showResults, setShowResults] = useState(false);
   const [flashOn, setFlashOn] = useState(false);
@@ -31,12 +84,21 @@ export function CameraOverlay({ character, onClose }: CameraOverlayProps) {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const resultsShownRef = useRef(false);
 
   const { currentLocation } = useAppStore();
   const { setPendingUserMessage } = useChatStore();
-  const { agent } = useNaviAgent();
+  const { agent, isLLMReady } = useNaviAgent();
 
   const handleFileCapture = async (file: File) => {
+    if (!isLLMReady) {
+      setErrorMessage(
+        "The AI model isn't loaded yet. Open Settings (gear icon) → AI Model to download or retry.",
+      );
+      setShowResults(true);
+      return;
+    }
+
     const url = URL.createObjectURL(file);
     setPreviewUrl(url);
     setIsScanning(true);
@@ -47,16 +109,19 @@ export function CameraOverlay({ character, onClose }: CameraOverlayProps) {
     setScanTypeLabel(null);
     setOcrProgress(0);
     setScannedText('');
+    resultsShownRef.current = false;
+
+    const ocrLanguages = resolveOcrLanguages(currentLocation, character.target_language);
 
     try {
-      // Use the agent's image pipeline (OCR → classify → LLM explain)
       const result = await agent.handleImage(file, {
+        ocrLanguages,
         onOCRProgress: (progress) => {
           setOcrProgress(progress);
         },
         onExplanationToken: (_token, fullText) => {
-          // Once we start getting LLM tokens, show the results
-          if (!showResults) {
+          if (!resultsShownRef.current) {
+            resultsShownRef.current = true;
             setIsScanning(false);
             setShowResults(true);
             setIsLLMStreaming(true);
@@ -69,20 +134,25 @@ export function CameraOverlay({ character, onClose }: CameraOverlayProps) {
       setIsLLMStreaming(false);
 
       if (result.success && result.data) {
-        const data = result.data as Record<string, unknown>;
-        const responseText = (data.response as string) ?? '';
-        const ocrText = (data.extractedText as string) ?? '';
-        const docType = (data.documentType as string) ?? 'GENERAL';
+        const data = result.data as ImageAnalysisResult;
+        const explanationText = data.explanation ?? '';
+        const ocrText = data.rawText ?? '';
+        const docType = data.documentType ?? 'GENERAL';
+
+        if (!ocrText.trim()) {
+          setErrorMessage(FALLBACKS.camera_no_text);
+          setShowResults(true);
+          return;
+        }
 
         setScannedText(ocrText);
         setScanTypeLabel(docType);
-        setLlmResponse(responseText);
-        setParsedSegments(parseResponse(responseText));
+        setLlmResponse(explanationText);
+        setParsedSegments(parseResponse(explanationText));
         setShowResults(true);
       } else {
         const errorText = result.error ?? FALLBACKS.inference_error;
-        // Check if OCR returned no text
-        if (errorText.includes('No text') || errorText.includes('no text')) {
+        if (errorText.toLowerCase().includes('no text')) {
           setErrorMessage(FALLBACKS.camera_no_text);
         } else {
           setErrorMessage(errorText);
@@ -93,7 +163,12 @@ export function CameraOverlay({ character, onClose }: CameraOverlayProps) {
       console.error('Camera pipeline error:', err);
       setIsScanning(false);
       setIsLLMStreaming(false);
-      setErrorMessage(FALLBACKS.inference_error);
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.toLowerCase().includes('no text')) {
+        setErrorMessage(FALLBACKS.camera_no_text);
+      } else {
+        setErrorMessage(FALLBACKS.inference_error);
+      }
       setShowResults(true);
     }
   };
@@ -119,20 +194,12 @@ export function CameraOverlay({ character, onClose }: CameraOverlayProps) {
     setScanTypeLabel(null);
     setOcrProgress(0);
     setScannedText('');
+    resultsShownRef.current = false;
     if (previewUrl) URL.revokeObjectURL(previewUrl);
     setPreviewUrl(null);
     setTimeout(() => fileInputRef.current?.click(), 100);
   };
 
-  // Map scan type to display labels
-  const TYPE_LABELS: Record<string, { emoji: string; label: string }> = {
-    MENU:     { emoji: '🍽️', label: 'Menu detected' },
-    SIGN:     { emoji: '🪧', label: 'Sign detected' },
-    DOCUMENT: { emoji: '📄', label: 'Document detected' },
-    PAGE:     { emoji: '📃', label: 'Text page detected' },
-    LABEL:    { emoji: '🏷️', label: 'Label detected' },
-    GENERAL:  { emoji: '📝', label: 'Text detected' },
-  };
   const typeLabel = scanTypeLabel ? TYPE_LABELS[scanTypeLabel] ?? null : null;
 
   return (
@@ -165,8 +232,16 @@ export function CameraOverlay({ character, onClose }: CameraOverlayProps) {
             className="w-full h-full object-cover opacity-70"
           />
         ) : (
-          <div className="w-full h-full flex items-center justify-center">
-            <p className="text-white/30 text-sm">Tap Scan to capture</p>
+          <div className="w-full h-full flex flex-col items-center justify-center gap-3">
+            <motion.div
+              className="w-16 h-16 rounded-2xl border border-white/15 bg-white/5 flex items-center justify-center"
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.35 }}
+            >
+              <Camera className="w-7 h-7 text-white/35" strokeWidth={1.5} />
+            </motion.div>
+            <p className="text-white/35 text-sm">Point at a menu or sign</p>
           </div>
         )}
         <div className="absolute inset-0 bg-black/20" />
@@ -177,21 +252,28 @@ export function CameraOverlay({ character, onClose }: CameraOverlayProps) {
         <button
           onClick={onClose}
           aria-label="Close camera"
-          className="p-2 bg-black/50 backdrop-blur-sm rounded-full"
+          className="p-2.5 bg-black/50 backdrop-blur-md rounded-full border border-white/10"
         >
           <X className="w-5 h-5 text-white" />
         </button>
-        <span className="text-white font-medium">Camera</span>
+        <motion.div
+          className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/40 backdrop-blur-md border border-white/10"
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+        >
+          <Camera className="w-3.5 h-3.5 text-primary" strokeWidth={2} />
+          <span className="text-white text-sm font-medium tracking-wide">Scan</span>
+        </motion.div>
         <button
           onClick={() => setFlashOn(!flashOn)}
           aria-label={flashOn ? 'Turn flash off' : 'Turn flash on'}
           aria-pressed={flashOn}
-          className="p-2 bg-black/50 backdrop-blur-sm rounded-full"
+          className="p-2.5 bg-black/50 backdrop-blur-md rounded-full border border-white/10"
         >
           {flashOn ? (
-            <Zap className="w-5 h-5 text-yellow-400" />
+            <Zap className="w-5 h-5 text-primary" />
           ) : (
-            <ZapOff className="w-5 h-5 text-white" />
+            <ZapOff className="w-5 h-5 text-white/70" />
           )}
         </button>
       </div>
@@ -230,27 +312,32 @@ export function CameraOverlay({ character, onClose }: CameraOverlayProps) {
               />
             </motion.div>
 
-            {/* OCR progress indicator */}
             {ocrProgress > 0 && (
-              <div className="absolute bottom-[22%] left-1/2 -translate-x-1/2 px-4 py-2 bg-black/70 rounded-full">
-                <p className="text-white text-sm">Reading text... {ocrProgress}%</p>
-              </div>
+              <motion.div
+                className="absolute bottom-[22%] left-1/2 -translate-x-1/2 px-4 py-2 bg-black/70 backdrop-blur-md rounded-full border border-white/10"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+              >
+                <p className="text-white text-xs tracking-wide">Reading {ocrProgress}%</p>
+              </motion.div>
             )}
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Detection pill */}
-      {showResults && typeLabel && (
-        <motion.div
-          className="absolute top-20 left-1/2 -translate-x-1/2 z-30 px-4 py-2 bg-black/80 backdrop-blur-md rounded-full flex items-center gap-2"
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-        >
-          <span className="text-lg">{typeLabel.emoji}</span>
-          <span className="text-white text-sm font-medium">{typeLabel.label}</span>
-        </motion.div>
-      )}
+      {showResults && typeLabel && (() => {
+        const TypeIcon = typeLabel.Icon;
+        return (
+          <motion.div
+            className="absolute top-20 left-1/2 -translate-x-1/2 z-30 px-3.5 py-1.5 bg-black/80 backdrop-blur-md rounded-full flex items-center gap-2 border border-white/10"
+            initial={{ opacity: 0, y: -12 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
+            <TypeIcon className="w-3.5 h-3.5 text-primary" strokeWidth={2} />
+            <span className="text-white text-xs font-medium tracking-wide">{typeLabel.label}</span>
+          </motion.div>
+        );
+      })()}
 
       {/* Results bottom sheet */}
       <AnimatePresence>
@@ -270,10 +357,14 @@ export function CameraOverlay({ character, onClose }: CameraOverlayProps) {
             <div className="px-6 pb-6">
               {/* Character interpretation */}
               <div className="flex items-start gap-3 mb-6">
-                <CharacterAvatar
-                  character={character}
+                <CompanionFace
+                  imageUrl={portraitUrl}
+                  name={character.name}
                   size="sm"
-                  animationState="none"
+                  accentColor={{
+                    primary: character.colors?.primary ?? '#6BBAA7',
+                    secondary: character.colors?.secondary ?? '#D4A853',
+                  }}
                 />
                 <div className="flex-1">
                   <p className="font-medium text-foreground mb-1">{character.name}</p>
@@ -346,24 +437,22 @@ export function CameraOverlay({ character, onClose }: CameraOverlayProps) {
         )}
       </AnimatePresence>
 
-      {/* Capture button */}
       {!showResults && !isScanning && (
         <motion.div
           className="absolute bottom-12 left-1/2 -translate-x-1/2 z-20 text-center"
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.15 }}
         >
-          <button
+          <motion.button
             onClick={() => fileInputRef.current?.click()}
-            className="w-20 h-20 rounded-full bg-primary border-4 border-white shadow-lg active:scale-95 transition-transform"
+            className="w-[72px] h-[72px] rounded-full bg-primary border-[3px] border-white/90 shadow-lg flex items-center justify-center"
+            whileTap={{ scale: 0.94 }}
+            whileHover={{ scale: 1.03 }}
           >
-            <div className="w-full h-full rounded-full flex items-center justify-center">
-              <span className="text-primary-foreground font-medium">Scan</span>
-            </div>
-          </button>
-          <p className="text-white text-sm mt-3">
-            Point at menu or sign
-          </p>
+            <ScanText className="w-6 h-6 text-primary-foreground" strokeWidth={2} />
+          </motion.button>
+          <p className="text-white/50 text-xs mt-3 tracking-wide">Tap to capture</p>
         </motion.div>
       )}
     </motion.div>

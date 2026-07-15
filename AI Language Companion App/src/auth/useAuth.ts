@@ -15,8 +15,7 @@ import { pullAll, pushLocalToCloud } from '../db/sync/syncEngine';
 export function useAuth(onReady: (userId: string | null) => void) {
   useEffect(() => {
     if (!isSupabaseConfigured) {
-      // Supabase not set up yet — run as guest immediately
-      useAuthStore.getState().continueAsGuest();
+      useAuthStore.getState().setLoading(false);
       onReady(null);
       return;
     }

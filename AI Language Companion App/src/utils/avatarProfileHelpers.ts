@@ -67,6 +67,7 @@ export function buildAvatarProfileParams(
     culturalContext: culturalNotes ?? '',
     location: char.location_city,
     scenario: '',
+    personalityDetails: char.personality_details,
     visual: {
       primaryColor: char.avatar_color?.primary ?? '#6BBAA7',
       secondaryColor: char.avatar_color?.secondary ?? '#D4A853',

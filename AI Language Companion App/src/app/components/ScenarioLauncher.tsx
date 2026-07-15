@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { X, ChevronRight, ArrowLeft, Sparkles } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import type { ScenarioKey, ParsedScenarioContext } from '../../types/config';
+import { scenarioIcon } from '../../utils/scenarioIcons';
 import scenarioContexts from '../../config/scenarioContexts.json';
 
 // ─── Types ─────────────────────────────────────────────────────
@@ -9,7 +10,6 @@ import scenarioContexts from '../../config/scenarioContexts.json';
 interface ScenarioTemplate {
   key: ScenarioKey | 'custom';
   label: string;
-  emoji: string;
   tone_guidance?: string;
   vocabulary_focus?: string[];
   cultural_guardrails?: string;
@@ -22,7 +22,6 @@ interface ScenarioLauncherProps {
 }
 
 // ─── Context parser ─────────────────────────────────────────────
-// Lightweight extraction: no LLM, no network. Reads form fields + raw text.
 
 function buildContextSummary(ctx: ParsedScenarioContext): string {
   const parts: string[] = [];
@@ -38,7 +37,6 @@ function buildContextSummary(ctx: ParsedScenarioContext): string {
 
 const SCENARIOS = scenarioContexts as Record<string, {
   label: string;
-  emoji?: string;
   tone_guidance?: string;
   vocabulary_focus?: string[];
   cultural_guardrails?: string;
@@ -57,8 +55,7 @@ function getTemplates(): ScenarioTemplate[] {
     if (key === 'custom') {
       return {
         key: 'custom',
-        label: 'Custom Situation',
-        emoji: '✏️',
+        label: 'Custom',
         tone_guidance: 'Adapt completely to the situation the user describes.',
       };
     }
@@ -66,7 +63,6 @@ function getTemplates(): ScenarioTemplate[] {
     return {
       key,
       label: cfg?.label ?? key,
-      emoji: cfg?.emoji ?? '💬',
       tone_guidance: cfg?.tone_guidance,
       vocabulary_focus: cfg?.vocabulary_focus,
       cultural_guardrails: cfg?.cultural_guardrails,
@@ -77,15 +73,11 @@ function getTemplates(): ScenarioTemplate[] {
 
 const TEMPLATES = getTemplates();
 
-// ─── Component ─────────────────────────────────────────────────
-
-
 const EMPTY_CTX: ParsedScenarioContext = {
   where: '', doing: '', talkingTo: '', nervousAbout: '', customText: '',
 };
 
 export function ScenarioLauncher({ onStart, onClose }: ScenarioLauncherProps) {
-  // 'pick' = template grid, 'custom' = single text input for custom scenario only
   const [step, setStep] = useState<'pick' | 'custom'>('pick');
   const [situationText, setSituationText] = useState('');
 
@@ -94,7 +86,6 @@ export function ScenarioLauncher({ onStart, onClose }: ScenarioLauncherProps) {
       setSituationText('');
       setStep('custom');
     } else {
-      // Template scenarios launch immediately — no context form
       onStart(t.key, EMPTY_CTX);
     }
   };
@@ -113,28 +104,27 @@ export function ScenarioLauncher({ onStart, onClose }: ScenarioLauncherProps) {
       initial={{ y: '100%' }}
       animate={{ y: 0 }}
       exit={{ y: '100%' }}
-      transition={{ type: 'spring', damping: 30, stiffness: 300 }}
+      transition={{ type: 'spring', damping: 32, stiffness: 320 }}
     >
-      {/* Header */}
-      <div className="flex items-center justify-between px-5 py-4 border-b border-border flex-shrink-0">
+      <div className="flex items-center justify-between px-5 py-4 border-b border-border/60 flex-shrink-0">
         <div className="flex items-center gap-3">
           {step === 'custom' && (
-            <button
+            <motion.button
+              initial={{ opacity: 0, x: -8 }}
+              animate={{ opacity: 1, x: 0 }}
               onClick={() => setStep('pick')}
               aria-label="Back to scenario list"
               className="p-1.5 hover:bg-muted/50 rounded-lg transition-colors"
             >
               <ArrowLeft className="w-4 h-4 text-muted-foreground" />
-            </button>
+            </motion.button>
           )}
           <div>
-            <h2 className="font-medium text-foreground text-base">
-              {step === 'pick' ? 'Practice a Scenario' : 'Custom Situation'}
+            <h2 className="font-medium text-foreground text-base" style={{ fontFamily: 'var(--font-display)' }}>
+              {step === 'pick' ? 'Practice' : 'Custom'}
             </h2>
             <p className="text-xs text-muted-foreground mt-0.5">
-              {step === 'pick'
-                ? 'Tap a situation to start immediately'
-                : 'Describe what\'s happening'}
+              {step === 'pick' ? 'Tap to start' : 'Describe the moment'}
             </p>
           </div>
         </div>
@@ -149,51 +139,57 @@ export function ScenarioLauncher({ onStart, onClose }: ScenarioLauncherProps) {
 
       <AnimatePresence mode="wait">
         {step === 'pick' ? (
-          /* ── Template grid — tap to launch immediately ──────── */
           <motion.div
             key="pick"
             className="flex-1 overflow-y-auto px-4 py-4"
-            initial={{ opacity: 0, x: -20 }}
+            initial={{ opacity: 0, x: -12 }}
             animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -20 }}
+            exit={{ opacity: 0, x: -12 }}
+            transition={{ duration: 0.2 }}
           >
-            <div className="grid grid-cols-3 gap-3">
-              {TEMPLATES.map((t) => (
-                <motion.button
-                  key={t.key}
-                  className={`flex flex-col items-center gap-2 p-4 rounded-2xl border text-center transition-all
-                    ${t.key === 'custom'
-                      ? 'border-dashed border-border/60 bg-card/30 hover:border-primary/40 hover:bg-primary/5'
-                      : 'border-border bg-card hover:border-primary/40 hover:bg-primary/5'
-                    }`}
-                  onClick={() => handleSelectTemplate(t)}
-                  whileTap={{ scale: 0.96 }}
-                >
-                  <span className="text-2xl">{t.emoji}</span>
-                  <p className="text-xs font-medium text-foreground leading-tight">{t.label}</p>
-                </motion.button>
-              ))}
+            <div className="grid grid-cols-3 gap-2.5">
+              {TEMPLATES.map((t, i) => {
+                const Icon = scenarioIcon(t.key);
+                return (
+                  <motion.button
+                    key={t.key}
+                    className={`flex flex-col items-center gap-2 p-3.5 rounded-2xl border text-center transition-all
+                      ${t.key === 'custom'
+                        ? 'border-dashed border-border/50 bg-card/40 hover:border-primary/40 hover:bg-primary/5'
+                        : 'border-border/60 bg-card/80 hover:border-primary/40 hover:bg-primary/5'
+                      }`}
+                    onClick={() => handleSelectTemplate(t)}
+                    whileTap={{ scale: 0.96 }}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: Math.min(i * 0.02, 0.3) }}
+                  >
+                    <Icon className="w-5 h-5 text-primary" strokeWidth={1.75} />
+                    <p className="text-[11px] font-medium text-foreground leading-tight">{t.label}</p>
+                  </motion.button>
+                );
+              })}
             </div>
           </motion.div>
         ) : (
-          /* ── Custom scenario: single text input ─────────────── */
           <motion.div
             key="custom"
             className="flex-1 overflow-y-auto px-5 py-5 flex flex-col gap-5"
-            initial={{ opacity: 0, x: 20 }}
+            initial={{ opacity: 0, x: 12 }}
             animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: 20 }}
+            exit={{ opacity: 0, x: 12 }}
+            transition={{ duration: 0.2 }}
           >
             <div className="space-y-2">
               <label className="text-sm font-medium text-foreground">
-                What's happening?
+                What&apos;s happening?
               </label>
               <textarea
                 rows={4}
                 value={situationText}
                 onChange={(e) => setSituationText(e.target.value)}
-                placeholder="e.g. I'm at a market in Istanbul and I need to buy a carpet without getting ripped off"
-                className="w-full px-4 py-3 bg-background border border-border rounded-xl text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/40 text-sm resize-none leading-relaxed"
+                placeholder="e.g. Market in Istanbul — need to haggle for a carpet"
+                className="w-full px-4 py-3 bg-background border border-border/60 rounded-xl text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/40 text-sm resize-none leading-relaxed"
                 autoFocus
               />
             </div>
@@ -215,5 +211,4 @@ export function ScenarioLauncher({ onStart, onClose }: ScenarioLauncherProps) {
   );
 }
 
-// Export the context summary builder so other modules can use it
 export { buildContextSummary };

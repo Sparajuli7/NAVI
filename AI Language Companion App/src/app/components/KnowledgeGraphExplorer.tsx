@@ -13,7 +13,11 @@
  */
 
 import React, { useMemo, useState, useCallback } from 'react';
-import { ArrowLeft, Search, X, Globe, User, MapPin, BookOpen, Flame, AlertTriangle, Zap, MessageCircle } from 'lucide-react';
+import {
+  ArrowLeft, Search, X, Globe, User, MapPin, BookOpen, Zap, MessageCircle,
+  Theater, MessageSquare, Hand, Pencil, Ear, HelpCircle, Frown, Smile,
+  Meh, AlertTriangle, Clock, Trophy, type LucideIcon,
+} from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import type {
   TermNode,
@@ -47,16 +51,20 @@ const MASTERY_COLORS: Record<PhraseMastery, { bg: string; border: string; text: 
   mastered:  { bg: 'bg-[#D4A853]/10',  border: 'border-[#D4A853]',  text: 'text-[#D4A853]',  label: 'Mastered' },
 };
 
-const ENCOUNTER_ICONS: Record<EncounterType, { icon: string; label: string }> = {
-  scenario:  { icon: '🎭', label: 'In scenario' },
-  organic:   { icon: '💬', label: 'Organic chat' },
-  requested: { icon: '🙋', label: 'You asked' },
-  corrected: { icon: '✏️', label: 'Corrected' },
-  overheard: { icon: '👂', label: 'Overheard' },
+const ENCOUNTER_ICONS: Record<EncounterType, { Icon: LucideIcon; label: string }> = {
+  scenario:  { Icon: Theater, label: 'Scenario' },
+  organic:   { Icon: MessageSquare, label: 'Chat' },
+  requested: { Icon: Hand, label: 'Asked' },
+  corrected: { Icon: Pencil, label: 'Corrected' },
+  overheard: { Icon: Ear, label: 'Overheard' },
 };
 
-const MOOD_ICONS: Record<ConversationMood, string> = {
-  curious: '🧐', frustrated: '😤', confident: '😎', neutral: '😐', struggling: '😓',
+const MOOD_ICONS: Record<ConversationMood, LucideIcon> = {
+  curious: HelpCircle,
+  frustrated: Frown,
+  confident: Smile,
+  neutral: Meh,
+  struggling: AlertTriangle,
 };
 
 type ViewMode = 'terms' | 'detail' | 'timeline';
@@ -183,10 +191,10 @@ export function KnowledgeGraphExplorer({ graph, onBack, onPracticePhrase, charac
           </button>
           <div>
             <h2 className="text-[#F5F0EB] font-semibold text-base leading-tight">
-              {view === 'detail' ? 'Term Detail' : view === 'timeline' ? 'Conversations' : 'Memory Graph'}
+              {view === 'detail' ? 'Term' : view === 'timeline' ? 'Timeline' : 'Memory'}
             </h2>
             <p className="text-[#F5F0EB]/50 text-xs">
-              {stats.termCount} terms · {stats.conversationCount} conversations · {stats.topicCount} topics
+              {stats.termCount} terms · {stats.conversationCount} chats
             </p>
           </div>
         </div>
@@ -229,36 +237,40 @@ export function KnowledgeGraphExplorer({ graph, onBack, onPracticePhrase, charac
         )}
       </AnimatePresence>
 
-      {/* View tabs */}
       {view !== 'detail' && (
         <div className="px-4 pt-3 pb-1 flex gap-2">
           {(['terms', 'timeline'] as const).map(v => (
             <button
               key={v}
               onClick={() => setView(v)}
-              className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+              className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
                 view === v ? 'bg-[#D4A853]/20 text-[#D4A853]' : 'bg-white/5 text-[#F5F0EB]/50'
               }`}
             >
-              {v === 'terms' ? `Terms (${stats.termCount})` : `Timeline (${stats.conversationCount})`}
+              {v === 'terms' ? `Terms · ${stats.termCount}` : `Timeline · ${stats.conversationCount}`}
             </button>
           ))}
         </div>
       )}
 
-      {/* Filter tabs (terms view only) */}
       {view === 'terms' && (
         <div className="px-4 pt-2 pb-2 flex gap-2 overflow-x-auto">
-          {(['all', 'struggling', 'due', 'mastered'] as const).map(f => (
+          {([
+            { f: 'all' as const, label: 'All', Icon: BookOpen },
+            { f: 'struggling' as const, label: 'Hard', Icon: Zap },
+            { f: 'due' as const, label: 'Due', Icon: Clock },
+            { f: 'mastered' as const, label: 'Done', Icon: Trophy },
+          ]).map(({ f, label, Icon }) => (
             <button
               key={f}
               onClick={() => setFilter(f)}
-              className={`px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${
+              className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${
                 filter === f ? 'bg-[#6BBAA7]/20 text-[#6BBAA7]' : 'bg-white/5 text-[#F5F0EB]/40'
               }`}
             >
-              {f === 'all' ? 'All' : f === 'struggling' ? '⚡ Struggling' : f === 'due' ? '⏰ Due' : '🏆 Mastered'}
-              {filterCounts[f] > 0 && ` (${filterCounts[f]})`}
+              <Icon className="w-3 h-3" />
+              {label}
+              {filterCounts[f] > 0 && ` · ${filterCounts[f]}`}
             </button>
           ))}
         </div>
@@ -270,14 +282,16 @@ export function KnowledgeGraphExplorer({ graph, onBack, onPracticePhrase, charac
         {view === 'terms' && (
           <div className="space-y-2 pt-2">
             {filteredTerms.length === 0 && (
-              <div className="text-center py-12">
-                <BookOpen size={40} className="mx-auto text-[#F5F0EB]/20 mb-3" />
+              <motion.div
+                className="text-center py-16"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+              >
+                <BookOpen size={36} className="mx-auto text-[#F5F0EB]/20 mb-3" strokeWidth={1.25} />
                 <p className="text-[#F5F0EB]/40 text-sm">
-                  {terms.length === 0
-                    ? 'Start chatting to build your memory graph'
-                    : 'No terms match this filter'}
+                  {terms.length === 0 ? 'Chat to build memory' : 'Nothing here'}
                 </p>
-              </div>
+              </motion.div>
             )}
             {filteredTerms.map((term, i) => (
               <TermCard
@@ -307,10 +321,14 @@ export function KnowledgeGraphExplorer({ graph, onBack, onPracticePhrase, charac
         {view === 'timeline' && (
           <div className="space-y-3 pt-2">
             {conversations.length === 0 && (
-              <div className="text-center py-12">
-                <MessageCircle size={40} className="mx-auto text-[#F5F0EB]/20 mb-3" />
-                <p className="text-[#F5F0EB]/40 text-sm">No conversations recorded yet</p>
-              </div>
+              <motion.div
+                className="text-center py-16"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+              >
+                <MessageCircle size={36} className="mx-auto text-[#F5F0EB]/20 mb-3" strokeWidth={1.25} />
+                <p className="text-[#F5F0EB]/40 text-sm">No chats yet</p>
+              </motion.div>
             )}
             {conversations.map((conv, i) => (
               <ConversationCard key={conv.id} conv={conv} graph={graph} index={i} />
@@ -332,6 +350,7 @@ function TermCard({ term, index, onTap, onPractice }: {
 }) {
   const mc = MASTERY_COLORS[term.mastery];
   const enc = ENCOUNTER_ICONS[term.encounterType];
+  const EncIcon = enc.Icon;
   const isDue = term.nextReviewAt <= Date.now() && term.mastery !== 'mastered';
 
   return (
@@ -344,47 +363,37 @@ function TermCard({ term, index, onTap, onPractice }: {
     >
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
-          {/* Phrase */}
           <p className="text-[#F5F0EB] font-serif text-lg leading-tight truncate">{term.phrase}</p>
-          {/* Pronunciation + meaning */}
           <p className="text-[#F5F0EB]/50 text-xs mt-0.5 truncate">
             {term.pronunciation && <span className="italic">{term.pronunciation}</span>}
             {term.pronunciation && term.meaning && <span> — </span>}
             {term.meaning && <span>{term.meaning}</span>}
           </p>
         </div>
-        {/* Mastery badge */}
         <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${mc.bg} ${mc.text} border ${mc.border}/40 whitespace-nowrap`}>
           {mc.label}
         </span>
       </div>
 
-      {/* Meta row */}
       <div className="flex items-center gap-3 mt-2 text-[10px] text-[#F5F0EB]/40">
-        {/* Encounter type */}
-        <span title={enc.label}>{enc.icon} {enc.label}</span>
-        {/* Engagement */}
+        <span title={enc.label} className="flex items-center gap-1">
+          <EncIcon className="w-3 h-3" /> {enc.label}
+        </span>
         <span className={mc.text} title={`Engagement: ${(term.metadata.engagementScore * 100).toFixed(0)}%`}>
           {engagementBar(term.metadata.engagementScore)}
         </span>
-        {/* Attempts */}
-        <span>{term.attemptCount}x practiced</span>
-        {/* Struggle indicator */}
+        <span>{term.attemptCount}×</span>
         {term.struggleCount > 0 && (
-          <span className="text-amber-400">⚡{term.struggleCount} struggled</span>
+          <span className="text-amber-400 flex items-center gap-0.5">
+            <Zap className="w-3 h-3" />{term.struggleCount}
+          </span>
         )}
-        {/* Due badge */}
         {isDue && (
-          <span className="text-red-400 font-semibold">⏰ Due</span>
+          <span className="text-red-400 font-semibold flex items-center gap-0.5">
+            <Clock className="w-3 h-3" /> Due
+          </span>
         )}
       </div>
-
-      {/* Reason */}
-      {term.inferredReason && (
-        <p className="text-[10px] text-[#F5F0EB]/30 mt-1 truncate italic">
-          Why: {term.inferredReason}
-        </p>
-      )}
 
       {/* Practice button (tap stops propagation) */}
       {isDue && onPractice && (
@@ -411,6 +420,7 @@ function TermDetailView({ term, conversations, relatedTerms, graph, onPractice, 
 }) {
   const mc = MASTERY_COLORS[term.mastery];
   const enc = ENCOUNTER_ICONS[term.encounterType];
+  const EncIcon = enc.Icon;
   const location = term.learnedAtLocation ? graph.getNode<LocationNode>(term.learnedAtLocation) : null;
   const scenario = term.learnedInScenario ? graph.getNode<ScenarioNode>(term.learnedInScenario) : null;
   const avatar = term.learnedFromAvatar ? graph.getNode<AvatarGraphNode>(term.learnedFromAvatar) : null;
@@ -421,7 +431,6 @@ function TermDetailView({ term, conversations, relatedTerms, graph, onPractice, 
       animate={{ opacity: 1, x: 0 }}
       className="pt-4 space-y-4"
     >
-      {/* Hero */}
       <div className={`rounded-2xl border ${mc.border}/30 ${mc.bg} p-5 text-center`}>
         <p className="text-[#F5F0EB] font-serif text-3xl">{term.phrase}</p>
         {term.pronunciation && (
@@ -434,8 +443,8 @@ function TermDetailView({ term, conversations, relatedTerms, graph, onPractice, 
           <span className={`px-3 py-1 rounded-full text-xs font-semibold ${mc.bg} ${mc.text} border ${mc.border}/40`}>
             {mc.label}
           </span>
-          <span className="text-[#F5F0EB]/40 text-xs">
-            {enc.icon} {enc.label}
+          <span className="text-[#F5F0EB]/40 text-xs flex items-center gap-1">
+            <EncIcon className="w-3 h-3" /> {enc.label}
           </span>
         </div>
         {onPractice && (
@@ -443,7 +452,7 @@ function TermDetailView({ term, conversations, relatedTerms, graph, onPractice, 
             onClick={() => onPractice(term.phrase)}
             className="mt-4 px-6 py-2 rounded-xl bg-[#D4A853]/20 text-[#D4A853] text-sm font-semibold hover:bg-[#D4A853]/30 transition-colors"
           >
-            Practice this phrase
+            Practice
           </button>
         )}
       </div>
@@ -455,38 +464,36 @@ function TermDetailView({ term, conversations, relatedTerms, graph, onPractice, 
         <StatBox label="Engagement" value={`${(term.metadata.engagementScore * 100).toFixed(0)}%`} color="text-[#6BBAA7]" />
       </div>
 
-      {/* Why (inferred reason) */}
       {term.inferredReason && (
         <div className="rounded-xl bg-white/5 p-3">
-          <p className="text-[#F5F0EB]/50 text-[10px] uppercase tracking-wider mb-1">Why you learned this</p>
+          <p className="text-[#F5F0EB]/50 text-[10px] uppercase tracking-wider mb-1">Why</p>
           <p className="text-[#F5F0EB]/80 text-sm">{term.inferredReason}</p>
         </div>
       )}
 
-      {/* Context connections */}
       <div className="rounded-xl bg-white/5 p-3 space-y-2">
         <p className="text-[#F5F0EB]/50 text-[10px] uppercase tracking-wider mb-1">Context</p>
         {location && (
           <div className="flex items-center gap-2 text-[#F5F0EB]/60 text-xs">
             <MapPin size={14} className="text-[#6BBAA7]" />
-            <span>Learned in <strong className="text-[#F5F0EB]/80">{location.city}</strong></span>
+            <span><strong className="text-[#F5F0EB]/80">{location.city}</strong></span>
           </div>
         )}
         {scenario && (
           <div className="flex items-center gap-2 text-[#F5F0EB]/60 text-xs">
             <Globe size={14} className="text-[#D4A853]" />
-            <span>During <strong className="text-[#F5F0EB]/80">{scenario.scenarioKey}</strong> scenario</span>
+            <span><strong className="text-[#F5F0EB]/80">{scenario.scenarioKey}</strong></span>
           </div>
         )}
         {avatar && (
           <div className="flex items-center gap-2 text-[#F5F0EB]/60 text-xs">
             <User size={14} className="text-[#F5F0EB]/50" />
-            <span>Taught by <strong className="text-[#F5F0EB]/80">{avatar.name}</strong></span>
+            <span><strong className="text-[#F5F0EB]/80">{avatar.name}</strong></span>
           </div>
         )}
         <div className="flex items-center gap-2 text-[#F5F0EB]/60 text-xs">
           <BookOpen size={14} className="text-[#F5F0EB]/40" />
-          <span>{term.language} · {term.script || 'Latin'}</span>
+          <span>{term.language}</span>
         </div>
       </div>
 
@@ -544,7 +551,8 @@ function ConversationCard({ conv, graph, index }: {
   graph: KnowledgeGraphStore;
   index: number;
 }) {
-  const mood = MOOD_ICONS[conv.mood] || '😐';
+  void graph;
+  const MoodIcon = MOOD_ICONS[conv.mood] || Meh;
   const termsCount = conv.termsIntroduced.length;
 
   return (
@@ -560,14 +568,18 @@ function ConversationCard({ conv, graph, index }: {
           <div className="flex items-center gap-3 mt-1.5 text-[10px] text-[#F5F0EB]/40">
             <span>{timeAgo(conv.createdAt)}</span>
             <span>{conv.turnCount} turns</span>
-            <span>{mood} {conv.mood}</span>
-            {conv.scenario && <span>🎭 {conv.scenario}</span>}
-            {termsCount > 0 && <span className="text-[#6BBAA7]">+{termsCount} terms</span>}
+            <span className="flex items-center gap-1 capitalize">
+              <MoodIcon className="w-3 h-3" /> {conv.mood}
+            </span>
+            {conv.scenario && (
+              <span className="flex items-center gap-1">
+                <Theater className="w-3 h-3" /> {conv.scenario}
+              </span>
+            )}
+            {termsCount > 0 && <span className="text-[#6BBAA7]">+{termsCount}</span>}
           </div>
         </div>
-        {/* Engagement bar */}
         <div className="text-right ml-2">
-          <div className="text-[10px] text-[#F5F0EB]/30 mb-0.5">engagement</div>
           <div className="flex gap-0.5">
             {Array.from({ length: 5 }).map((_, i) => (
               <div

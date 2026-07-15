@@ -131,6 +131,7 @@ export { registerAllTools } from './tools';
 
 import { MemoryManager } from './memory';
 import { ModelRegistry, LLMProvider, LLM_PRESETS, OllamaProvider, OLLAMA_PRESETS, isOllamaAvailable, listOllamaModels, OpenRouterProvider, OPENROUTER_FREE_MODELS, OPENROUTER_PAID_MODELS, ManagedCloudProvider, TTSProvider, STTProvider, VisionProvider, EmbeddingProvider, TranslationProvider } from './models';
+import { FALLBACK_MODELS } from './models/openRouterProvider';
 import type { ChatLLM, AuthTokenGetter } from './models';
 import { AvatarContextController } from './avatar/contextController';
 import { LocationIntelligence } from './location/locationIntelligence';
@@ -299,15 +300,17 @@ export class NaviAgent {
       this.memory.working,
     );
     this.director.setSituationAssessor(this.memory.situation);
+    this.director.setEmotionalMemory(this.memory.emotional);
+    this.director.setThreadStore(this.memory.threads);
 
     // Session planner and proactive engine
     this.sessionPlanner = new SessionPlanner(this.memory.working);
     this.proactiveEngine = new ProactiveEngine(this.memory.learner, this.memory.episodic);
+    this.proactiveEngine.setEmotionalMemory(this.memory.emotional);
     this.director.setSessionPlanner(this.sessionPlanner);
 
     // Restore persisted backend preference from localStorage (overrides env var and config)
     const savedBackendPref = this.ls?.getItem('navi_backend_pref');
-    const savedORKey = this.ls?.getItem('navi_openrouter_key') ?? '';
     const savedORTier = (this.ls?.getItem('navi_openrouter_tier') ?? 'free') as OpenRouterTier;
     const savedWebllmPreset = this.ls?.getItem('navi_webllm_preset');
 
@@ -335,32 +338,24 @@ export class NaviAgent {
     // Determine backend — 'auto' is resolved during initialize()
     this.llmBackend = config.backend ?? 'auto';
 
-    // OpenRouter takes priority when the env key is present (supports comma-separated keys)
-    // Falls back to localStorage key if env var is absent
-    const rawKey = import.meta.env.VITE_OPENROUTER_API_KEY as string | undefined;
-    const openRouterKeys = rawKey
-      ? rawKey.split(',').map((k: string) => k.trim()).filter(Boolean)
-      : savedORKey ? [savedORKey] : [];
-
-    // Create the LLM provider based on backend selection
-    // Only use OpenRouter when the user explicitly chose it (savedBackendPref === 'openrouter').
-    // An env key alone must NOT override 'auto' or 'webllm' — that would fire OpenRouter before
-    // the user has visited BackendSelectScreen on first run.
+    // Create the LLM provider based on backend selection.
+    // OpenRouter (proxy) needs no client key — OPENROUTER_API_KEY lives in server/.env.local.
+    // Managed cloud needs a Supabase session token (injected via setAuthTokenProvider).
     if (this.llmBackend === 'managed') {
-      // NAVI-managed cloud — routes through our proxy with the user's session token.
-      // Token provider is injected later (setAuthTokenProvider); read lazily here.
       this.managedProvider = new ManagedCloudProvider(() => this.authTokenProvider?.() ?? null);
       this.llm = this.managedProvider;
-    } else if (openRouterKeys.length > 0 && this.llmBackend === 'openrouter') {
-      // OpenRouter cloud mode — no local model download needed
-      this.openRouterProvider = new OpenRouterProvider(openRouterKeys);
+    } else if (this.llmBackend === 'openrouter' || this.llmBackend === 'auto') {
+      // Proxy path: Vite mounts /api/chat in dev; Vercel Edge handles production metering separately
+      // via ManagedCloudProvider. OpenRouterProvider always hits /api/chat with no client key.
+      const models = this.resolveOpenRouterModels(this.openRouterTier);
+      this.openRouterProvider = new OpenRouterProvider(models);
       this.llm = this.openRouterProvider;
       this.llmBackend = 'openrouter';
     } else if (this.llmBackend === 'ollama') {
       this.ollamaProvider = this.createOllamaProvider(config);
       this.llm = this.ollamaProvider;
     } else {
-      // 'webllm' or 'auto' (auto defaults to webllm, may switch later in initialize())
+      // Explicit 'webllm' on-device fallback (co-founder path)
       const presetKey = config.llmPreset ?? 'qwen3-1.7b';
       this.webllmPresetKey = presetKey;
       this.webllmProvider = new LLMProvider(LLM_PRESETS[presetKey]);
@@ -405,6 +400,21 @@ export class NaviAgent {
       memoryManager: this.memory,
       locationIntelligence: this.location,
     };
+  }
+
+  private resolveOpenRouterModels(tier: OpenRouterTier): string[] {
+    const savedModels = this.ls?.getItem('navi_openrouter_models');
+    if (savedModels) {
+      try {
+        const parsed = JSON.parse(savedModels) as string[];
+        if (parsed?.length) return parsed;
+      } catch {
+        // fall through to defaults
+      }
+    }
+    const models = tier === 'paid' ? [...OPENROUTER_PAID_MODELS] : [...FALLBACK_MODELS];
+    this.ls?.setItem('navi_openrouter_models', JSON.stringify(models));
+    return models;
   }
 
   private createOllamaProvider(config: NaviAgentConfig): OllamaProvider {
@@ -553,6 +563,8 @@ export class NaviAgent {
       activeScenario: currentScenario || undefined,
       previousScenario: this.previousScenario || undefined,
       language: currentLanguage || undefined,
+      dialectKey: profile?.dialect || locationCtx?.dialectKey || undefined,
+      city: locationCtx?.city || profile?.location || undefined,
     });
     // Update previous scenario tracker for TBLT transitions
     this.previousScenario = currentScenario;
@@ -707,6 +719,8 @@ export class NaviAgent {
       response,
       tool: decision.tool,
       confidence: decision.confidence,
+      suggestScenarioWrap: directorCtx.suggestScenarioWrap === true,
+      scenarioPhaseId: directorCtx.scenarioPhaseId,
     };
   }
 
@@ -716,12 +730,14 @@ export class NaviAgent {
   async handleImage(
     image: File | Blob | string,
     callbacks?: {
+      ocrLanguages?: string;
       onOCRProgress?: (progress: number) => void;
       onExplanationToken?: (token: string, full: string) => void;
     },
   ): Promise<ToolResult> {
     const { result } = await handleUserInput('Read this image', {
       imageData: image,
+      ocrLanguages: callbacks?.ocrLanguages,
       onOCRProgress: callbacks?.onOCRProgress,
       onExplanationToken: callbacks?.onExplanationToken,
     });
@@ -783,7 +799,8 @@ export class NaviAgent {
    * or null if no proactive message is needed (user is in a normal session cadence).
    */
   getProactiveMessage(): string | null {
-    const avatarId = this.avatar.getActiveProfile()?.id;
+    const profile = this.avatar.getActiveProfile();
+    const avatarId = profile?.id;
     const backstoryTier = avatarId
       ? this.memory.relationships.getBackstoryTier(avatarId)
       : 0;
@@ -792,7 +809,11 @@ export class NaviAgent {
     const warmth = avatarId
       ? this.memory.relationships.getRelationship(avatarId).warmth
       : 0;
-    return this.proactiveEngine.getProactiveMessage(backstoryTier, currentLanguage, warmth);
+    return this.proactiveEngine.getProactiveMessage(backstoryTier, currentLanguage, warmth, {
+      avatarId,
+      emotional: this.memory.emotional,
+      personalityDetails: profile?.personalityDetails ?? null,
+    });
   }
 
   /** Get the current Ollama model name (if using Ollama backend) */
@@ -893,22 +914,23 @@ export class NaviAgent {
       this.llm = this.managedProvider;
       this.llmBackend = 'managed';
     } else if (type === 'openrouter') {
-      const envKey = (import.meta as unknown as { env: Record<string, string> }).env?.VITE_OPENROUTER_API_KEY?.split(',')[0]?.trim() ?? '';
-      const key = opts.apiKey?.trim() ?? this.ls?.getItem('navi_openrouter_key') ?? envKey ?? '';
-      if (!key) throw new Error('An OpenRouter API key is required. Get a free one at openrouter.ai.');
-
+      // Key is server-side only (OPENROUTER_API_KEY). Optional opts.apiKey is ignored for auth
+      // but still accepted for call-site backward compat with Settings BYOK UI.
       const tier = opts.openRouterTier ?? 'free';
-      const models = opts.openRouterModels ?? (tier === 'paid' ? OPENROUTER_PAID_MODELS : OPENROUTER_FREE_MODELS);
+      const models = opts.openRouterModels ?? this.resolveOpenRouterModels(tier);
 
       this.ls?.setItem('navi_backend_pref', 'openrouter');
-      this.ls?.setItem('navi_openrouter_key', key);
       this.ls?.setItem('navi_openrouter_tier', tier);
+      this.ls?.setItem('navi_openrouter_models', JSON.stringify(models));
+      if (opts.apiKey?.trim()) {
+        // Persist if user pasted a key in Settings (legacy BYOK UI) — not used by proxy path
+        this.ls?.setItem('navi_openrouter_key', opts.apiKey.trim());
+      }
 
       if (!this.openRouterProvider) {
-        this.openRouterProvider = new OpenRouterProvider(key, models);
+        this.openRouterProvider = new OpenRouterProvider(models);
         this.models.register(this.openRouterProvider);
       } else {
-        this.openRouterProvider.setApiKeys(key);
         this.openRouterProvider.setModels(models);
       }
 
