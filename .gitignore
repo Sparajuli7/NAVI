@@ -11,6 +11,9 @@ dist/
 .env.local
 .env.*.local
 
+# Research: keep docs + manifest in git, but not the downloaded copyrighted PDFs
+research/papers/*.pdf
+
 # OS
 .DS_Store
 Thumbs.db
