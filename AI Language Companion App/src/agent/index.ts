@@ -104,6 +104,8 @@ export {
   isOllamaAvailable,
   listOllamaModels,
   OpenRouterProvider,
+  ClaudeCodeProvider,
+  isClaudeBridgeAvailable,
   ManagedCloudProvider,
   ManagedCloudLimitError,
   TTSProvider,
@@ -130,7 +132,7 @@ export { registerAllTools } from './tools';
 // ─── NaviAgent: The unified agent instance ─────────────────────
 
 import { MemoryManager } from './memory';
-import { ModelRegistry, LLMProvider, LLM_PRESETS, OllamaProvider, OLLAMA_PRESETS, isOllamaAvailable, listOllamaModels, OpenRouterProvider, OPENROUTER_FREE_MODELS, OPENROUTER_PAID_MODELS, ManagedCloudProvider, TTSProvider, STTProvider, VisionProvider, EmbeddingProvider, TranslationProvider } from './models';
+import { ModelRegistry, LLMProvider, LLM_PRESETS, OllamaProvider, OLLAMA_PRESETS, isOllamaAvailable, listOllamaModels, OpenRouterProvider, OPENROUTER_FREE_MODELS, OPENROUTER_PAID_MODELS, ClaudeCodeProvider, isClaudeBridgeAvailable, ManagedCloudProvider, TTSProvider, STTProvider, VisionProvider, EmbeddingProvider, TranslationProvider } from './models';
 import type { ChatLLM, AuthTokenGetter } from './models';
 import { AvatarContextController } from './avatar/contextController';
 import { LocationIntelligence } from './location/locationIntelligence';
@@ -222,7 +224,7 @@ class ModeClassifier {
 }
 
 /** LLM backend selection */
-export type LLMBackend = 'webllm' | 'ollama' | 'openrouter' | 'managed' | 'auto';
+export type LLMBackend = 'webllm' | 'ollama' | 'openrouter' | 'managed' | 'claudecode' | 'auto';
 /** OpenRouter model tier */
 export type OpenRouterTier = 'free' | 'paid';
 
@@ -235,6 +237,10 @@ export interface NaviAgentConfig {
   ollamaModel?: string;
   /** Ollama server URL (default: http://localhost:11434) */
   ollamaBaseUrl?: string;
+  /** Claude Code bridge URL (default: http://127.0.0.1:4599) */
+  claudeCodeBaseUrl?: string;
+  /** Claude model the bridge should use (default: 'sonnet') */
+  claudeCodeModel?: string;
   /** Working memory capacity */
   workingMemoryCapacity?: number;
   /** Energy mode */
@@ -262,6 +268,7 @@ export class NaviAgent {
   private webllmProvider: LLMProvider | null = null;
   private ollamaProvider: OllamaProvider | null = null;
   private openRouterProvider: OpenRouterProvider | null = null;
+  private claudeCodeProvider: ClaudeCodeProvider | null = null;
   private managedProvider: ManagedCloudProvider | null = null;
   /** Supplies the Supabase access token to the managed-cloud provider. Injected
    *  from the app layer (see App.tsx) so agent core stays decoupled from auth. */
@@ -311,8 +318,12 @@ export class NaviAgent {
     const savedORTier = (this.ls?.getItem('navi_openrouter_tier') ?? 'free') as OpenRouterTier;
     const savedWebllmPreset = this.ls?.getItem('navi_webllm_preset');
 
-    if (savedBackendPref === 'webllm' || savedBackendPref === 'openrouter' || savedBackendPref === 'ollama' || savedBackendPref === 'managed') {
+    if (savedBackendPref === 'webllm' || savedBackendPref === 'openrouter' || savedBackendPref === 'ollama' || savedBackendPref === 'managed' || savedBackendPref === 'claudecode') {
       config = { ...config, backend: savedBackendPref as LLMBackend };
+      if (savedBackendPref === 'claudecode') {
+        const savedClaudeModel = this.ls?.getItem('navi_claudecode_model');
+        if (savedClaudeModel) config = { ...config, claudeCodeModel: savedClaudeModel };
+      }
       if (savedBackendPref === 'webllm' && savedWebllmPreset && savedWebllmPreset in LLM_PRESETS) {
         config = { ...config, llmPreset: savedWebllmPreset as keyof typeof LLM_PRESETS };
       }
@@ -356,6 +367,9 @@ export class NaviAgent {
       this.openRouterProvider = new OpenRouterProvider(openRouterKeys);
       this.llm = this.openRouterProvider;
       this.llmBackend = 'openrouter';
+    } else if (this.llmBackend === 'claudecode') {
+      this.claudeCodeProvider = this.createClaudeCodeProvider(config);
+      this.llm = this.claudeCodeProvider;
     } else if (this.llmBackend === 'ollama') {
       this.ollamaProvider = this.createOllamaProvider(config);
       this.llm = this.ollamaProvider;
@@ -377,6 +391,7 @@ export class NaviAgent {
     // Register all model providers
     if (this.managedProvider) this.models.register(this.managedProvider);
     if (this.openRouterProvider) this.models.register(this.openRouterProvider);
+    if (this.claudeCodeProvider) this.models.register(this.claudeCodeProvider);
     if (this.webllmProvider) this.models.register(this.webllmProvider);
     if (this.ollamaProvider) this.models.register(this.ollamaProvider);
     this.models.register(this.ttsProvider);
@@ -407,6 +422,13 @@ export class NaviAgent {
     };
   }
 
+  private createClaudeCodeProvider(config: NaviAgentConfig): ClaudeCodeProvider {
+    return new ClaudeCodeProvider({
+      baseUrl: config.claudeCodeBaseUrl,
+      model: config.claudeCodeModel ?? this.ls?.getItem('navi_claudecode_model') ?? undefined,
+    });
+  }
+
   private createOllamaProvider(config: NaviAgentConfig): OllamaProvider {
     const ollamaModel = config.ollamaModel ?? 'qwen2.5:1.5b';
     const preset = OLLAMA_PRESETS[ollamaModel as keyof typeof OLLAMA_PRESETS];
@@ -430,6 +452,10 @@ export class NaviAgent {
       // Cloud mode — nothing to download or detect; ready immediately.
       console.log(`[NAVI] Using ${this.llmBackend === 'managed' ? 'NAVI Cloud (managed)' : 'OpenRouter'} (cloud mode)`);
       agentBus.emit('model:status', { backend: this.llmBackend, status: 'ready' });
+    } else if (this.llmBackend === 'claudecode') {
+      // Local bridge — health is verified in loadLLM(); nothing to download.
+      console.log('[NAVI] Using Claude Code (local bridge)');
+      agentBus.emit('model:status', { backend: 'claudecode', status: 'detected' });
     } else if (this.llmBackend === 'auto') {
       // Auto-detect: prefer Ollama, fall back to WebLLM
       const ollamaUp = await isOllamaAvailable(this.config.ollamaBaseUrl);
@@ -472,6 +498,8 @@ export class NaviAgent {
     if (this.llmBackend === 'openrouter' || this.llmBackend === 'managed') {
       // No download needed — cloud backends are always ready
       return;
+    } else if (this.claudeCodeProvider && this.llmBackend === 'claudecode') {
+      await this.claudeCodeProvider.load(onProgress);
     } else if (this.ollamaProvider && this.llmBackend === 'ollama') {
       await this.ollamaProvider.load(onProgress);
     } else if (this.webllmProvider) {
@@ -534,9 +562,12 @@ export class NaviAgent {
     const currentMode = this.modeClassifier.getCurrentMode()
       ?? (this.memory.profile.getUserMode() ?? null);
 
-    // Compute scenario before director.preProcess so skills can use it
+    // Compute scenario before director.preProcess so skills can use it.
+    // Use the *effective* scenario (override wins over profile) so scenarios started
+    // via the ScenarioLauncher (which applyOverride's the scenario) are seen here too —
+    // this drives the opener, director phase hints, and language-density gating.
     const profile = this.avatar.getActiveProfile();
-    const currentScenario = profile?.scenario || '';
+    const currentScenario = this.avatar.getEffectiveScenario();
 
     // Detect first scenario message: scenario is active and different from previous turn
     // Must compute BEFORE updating previousScenario
@@ -874,16 +905,30 @@ export class NaviAgent {
    * Persists the choice to localStorage for next session.
    */
   async switchBackend(
-    type: 'webllm' | 'openrouter' | 'managed',
+    type: 'webllm' | 'openrouter' | 'managed' | 'claudecode',
     opts: {
       apiKey?: string;
       webllmPreset?: keyof typeof LLM_PRESETS;
       openRouterTier?: OpenRouterTier;
       openRouterModels?: string[];
+      claudeCodeModel?: string;
     } = {},
     onProgress?: (progress: number, text: string) => void,
   ): Promise<void> {
-    if (type === 'managed') {
+    if (type === 'claudecode') {
+      // Local Claude Code bridge — no key, no download; needs `pnpm run bridge` up.
+      const model = opts.claudeCodeModel ?? this.ls?.getItem('navi_claudecode_model') ?? undefined;
+      this.ls?.setItem('navi_backend_pref', 'claudecode');
+      if (model) this.ls?.setItem('navi_claudecode_model', model);
+      if (!this.claudeCodeProvider) {
+        this.claudeCodeProvider = this.createClaudeCodeProvider({ claudeCodeModel: model });
+        this.models.register(this.claudeCodeProvider);
+      } else if (model) {
+        this.claudeCodeProvider.switchModel(model);
+      }
+      this.llm = this.claudeCodeProvider;
+      this.llmBackend = 'claudecode';
+    } else if (type === 'managed') {
       // NAVI-managed cloud — no key, no download; needs a signed-in session at call time.
       this.ls?.setItem('navi_backend_pref', 'managed');
       if (!this.managedProvider) {
@@ -940,7 +985,8 @@ export class NaviAgent {
 
     agentBus.emit('model:status', { backend: this.llmBackend, status: 'switching' });
 
-    if (type === 'webllm') {
+    if (type === 'webllm' || type === 'claudecode') {
+      // webllm downloads the model; claudecode verifies the bridge is reachable
       await this.loadLLM(onProgress);
     }
 

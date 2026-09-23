@@ -54,6 +54,11 @@ function PhraseCardFull({
           <Volume2 className="w-4 h-4 text-primary" />
         </button>
       </div>
+      {data.meaning && (
+        <p className="text-sm text-foreground/90">
+          <span className="text-muted-foreground">Means:</span> {data.meaning}
+        </p>
+      )}
       <p className="text-sm text-muted-foreground">
         Phonetic: <span className="italic">{data.phonetic}</span>
       </p>
@@ -74,11 +79,16 @@ function PhraseCardCompact({
 }) {
   return (
     <button
-      className="inline-flex items-center gap-1.5 text-xs text-primary font-medium bg-primary/10 rounded-lg px-2 py-1 hover:bg-primary/20 transition-colors"
+      className="flex flex-col items-start gap-0.5 text-left bg-primary/10 rounded-lg px-2.5 py-1.5 hover:bg-primary/20 transition-colors w-full"
       onClick={() => onPhraseCardClick?.(data)}
     >
-      <Volume2 className="w-3 h-3" />
-      {data.phrase} · <span className="italic opacity-70">{data.phonetic}</span>
+      <span className="inline-flex items-center gap-1.5 text-xs text-primary font-medium">
+        <Volume2 className="w-3 h-3 shrink-0" />
+        {data.phrase} · <span className="italic opacity-70">{data.phonetic}</span>
+      </span>
+      {data.meaning && (
+        <span className="text-xs text-foreground/80 pl-[1.125rem]">{data.meaning}</span>
+      )}
     </button>
   );
 }

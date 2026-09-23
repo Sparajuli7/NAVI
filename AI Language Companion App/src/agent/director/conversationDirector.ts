@@ -270,11 +270,11 @@ export class ConversationDirector {
 
       let phaseHint: string;
       if (currentTurn <= 2) {
-        phaseHint = `SCENARIO PHASE: OPENING (turn ${currentTurn}/8) — Set the scene, introduce key phrases for this situation. Ground the user in where they are and what's about to happen.`;
+        phaseHint = `SCENARIO PHASE: OPENING (turn ${currentTurn}/8) — Stay in character as the person the user is talking to. Deliver your opening line in the target language and get the interaction rolling.`;
       } else if (currentTurn <= 5 && !userSignaledCompletion) {
-        phaseHint = `SCENARIO PHASE: MIDDLE (turn ${currentTurn}/8) — This is the core interaction. Let the user practice. Coach them through the real moments. Correct by recasting, not lecturing.`;
+        phaseHint = `SCENARIO PHASE: MIDDLE (turn ${currentTurn}/8) — This is the core interaction. Stay fully in character, react to what the user says, and drive the scene forward. If they stumble, give one quick inline phrase then continue — do not break into a lesson. Correct by recasting.`;
       } else {
-        phaseHint = `SCENARIO PHASE: WRAPPING UP (turn ${currentTurn}/8) — Start closing the scenario naturally. Hint that a debrief is coming. If the user hasn't used a key phrase yet, create one last natural opportunity.`;
+        phaseHint = `SCENARIO PHASE: WRAPPING UP (turn ${currentTurn}/8) — Bring the interaction to a natural close in character (the order is placed, the check is paid). If the user hasn't used a key phrase yet, create one last natural opening for it.`;
       }
       goalInstructions.push(phaseHint);
     }
@@ -320,7 +320,10 @@ export class ConversationDirector {
     const stageInfo = this.learner.getCurrentStage(interactionCount, completedScenarios, currentLanguage);
     const userNativeLang = options?.userNativeLanguage || 'English';
 
-    if (!isGuideMode) {
+    // During an active scenario the immersive-roleplay layers govern language density
+    // (NAVI stays in the target language as the interlocutor), so skip the generic
+    // stage/calibration instructions that would otherwise push mostly-native-language replies.
+    if (!isGuideMode && !activeScenario) {
       const stageInstruction = promptLoader.get(`systemLayers.learningStages.${stageInfo.stage}`, {
         userNativeLanguage: userNativeLang,
       });
@@ -329,11 +332,11 @@ export class ConversationDirector {
       }
     }
 
-    // 0a. Language calibration — only in learn mode or unset; skip for guide/friend
+    // 0a. Language calibration — only in learn mode or unset; skip for guide/friend/scenario
     const wmTier = this.working?.get(this.WM_KEY) as number | undefined;
     const comfortTier = wmTier !== undefined ? wmTier : this.learner.languageComfortTier;
     const tierKey = `tier_${comfortTier}_${['unknown', 'beginner', 'early', 'intermediate', 'advanced'][comfortTier]}`;
-    if (!isGuideMode) {
+    if (!isGuideMode && !activeScenario) {
       const calibrationInstruction = promptLoader.get(`systemLayers.languageCalibration.${tierKey}`);
       if (calibrationInstruction) {
         goalInstructions.push(calibrationInstruction);

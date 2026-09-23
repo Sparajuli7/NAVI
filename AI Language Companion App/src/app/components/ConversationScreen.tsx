@@ -105,6 +105,7 @@ export function ConversationScreen({
   const scrollRef = useRef<HTMLDivElement>(null);
   const proactiveShownRef = useRef(false);
   const lastCharMsgRef = useRef<string | null>(null);
+  const kickoffScenarioRef = useRef<string | null>(null);
 
   const avatarSpeaking = useAvatarPresenceStore((s) => s.speaking);
 
@@ -319,6 +320,65 @@ export function ConversationScreen({
     }
   };
 
+  // Kick off a scenario: NAVI opens the scene in character (as the interlocutor)
+  // without the user having to type first. No user bubble — just the opening turn.
+  const handleScenarioKickoff = async () => {
+    const richChar = activeCharacter;
+    if (!richChar || !isLLMReady || useChatStore.getState().isGenerating) return;
+
+    setLlmError(false);
+    setGenerating(true);
+    setShowQuickActions(false);
+
+    const placeholderMsg: Message = {
+      id: (Date.now() + 1).toString(),
+      role: 'character',
+      content: '',
+      type: 'text',
+      timestamp: Date.now() + 1,
+      showAvatar: true,
+      metadata: { isStreaming: true },
+    };
+    addMessage(placeholderMsg);
+
+    try {
+      const result = await agent.handleMessage('[BEGIN_SCENARIO]', {
+        history: [],
+        context: { scenario: activeScenario },
+        onToken: (_token: string, fullText: string) => {
+          updateLastMessage(stripThinkTags(fullText), false);
+        },
+      });
+
+      const fullText = truncateRepetition(stripThinkTags(result.response));
+      const segments = parseResponse(fullText);
+      useChatStore.setState((state) => {
+        const msgs = [...state.messages];
+        const last = msgs[msgs.length - 1];
+        if (!last) return state;
+        msgs[msgs.length - 1] = { ...last, content: fullText, metadata: { isStreaming: false, segments } };
+        return { messages: msgs };
+      });
+
+      if (richChar?.id) await saveCharacterConversation(richChar.id, useChatStore.getState().messages);
+    } catch (err) {
+      console.error('[NAVI:chat] scenario kickoff error:', err);
+      updateLastMessage('Something went wrong starting the scenario. Type a message to begin.', true);
+      setLlmError(true);
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  // Auto-start the scene when a scenario becomes active (fires once per scenario)
+  useEffect(() => {
+    if (!isScenarioActive || !activeScenario || !isLLMReady) return;
+    if (kickoffScenarioRef.current === activeScenario) return;
+    kickoffScenarioRef.current = activeScenario;
+    handleScenarioKickoff();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isScenarioActive, activeScenario, isLLMReady]);
+
   // Send a message queued from outside the input (e.g. a camera scan)
   useEffect(() => {
     if (!pendingUserMessage) return;
@@ -341,6 +401,7 @@ export function ConversationScreen({
     setScenarioActive(false);
     setScenarioContext(null);
     setScenario(null);
+    kickoffScenarioRef.current = null; // allow re-launching the same scenario later
     agent.avatar.applyOverride({
       scenario: '',
       additionalContext: `DEBRIEF MODE: The user just finished a '${scenarioLabel}' practice session. Step completely out of scenario mode. Your debrief MUST follow this structure:\n(1) NAME ONE SPECIFIC THING THEY SAID CORRECTLY — quote their actual words. "When you said '...' — that was spot on."\n(2) NAME ONE SPECIFIC THING TO IMPROVE — give the corrected form. "When you tried to say X, the natural way is Y. Here's how: **Y** (pronunciation)."\n(3) Present 2 phrase cards for the most useful phrases from this scenario (use full **Phrase:**/**Say it:**/**Sound tip:**/**Means:**/**Tip:** format).\nBe honest and warm, not generic. QUOTE what the user actually said — this makes it real, not cheerleading.`,

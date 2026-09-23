@@ -1,6 +1,7 @@
 {
   "restaurant": {
     "label": "Ordering Food",
+    "interlocutor": "the waiter taking your order",
     "emoji": "🍽️",
     "vocabulary_focus": ["ordering", "menu items", "dietary restrictions", "tipping", "asking for check", "how it's cooked", "without/with"],
     "tone_shift": "casual, enthusiastic",
@@ -13,6 +14,7 @@
   },
   "directions": {
     "label": "Asking Directions",
+    "interlocutor": "a local passer-by you stopped to ask",
     "emoji": "🧭",
     "vocabulary_focus": ["turn left/right", "how far", "landmark names", "public transit stops", "across from / next to / behind", "straight ahead", "you can't miss it"],
     "tone_shift": "practical, patient",
@@ -25,6 +27,7 @@
   },
   "market": {
     "label": "Shopping at a Market",
+    "interlocutor": "the vendor at the market stall",
     "emoji": "🛍️",
     "vocabulary_focus": ["prices", "negotiation", "quantities", "too expensive", "I'll take it", "just looking", "discount", "final price"],
     "tone_shift": "casual, streetwise",
@@ -37,6 +40,7 @@
   },
   "hotel": {
     "label": "Hotel Check-In",
+    "interlocutor": "the front-desk receptionist",
     "emoji": "🏨",
     "vocabulary_focus": ["reservation", "check in/out", "room type", "breakfast included", "Wi-Fi", "key card", "floor/room number", "luggage", "wake-up call"],
     "tone_shift": "polite, efficient",
@@ -49,6 +53,7 @@
   },
   "social": {
     "label": "Meeting Someone New",
+    "interlocutor": "a friendly local you've just met",
     "emoji": "🤝",
     "vocabulary_focus": ["introductions", "where are you from", "what do you do", "small talk openers", "how to compliment someone", "exchanging contact", "polite exit phrases"],
     "tone_shift": "warm, curious",
@@ -61,6 +66,7 @@
   },
   "government": {
     "label": "Visa / Government Office",
+    "interlocutor": "the clerk behind the government office counter",
     "emoji": "🏛️",
     "vocabulary_focus": ["forms", "ID documents", "appointments", "legal terms", "I need...", "could you explain", "where do I sign", "how long does it take"],
     "tone_shift": "precise, patient",
@@ -73,6 +79,7 @@
   },
   "transit": {
     "label": "Public Transport",
+    "interlocutor": "the ticket agent at the counter",
     "emoji": "🚇",
     "vocabulary_focus": ["directions", "tickets", "schedules", "which stop", "get off here", "is this the right bus", "how many stops", "transfer"],
     "tone_shift": "practical",
@@ -85,6 +92,7 @@
   },
   "nightlife": {
     "label": "Bars & Nightlife",
+    "interlocutor": "the bartender",
     "emoji": "🍻",
     "vocabulary_focus": ["drink orders", "introductions", "compliments", "social slang", "taxi home", "cheers", "this round's on me"],
     "tone_shift": "casual, playful",
@@ -97,6 +105,7 @@
   },
   "hospital": {
     "label": "Medical / Emergency",
+    "interlocutor": "the nurse checking you in",
     "emoji": "🏥",
     "vocabulary_focus": ["symptoms", "body parts", "medications", "insurance", "emergency phrases", "it hurts here", "I'm allergic to", "call an ambulance"],
     "tone_shift": "precise, calm",
@@ -109,6 +118,7 @@
   },
   "office": {
     "label": "Professional / Work",
+    "interlocutor": "a colleague at the office",
     "emoji": "💼",
     "vocabulary_focus": ["greetings", "meeting phrases", "email language", "apologizing professionally", "asking for clarification", "deadlines", "thank you for your time"],
     "tone_shift": "professional",
@@ -121,6 +131,7 @@
   },
   "school": {
     "label": "School",
+    "interlocutor": "a teacher at the front of the class",
     "emoji": "📚",
     "vocabulary_focus": ["enrollment", "parent-teacher phrases", "forms and documents", "classroom terms", "asking the teacher", "lunch and schedule"],
     "tone_shift": "warm, precise",
@@ -133,6 +144,7 @@
   },
   "customs": {
     "label": "Airport Customs",
+    "interlocutor": "the customs officer at the booth",
     "emoji": "✈️",
     "vocabulary_focus": ["purpose of visit", "duration of stay", "declaration forms", "nothing to declare", "I am a tourist", "business visit", "connecting flight", "luggage claim"],
     "tone_shift": "calm, precise",
@@ -145,6 +157,7 @@
   },
   "pharmacy": {
     "label": "Pharmacy",
+    "interlocutor": "the pharmacist at the counter",
     "emoji": "💊",
     "vocabulary_focus": ["symptoms", "prescription", "over-the-counter", "dosage", "side effects", "allergy", "generic brand", "painkiller", "fever", "headache", "stomach"],
     "tone_shift": "precise, calm",
@@ -157,6 +170,7 @@
   },
   "emergency": {
     "label": "Emergency",
+    "interlocutor": "the emergency dispatcher on the phone",
     "emoji": "🚨",
     "vocabulary_focus": ["help", "call the police", "call an ambulance", "theft", "accident", "I've been robbed", "I need a doctor", "emergency number", "embassy", "I am hurt"],
     "tone_shift": "urgent, calm",
@@ -169,6 +183,7 @@
   },
   "landlord": {
     "label": "Renting / Landlord",
+    "interlocutor": "the landlord showing you the place",
     "emoji": "🏠",
     "vocabulary_focus": ["deposit", "rent", "lease", "utilities included", "repairs", "notice period", "key handover", "inspection", "complaint", "subletting"],
     "tone_shift": "firm, polite",
@@ -181,6 +196,7 @@
   },
   "bank": {
     "label": "Bank / Money",
+    "interlocutor": "the bank teller",
     "emoji": "🏦",
     "vocabulary_focus": ["account opening", "transfer", "withdrawal", "exchange rate", "fee", "ATM", "PIN", "identity documents", "wire transfer", "local account"],
     "tone_shift": "precise, patient",
@@ -193,6 +209,7 @@
   },
   "taxi": {
     "label": "Taxi / Ride",
+    "interlocutor": "the taxi driver",
     "emoji": "🚕",
     "vocabulary_focus": ["where to?", "how much?", "use the meter", "take me to", "I'll walk the rest", "this is too much", "I don't have change", "turn left/right here", "stop here"],
     "tone_shift": "direct, confident",
@@ -205,6 +222,7 @@
   },
   "temple": {
     "label": "Temple / Cultural Site",
+    "interlocutor": "the attendant at the temple entrance",
     "emoji": "🛕",
     "vocabulary_focus": ["dress code", "remove shoes", "sacred", "offering", "prayer", "photography allowed?", "entrance fee", "respect", "ceremony"],
     "tone_shift": "reverent, curious",
@@ -217,6 +235,7 @@
   },
   "street_food": {
     "label": "Street Food",
+    "interlocutor": "the street-food vendor at the cart",
     "emoji": "🍢",
     "vocabulary_focus": ["point and order", "how many", "spicy level", "no meat / vegetarian", "take away", "what is this?", "it smells amazing", "one more please", "how much?"],
     "tone_shift": "casual, enthusiastic",
@@ -229,6 +248,7 @@
   },
   "date": {
     "label": "Meeting Someone",
+    "interlocutor": "your date across the table",
     "emoji": "💬",
     "vocabulary_focus": ["compliments", "where are you from?", "I like your...", "what do you do?", "want to get a drink?", "you're funny", "I'd like to see you again", "you have my number"],
     "tone_shift": "warm, playful",

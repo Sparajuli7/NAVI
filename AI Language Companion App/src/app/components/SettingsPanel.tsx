@@ -8,7 +8,14 @@ import { saveMemories, savePreferences, saveLocation, saveCharacterMemories, sav
 import { detectLocation } from '../../services/location';
 import { useNaviAgent } from '../../agent/react/useNaviAgent';
 import { updateGeminiApiKey } from '../../agent/models/geminiEmbedding';
-import { OPENROUTER_FREE_MODELS, OPENROUTER_PAID_MODELS } from '../../agent/models';
+import { OPENROUTER_FREE_MODELS, OPENROUTER_PAID_MODELS, isClaudeBridgeAvailable } from '../../agent/models';
+
+/** Claude models the local bridge can drive (passed to `claude --model`). */
+const CLAUDE_CODE_MODELS: { id: string; name: string; desc: string }[] = [
+  { id: 'sonnet', name: 'Claude Sonnet', desc: 'fast · balanced' },
+  { id: 'opus',   name: 'Claude Opus',   desc: 'most capable' },
+  { id: 'haiku',  name: 'Claude Haiku',  desc: 'fastest' },
+];
 import { generateAvatarImage } from '../../utils/generateAvatarImage';
 import { formatGB } from '../../utils/formatBytes';
 import { CityPicker } from './CityPicker';
@@ -68,12 +75,17 @@ export function SettingsPanel({ onClose, onRegenerate, onDeleteCompanion, onUpda
   const [geminiKeyDraft, setGeminiKeyDraft] = useState(geminiApiKey);
   const [geminiKeySaved, setGeminiKeySaved] = useState(false);
   // Backend selector state
-  type BackendCard = 'cloud-free' | 'cloud-paid' | 'ollama';
+  type BackendCard = 'cloud-free' | 'cloud-paid' | 'ollama' | 'claudecode';
   const [selectedCard, setSelectedCard] = useState<BackendCard>(() => {
+    if (backend === 'claudecode') return 'claudecode';
     if (backend === 'ollama') return 'ollama';
     if (backend === 'openrouter') return openRouterTier === 'paid' ? 'cloud-paid' : 'cloud-free';
     return 'cloud-free';
   });
+  const [claudeCodeAvailable, setClaudeCodeAvailable] = useState(false);
+  const [claudeCodeModelDraft, setClaudeCodeModelDraft] = useState<string>(
+    () => (typeof localStorage !== 'undefined' ? localStorage.getItem('navi_claudecode_model') : null) ?? 'sonnet',
+  );
   const [pendingApiKey, setPendingApiKey] = useState<string>(
     () => typeof localStorage !== 'undefined' ? (localStorage.getItem('navi_openrouter_key') ?? '') : '',
   );
@@ -123,6 +135,7 @@ export function SettingsPanel({ onClose, onRegenerate, onDeleteCompanion, onUpda
   useEffect(() => {
     if (activeSection === 'model') {
       fetchOllamaModels();
+      isClaudeBridgeAvailable().then(setClaudeCodeAvailable).catch(() => setClaudeCodeAvailable(false));
     }
   }, [activeSection]);
 
@@ -156,7 +169,9 @@ export function SettingsPanel({ onClose, onRegenerate, onDeleteCompanion, onUpda
     setIsSwitchingBackend(true);
     setBackendSwitchError(null);
     try {
-      if (selectedCard === 'cloud-free') {
+      if (selectedCard === 'claudecode') {
+        await switchBackend('claudecode', { claudeCodeModel: claudeCodeModelDraft });
+      } else if (selectedCard === 'cloud-free') {
         // Free tier uses keys already in .env — no key input needed
         await switchBackend('openrouter', { openRouterTier: 'free', openRouterModels: OPENROUTER_FREE_MODELS });
       } else {
@@ -797,6 +812,7 @@ export function SettingsPanel({ onClose, onRegenerate, onDeleteCompanion, onUpda
                 }`} />
                 <p className="text-sm text-foreground font-medium truncate">
                   {isSwitchingBackend ? 'Switching…'
+                    : backend === 'claudecode' ? `Claude Code · ${claudeCodeModelDraft}`
                     : backend === 'openrouter' ? `Cloud ${openRouterTier === 'paid' ? 'Paid' : 'Free'} · ${openRouterTier === 'paid' ? pendingPaidModel.split('/')[1] : 'Qwen3-32B + fallback'}`
                     : `Ollama · ${ollamaModel ?? '—'}`}
                 </p>
@@ -819,6 +835,7 @@ export function SettingsPanel({ onClose, onRegenerate, onDeleteCompanion, onUpda
               <div className="flex bg-muted/50 rounded-xl p-1 gap-1">
                 {(
                   [
+                    ...(claudeCodeAvailable ? [{ key: 'claudecode' as const, label: 'Claude Code' }] : []),
                     { key: 'cloud-free' as const, label: 'Cloud Free' },
                     { key: 'cloud-paid' as const, label: 'Cloud Paid' },
                     { key: 'ollama' as const, label: 'Local (Ollama)' },
@@ -840,6 +857,47 @@ export function SettingsPanel({ onClose, onRegenerate, onDeleteCompanion, onUpda
 
               {/* Per-tab config */}
               {/* WebLLM on-device tab removed — Ollama is the local model path */}
+
+              {selectedCard === 'claudecode' && (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-1.5 px-1">
+                    <div className={`w-2 h-2 rounded-full ${claudeCodeAvailable ? 'bg-green-400' : 'bg-red-400'}`} />
+                    <p className="text-xs text-muted-foreground">
+                      {claudeCodeAvailable ? 'Bridge connected · uses your Claude auth' : 'Bridge not running'}
+                    </p>
+                  </div>
+                  {claudeCodeAvailable ? (
+                    <div className="space-y-1.5">
+                      {CLAUDE_CODE_MODELS.map((m) => {
+                        const active = claudeCodeModelDraft === m.id;
+                        return (
+                          <button
+                            key={m.id}
+                            onClick={() => setClaudeCodeModelDraft(m.id)}
+                            className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border text-left transition-all ${
+                              active ? 'border-primary bg-primary/10' : 'border-border bg-card hover:border-primary/40'
+                            }`}
+                          >
+                            <div>
+                              <span className={`text-sm font-medium ${active ? 'text-foreground' : 'text-muted-foreground'}`}>{m.name}</span>
+                              <span className="text-xs text-muted-foreground ml-2">{m.desc}</span>
+                            </div>
+                            <div className={`w-3.5 h-3.5 rounded-full border-2 shrink-0 ml-3 ${active ? 'border-primary bg-primary' : 'border-border'}`} />
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="bg-card border border-border rounded-xl px-4 py-3">
+                      <p className="text-xs text-muted-foreground leading-relaxed">Start the bridge in a terminal, then reopen this tab:</p>
+                      <div className="bg-background border border-border rounded-lg px-3 py-2 mt-2">
+                        <code className="text-xs text-foreground">pnpm run bridge</code>
+                      </div>
+                    </div>
+                  )}
+                  <p className="text-xs text-muted-foreground px-1">Runs via your local `claude` CLI · no API key</p>
+                </div>
+              )}
 
               {selectedCard === 'cloud-free' && (
                 <div className="bg-card border border-border rounded-xl px-4 py-3 flex items-center justify-between">

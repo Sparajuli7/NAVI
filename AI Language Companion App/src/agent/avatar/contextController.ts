@@ -175,6 +175,11 @@ export class AvatarContextController {
     return this.activeProfile;
   }
 
+  /** The scenario currently in effect (override wins over base profile), or '' if none. */
+  getEffectiveScenario(): string {
+    return this.activeOverride.scenario ?? this.activeProfile?.scenario ?? '';
+  }
+
   // ── Context Overrides ───────────────────────────────────────
 
   /** Apply temporary overrides without changing the base profile */
@@ -267,8 +272,8 @@ export class AvatarContextController {
       const learningStage = options?.learningStage;
       const useCoachMode = learningStage === 'survival' || learningStage === 'functional';
       const scenarioLayer = useCoachMode
-        ? this.buildScenarioCoachLayer(effectiveScenario, profile.name)
-        : this.buildScenarioLayer(effectiveScenario, override.formalityShift);
+        ? this.buildScenarioCoachLayer(effectiveScenario, userLang, options?.targetLanguage)
+        : this.buildScenarioLayer(effectiveScenario, userLang, options?.targetLanguage, override.formalityShift);
       if (scenarioLayer) layerDefs.push([scenarioLayer, 1]);
     }
 
@@ -308,17 +313,15 @@ export class AvatarContextController {
     if ((options?.isFirstScenarioMessage || (options?.isFirstEverMessage && effectiveScenario))) {
       const scenarioConfig = this.scenarios[effectiveScenario!];
       if (scenarioConfig) {
+        // Opener drops the user straight into the scene: sets it, teaches the one key phrase,
+        // then NAVI (as the interlocutor) speaks the opening line in the target language.
         const openerLayer = promptLoader.get('systemLayers.modeInstructions.scenarioOpener', {
           scenarioLabel: scenarioConfig.label,
+          interlocutor: scenarioConfig.interlocutor ?? `the person you'd talk to during ${scenarioConfig.label}`,
+          targetLanguage: options?.targetLanguage ?? 'the target language',
+          userNativeLanguage: userLang,
         });
-        layerDefs.push([openerLayer, 2]);
-
-        // Inject TBLT pretask with vocabulary_focus so the user gets key phrases before the task phase
-        const pretaskLayer = promptLoader.get('systemLayers.scenario.tblt_pretask', {
-          label: scenarioConfig.label,
-          vocabulary: scenarioConfig.vocabulary_focus.join(', '),
-        });
-        if (pretaskLayer) layerDefs.push([pretaskLayer, 1]);
+        layerDefs.push([openerLayer, 1]);
       }
     }
 
@@ -536,23 +539,30 @@ export class AvatarContextController {
     return layer;
   }
 
-  /** Coach-on-the-side scenario layer for survival/functional learners */
-  private buildScenarioCoachLayer(scenario: string, characterName: string): string {
+  /** Immersive interactor-roleplay with beginner scaffolding (survival/functional learners) */
+  private buildScenarioCoachLayer(scenario: string, userNativeLanguage: string, targetLanguage?: string): string {
     const config = this.scenarios[scenario];
     if (!config) return '';
 
     return promptLoader.get('systemLayers.scenarioCoach', {
-      characterName,
       scenarioLabel: config.label,
+      interlocutor: config.interlocutor ?? `the person you'd talk to during ${config.label}`,
+      targetLanguage: targetLanguage ?? 'the target language',
+      userNativeLanguage,
+      vocabulary: config.vocabulary_focus.join(', '),
+      culturalGuardrails: config.cultural_guardrails ?? '',
     });
   }
 
-  private buildScenarioLayer(scenario: string, formalityShift?: number): string {
+  private buildScenarioLayer(scenario: string, userNativeLanguage: string, targetLanguage?: string, formalityShift?: number): string {
     const config = this.scenarios[scenario];
     if (!config) return '';
 
     let layer = promptLoader.get('systemLayers.scenarioLock', {
       scenarioLabel: config.label,
+      interlocutor: config.interlocutor ?? `the person you'd talk to during ${config.label}`,
+      targetLanguage: targetLanguage ?? 'the target language',
+      userNativeLanguage,
       vocabulary: config.vocabulary_focus.join(', '),
       toneGuidance: config.tone_guidance ?? config.tone_shift,
       culturalGuardrails: config.cultural_guardrails ?? '',

@@ -7,9 +7,9 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { RefreshCw, Server, Cloud } from 'lucide-react';
+import { RefreshCw, Server, Cloud, Terminal } from 'lucide-react';
 import { useNaviAgent } from '../../agent/react/useNaviAgent';
-import { LLM_PRESETS, listOllamaModels } from '../../agent/models';
+import { LLM_PRESETS, listOllamaModels, isClaudeBridgeAvailable } from '../../agent/models';
 import { formatGB } from '../../utils/formatBytes';
 import { useAuthStore } from '../../auth/authStore';
 import { MANAGED_CLOUD, TIERS } from '../../config/monetization';
@@ -46,7 +46,15 @@ type Selection =
   | { type: 'managed' }
   | { type: 'cloud'; model: CloudModel }
   | { type: 'ondevice'; presetKey: string }
-  | { type: 'ollama'; model: string };
+  | { type: 'ollama'; model: string }
+  | { type: 'claudecode'; model: string };
+
+/** Claude models the bridge can drive (passed straight to `claude --model`). */
+const CLAUDE_CODE_MODELS: { id: string; name: string; desc: string }[] = [
+  { id: 'sonnet', name: 'Claude Sonnet', desc: 'fast · balanced · recommended' },
+  { id: 'opus',   name: 'Claude Opus',   desc: 'most capable' },
+  { id: 'haiku',  name: 'Claude Haiku',  desc: 'fastest · lightest' },
+];
 
 export function BackendSelectScreen({ onDone }: BackendSelectScreenProps) {
   const { switchBackend, switchOllamaModel } = useNaviAgent();
@@ -57,6 +65,7 @@ export function BackendSelectScreen({ onDone }: BackendSelectScreenProps) {
   const [error, setError] = useState<string | null>(null);
   const [ollamaModels, setOllamaModels] = useState<OllamaModel[]>([]);
   const [ollamaAvailable, setOllamaAvailable] = useState(false);
+  const [claudeCodeAvailable, setClaudeCodeAvailable] = useState(false);
 
   // Detect Ollama on mount — listOllamaModels handles the 127.0.0.1 ↔ localhost fallback
   useEffect(() => {
@@ -68,6 +77,13 @@ export function BackendSelectScreen({ onDone }: BackendSelectScreenProps) {
         }
       })
       .catch(() => { /* Ollama not running */ });
+  }, []);
+
+  // Detect the Claude Code bridge on mount (started via `pnpm run bridge`)
+  useEffect(() => {
+    isClaudeBridgeAvailable()
+      .then(up => setClaudeCodeAvailable(up))
+      .catch(() => { /* bridge not running */ });
   }, []);
 
   const handleStart = async () => {
@@ -94,6 +110,8 @@ export function BackendSelectScreen({ onDone }: BackendSelectScreenProps) {
         await switchOllamaModel(selected.model);
         localStorage.setItem('navi_backend_pref', 'ollama');
         localStorage.setItem('navi_ollama_model', selected.model);
+      } else if (selected.type === 'claudecode') {
+        await switchBackend('claudecode', { claudeCodeModel: selected.model });
       } else {
         await switchBackend('webllm', { webllmPreset: selected.presetKey });
       }
@@ -110,6 +128,7 @@ export function BackendSelectScreen({ onDone }: BackendSelectScreenProps) {
     if (s.type === 'cloud' && selected.type === 'cloud') return s.model.id === selected.model.id;
     if (s.type === 'ondevice' && selected.type === 'ondevice') return s.presetKey === selected.presetKey;
     if (s.type === 'ollama' && selected.type === 'ollama') return s.model === selected.model;
+    if (s.type === 'claudecode' && selected.type === 'claudecode') return s.model === selected.model;
     return false;
   };
 
@@ -167,6 +186,46 @@ export function BackendSelectScreen({ onDone }: BackendSelectScreenProps) {
                 isSelected({ type: 'managed' }) ? 'border-primary bg-primary' : 'border-border'
               }`} />
             </button>
+          </div>
+        )}
+
+        {/* Claude Code — local bridge to the user's `claude` CLI (auto-detected) */}
+        {claudeCodeAvailable && (
+          <div>
+            <div className="flex items-center gap-2 px-1 mb-2">
+              <Terminal className="w-3.5 h-3.5 text-primary" />
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                Claude Code — your local CLI, no key
+              </p>
+              <span className="text-[10px] text-primary bg-primary/10 px-1.5 py-0.5 rounded-full">detected</span>
+            </div>
+            <div className="space-y-1.5">
+              {CLAUDE_CODE_MODELS.map((m) => {
+                const sel: Selection = { type: 'claudecode', model: m.id };
+                const active = isSelected(sel);
+                return (
+                  <button
+                    key={m.id}
+                    onClick={() => setSelected(sel)}
+                    className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border text-left transition-all ${
+                      active
+                        ? 'border-primary bg-primary/10'
+                        : 'border-border bg-card hover:border-primary/40'
+                    }`}
+                  >
+                    <div>
+                      <span className={`text-sm font-medium ${active ? 'text-foreground' : 'text-muted-foreground'}`}>
+                        {m.name}
+                      </span>
+                      <span className="text-xs text-muted-foreground ml-2">{m.desc}</span>
+                    </div>
+                    <div className={`w-3.5 h-3.5 rounded-full border-2 shrink-0 ml-3 ${
+                      active ? 'border-primary bg-primary' : 'border-border'
+                    }`} />
+                  </button>
+                );
+              })}
+            </div>
           </div>
         )}
 

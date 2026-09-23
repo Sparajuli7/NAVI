@@ -50,10 +50,10 @@ export interface UseNaviAgentReturn {
   ollamaModel: string | null;
   /** Switch the active Ollama model */
   switchOllamaModel: (model: string) => Promise<void>;
-  /** Switch the active LLM backend (webllm, openrouter, or managed NAVI Cloud) */
+  /** Switch the active LLM backend (webllm, openrouter, managed NAVI Cloud, or claudecode) */
   switchBackend: (
-    type: 'webllm' | 'openrouter' | 'managed',
-    opts?: { apiKey?: string; webllmPreset?: string; openRouterTier?: OpenRouterTier; openRouterModels?: string[] },
+    type: 'webllm' | 'openrouter' | 'managed' | 'claudecode',
+    opts?: { apiKey?: string; webllmPreset?: string; openRouterTier?: OpenRouterTier; openRouterModels?: string[]; claudeCodeModel?: string },
     onProgress?: (progress: number, text: string) => void,
   ) => Promise<void>;
   /** Current WebLLM preset key */
@@ -168,8 +168,8 @@ export function useNaviAgent(config?: NaviAgentConfig): UseNaviAgentReturn {
   }, []);
 
   const switchBackend = useCallback(async (
-    type: 'webllm' | 'openrouter' | 'managed',
-    opts?: { apiKey?: string; webllmPreset?: string; openRouterTier?: OpenRouterTier; openRouterModels?: string[] },
+    type: 'webllm' | 'openrouter' | 'managed' | 'claudecode',
+    opts?: { apiKey?: string; webllmPreset?: string; openRouterTier?: OpenRouterTier; openRouterModels?: string[]; claudeCodeModel?: string },
     onProgress?: (progress: number, text: string) => void,
   ) => {
     const agent = agentRef.current;

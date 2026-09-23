@@ -11,7 +11,7 @@
 ## What is NAVI?
 An **AI language companion app** — a local friend who speaks the language, knows the slang and culture, and explains things like a native. It knows where you are, remembers your conversations, adapts to your level, and teaches how locals actually speak (not textbook translations).
 
-**Inference is hybrid:** on-device WebGPU (WebLLM, default) for privacy/offline, with Ollama (local server) and OpenRouter (cloud) as user-selectable backends. Cloud is only used when the user explicitly chooses it.
+**Inference is hybrid:** on-device WebGPU (WebLLM, default) for privacy/offline, with Ollama (local server), OpenRouter (cloud), NAVI Cloud (managed proxy), and Claude Code (local `claude` CLI via the dev bridge) as user-selectable backends. Cloud is only used when the user explicitly chooses it.
 
 **Target users:** travelers, immigrants, expats, multilingual families, service workers.
 
@@ -24,11 +24,14 @@ An **AI language companion app** — a local friend who speaks the language, kno
 cd "AI Language Companion App"
 pnpm install
 pnpm run dev        # Vite dev server
+pnpm run bridge     # Claude Code bridge (see below) — run in a 2nd terminal
 pnpm run build      # production build
 pnpm run typecheck  # tsc --noEmit (strict)
 pnpm test           # vitest (104 tests)
 ```
 Requires Chrome/Edge 113+ (WebGPU) for on-device LLM. Package manager is **pnpm**.
+
+**Use Claude Code as the chat backend (local dev):** run `pnpm run dev` and, in a second terminal, `pnpm run bridge`. The bridge (`scripts/claude-bridge.mjs`, zero-dep Node server on `127.0.0.1:4599`) shells out to your installed `claude` CLI in headless `-p` mode with NAVI's persona as the system prompt, and streams the reply back over HTTP. NAVI auto-detects it and shows a **Claude Code** option (Sonnet/Opus/Haiku) in the model picker — no API key needed (uses your Claude auth). Env knobs: `CLAUDE_BRIDGE_PORT`, `CLAUDE_BRIDGE_MODEL`, `CLAUDE_BIN`.
 
 **Quality gates** (run before every commit): `build` + `typecheck` (0 errors) + `test` (all pass) + `npx madge --circular --extensions ts,tsx src` (0 cycles).
 

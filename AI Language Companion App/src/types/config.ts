@@ -18,6 +18,8 @@ export type DialectMap = Record<string, DialectInfo>;
 export interface ScenarioContext {
   label: string;
   emoji?: string;
+  /** The person the user talks to in this scene — the role NAVI plays during roleplay. */
+  interlocutor?: string;
   vocabulary_focus: string[];
   tone_shift: string;
   formality_adjustment: number;

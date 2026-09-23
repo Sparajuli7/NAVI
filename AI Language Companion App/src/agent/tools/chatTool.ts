@@ -119,12 +119,17 @@ export function createChatTool(
         return { response: listenResponse };
       }
 
-      // Inject the chat-specific behavioral prompt (friend mode, not teaching mode)
+      // Inject the behavioral prompt. When a scenario is active, use the immersive
+      // roleplay block (NAVI plays the interlocutor, stays in the target language)
+      // instead of the default friend-mode block (which speaks mostly native language).
       const profile = avatarController.getActiveProfile();
       const city = (typeof profile?.location === 'string' ? profile.location : '') ?? '';
-      const chatBehavior = isCompact
-        ? promptLoader.get('toolPrompts.chat_compact.template', { userNativeLanguage, targetLanguage: targetLanguage ?? '', city, name: profile?.name ?? '' })
-        : promptLoader.get('toolPrompts.chat.template', { userNativeLanguage, targetLanguage: targetLanguage ?? '' });
+      const scenarioActive = !!avatarController.getEffectiveScenario();
+      const chatBehavior = scenarioActive
+        ? promptLoader.get('toolPrompts.scenario_roleplay.template', { userNativeLanguage, targetLanguage: targetLanguage ?? 'the target language' })
+        : isCompact
+          ? promptLoader.get('toolPrompts.chat_compact.template', { userNativeLanguage, targetLanguage: targetLanguage ?? '', city, name: profile?.name ?? '' })
+          : promptLoader.get('toolPrompts.chat.template', { userNativeLanguage, targetLanguage: targetLanguage ?? '' });
 
       // Stateful phrase deduplication: append phrases already taught this session
       // so the model avoids repeating them even if instruction-following is imperfect
