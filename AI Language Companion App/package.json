@@ -7,6 +7,7 @@
     "build": "vite build",
     "dev": "vite",
     "bridge": "node scripts/claude-bridge.mjs",
+    "screenshot-survey": "node scripts/screenshot-survey.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest"
@@ -23,6 +24,7 @@
     "zustand": "^5.0.11"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@tailwindcss/vite": "4.1.12",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/react": "^16.3.2",

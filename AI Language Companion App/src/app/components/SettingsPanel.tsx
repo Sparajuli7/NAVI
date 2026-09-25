@@ -1128,6 +1128,9 @@ export function SettingsPanel({ onClose, onRegenerate, onDeleteCompanion, onUpda
             </div>
           )}
 
+          {/* Demo Mode — immersion % override for screenshots */}
+          <DemoModeSlider />
+
           {/* Support banner — always visible at bottom */}
           <div className="pt-2 pb-1 border-t border-border space-y-2">
             <div className="flex gap-2">
@@ -1159,5 +1162,75 @@ export function SettingsPanel({ onClose, onRegenerate, onDeleteCompanion, onUpda
         </div>
       </motion.div>
     </motion.div>
+  );
+}
+
+function immersionLabel(pct: number): string {
+  if (pct <= 15) return 'early beginner';
+  if (pct <= 35) return 'beginner';
+  if (pct <= 55) return 'intermediate';
+  if (pct <= 75) return 'upper-intermediate';
+  if (pct < 100) return 'advanced';
+  return 'full immersion';
+}
+
+function DemoModeSlider() {
+  const { immersionPercent, setImmersionPercent } = useAppStore();
+  const [open, setOpen] = React.useState(false);
+
+  return (
+    <div className="border border-border rounded-xl overflow-hidden mt-2">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-muted/30 transition-colors"
+      >
+        <span className="text-sm font-medium text-foreground flex items-center gap-2">
+          <span className="text-base">🎛️</span> Demo Mode
+          {immersionPercent != null && (
+            <span className="text-xs bg-primary/20 text-primary px-2 py-0.5 rounded-full font-semibold">
+              {immersionPercent}% immersion
+            </span>
+          )}
+        </span>
+        <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <div className="px-4 pb-4 border-t border-border pt-3 space-y-3">
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            Fix the immersion % for screenshots. When on, NAVI ignores automatic calibration and speaks at exactly this level of target-language mixing.
+          </p>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground w-8 shrink-0">
+              {immersionPercent != null ? `${immersionPercent}%` : 'auto'}
+            </span>
+            <input
+              type="range"
+              min={0}
+              max={100}
+              step={5}
+              value={immersionPercent ?? 0}
+              disabled={immersionPercent == null}
+              onChange={(e) => setImmersionPercent(Number(e.target.value))}
+              className="flex-1 accent-primary disabled:opacity-40"
+            />
+          </div>
+          {immersionPercent != null && (
+            <p className="text-xs text-primary font-medium">
+              {immersionPercent}% — {immersionLabel(immersionPercent)}
+            </p>
+          )}
+          <button
+            onClick={() => setImmersionPercent(immersionPercent == null ? 20 : null)}
+            className={`w-full py-2 rounded-xl text-sm font-medium transition-colors ${
+              immersionPercent != null
+                ? 'bg-primary/20 text-primary hover:bg-primary/30'
+                : 'bg-muted text-muted-foreground hover:bg-muted/80'
+            }`}
+          >
+            {immersionPercent != null ? 'Turn off (use auto)' : 'Enable demo mode'}
+          </button>
+        </div>
+      )}
+    </div>
   );
 }

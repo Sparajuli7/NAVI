@@ -14,6 +14,7 @@ import type { AvatarContextController } from '../avatar/contextController';
 import type { MemoryManager } from '../memory';
 import { promptLoader } from '../prompts/promptLoader';
 import { getUserNativeLanguage } from './toolHelpers';
+import { useAppStore } from '../../stores/appStore';
 
 export function createChatTool(
   llmProvider: ChatLLM,
@@ -76,6 +77,8 @@ export function createChatTool(
       // Get user's native language from profile memory
       const userNativeLanguage = getUserNativeLanguage(memoryManager);
 
+      const immersionPercent = useAppStore.getState().immersionPercent ?? undefined;
+
       const systemPrompt = avatarController.buildSystemPrompt({
         memoryContext,
         warmthInstruction,
@@ -90,6 +93,7 @@ export function createChatTool(
         learningStage,
         targetLanguage,
         compact: isCompact,
+        immersionPercent,
       });
 
       // In 'listen' translation mode, use the listenAndTranslate template instead of chat

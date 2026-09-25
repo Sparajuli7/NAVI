@@ -13,6 +13,8 @@ interface AppStore {
   userProfile: string;
   userMode: UserMode;
   geminiApiKey: string;
+  /** Demo/screenshot override: null = auto-calibrate; 0–100 = fixed immersion % */
+  immersionPercent: number | null;
 
   setModelStatus: (status: ModelStatus) => void;
   setModelProgress: (progress: number) => void;
@@ -22,6 +24,7 @@ interface AppStore {
   setUserProfile: (text: string) => void;
   setUserMode: (mode: UserMode) => void;
   setGeminiApiKey: (key: string) => void;
+  setImmersionPercent: (v: number | null) => void;
 }
 
 const defaultPreferences: UserPreferences = {
@@ -41,6 +44,7 @@ export const useAppStore = create<AppStore>((set) => ({
   isFirstLaunch: true,
   userProfile: '',
   userMode: null,
+  immersionPercent: null,
   geminiApiKey: typeof localStorage !== 'undefined' ? (localStorage.getItem('navi_gemini_key') ?? '') : '',
 
   setModelStatus: (status) => set({ modelStatus: status }),
@@ -57,4 +61,5 @@ export const useAppStore = create<AppStore>((set) => ({
     if (typeof localStorage !== 'undefined') localStorage.setItem('navi_gemini_key', key);
     set({ geminiApiKey: key });
   },
+  setImmersionPercent: (v) => set({ immersionPercent: v }),
 }));

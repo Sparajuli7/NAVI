@@ -224,6 +224,8 @@ export class AvatarContextController {
     targetLanguage?: string;
     /** Compact mode: use reduced budget for small models (< 7B Ollama) */
     compact?: boolean;
+    /** Demo/screenshot override: fixed immersion % (0–100). null = auto-calibrate. */
+    immersionPercent?: number;
   }): string {
     if (!this.activeProfile) {
       return 'You are a helpful language assistant.';
@@ -271,6 +273,22 @@ export class AvatarContextController {
         userNativeLanguage: userLang,
       });
       layerDefs.push([enforcement, 0]);
+    }
+
+    // L3.6: Immersion override (MUST — overrides auto-calibration when set)
+    if (options?.immersionPercent != null) {
+      const pct = options.immersionPercent;
+      const nativePct = 100 - pct;
+      const targetLangLabel = options?.targetLanguage || dialectConfig?.language || 'the target language';
+      const desc = pct <= 15  ? `use 1–2 ${targetLangLabel} words or short phrases per message, everything else in ${userLang}`
+                 : pct <= 35  ? `mix short ${targetLangLabel} phrases naturally into ${userLang} sentences`
+                 : pct <= 55  ? `roughly half your sentences in ${targetLangLabel}, half in ${userLang}`
+                 : pct <= 75  ? `most sentences in ${targetLangLabel}, switch to ${userLang} only for key explanations`
+                              : `speak almost entirely in ${targetLangLabel}; ${userLang} only when confusion signals appear`;
+      layerDefs.push([
+        `IMMERSION OVERRIDE (demo mode): Speak exactly ${pct}% ${targetLangLabel} / ${nativePct}% ${userLang}. ${desc}. Ignore all automatic language calibration tiers for this conversation.`,
+        0,
+      ]);
     }
 
     // L4: Scenario (HIGH)
