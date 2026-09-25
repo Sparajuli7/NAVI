@@ -205,6 +205,8 @@ export interface AvatarProfile {
   scenario: string;
   /** Speaking style description */
   speaksLike: string;
+  /** Rich personality seeds for identity-layer injection */
+  personalityDetails?: import('../../types/character').PersonalityDetails;
   /** Visual avatar config */
   visual: {
     primaryColor: string;
@@ -213,6 +215,83 @@ export interface AvatarProfile {
     accessory: string;
     emoji: string;
   };
+}
+
+// ─── Bonding / Retention Types (Phase 4) ─────────────────────
+
+export type EmotionalPeak =
+  | 'frustration'
+  | 'joy'
+  | 'pride'
+  | 'vulnerability'
+  | 'breakthrough'
+  | 'determination'
+  | 'comfort'
+  | 'excitement';
+
+export type EmotionalValence = 'positive' | 'negative' | 'mixed';
+
+export type EmotionalResolution =
+  | 'resolved_positive'
+  | 'resolved_negative'
+  | 'unresolved'
+  | 'ongoing';
+
+export interface EmotionalMemory {
+  id: string;
+  timestamp: number;
+  sessionNumber: number;
+  emotion: EmotionalPeak;
+  valence: EmotionalValence;
+  intensity: number;
+  trigger: string;
+  userQuote: string;
+  avatarResponse: string;
+  resolution: EmotionalResolution;
+  avatarId: string;
+  location: string;
+  associatedPhrases: string[];
+  callbackCount: number;
+  lastReferencedAt?: number;
+  hasBeenNarrativized: boolean;
+}
+
+export type ThreadType = 'story' | 'debate' | 'project' | 'ritual';
+export type ThreadStatus = 'active' | 'resolved' | 'dormant' | 'abandoned';
+
+export interface ConversationThread {
+  id: string;
+  type: ThreadType;
+  summary: string;
+  openQuestion: string;
+  createdAt: number;
+  lastReferencedAt: number;
+  sessionCount: number;
+  emotionalWeight: number;
+  status: ThreadStatus;
+  avatarId: string;
+  associatedTerms: string[];
+}
+
+export interface DialectBridgeContext {
+  previousDialectKey: string;
+  previousDialectLabel: string;
+  previousLanguage: string;
+  previousCity: string;
+  currentDialectKey: string;
+  currentDialectLabel: string;
+  currentLanguage: string;
+  currentCity: string;
+  /** Messages remaining in bridge mode (typically 3–5) */
+  messagesRemaining: number;
+  sharedLanguage: boolean;
+}
+
+/** Cross-session open loop stored in WorkingMemory / episodic tags */
+export interface OpenLoopSlot {
+  summary: string;
+  createdAt: number;
+  avatarId: string;
 }
 
 export interface AvatarContextOverride {
@@ -242,7 +321,11 @@ export type ConversationGoal =
   | 'avoid_recent_openers'
   | 'proactive_memory'
   | 'session_opener'
-  | 'assess_user';
+  | 'assess_user'
+  | 'reference_emotional_memory'
+  | 'continue_thread'
+  | 'dialect_bridge'
+  | 'month3_retention';
 
 // ─── Learning Stage Types ─────────────────────────────────────
 
@@ -504,6 +587,7 @@ export type EdgeType =
   | 'RELATES_TO'        // Term → Term
   | 'LEADS_TO'          // Topic → Topic
   | 'CONTAINS_TERM'     // Topic → Term
+  | 'DIALECT_VARIANT_OF' // Term → Term (same meaning, different dialect)
   ;
 
 export type EncounterType = 'scenario' | 'organic' | 'requested' | 'corrected' | 'overheard';

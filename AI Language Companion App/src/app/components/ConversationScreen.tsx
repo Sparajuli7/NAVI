@@ -1,9 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
   Settings, Sun, Moon, Camera, Mic, RotateCcw, Zap, Send,
-  X as XIcon,
+  X as XIcon, BookOpen, MessageCircle, MapPin, MessageSquare, Sparkles,
 } from 'lucide-react';
+import { scenarioIcon } from '../../utils/scenarioIcons';
 import { ChatLogEntry } from './NewChatBubble';
+import { CompanionFace } from './CompanionFace';
 import { QuickActionPill } from './QuickActionPill';
 import { ExpandedPhraseCard } from './ExpandedPhraseCard';
 import { SettingsPanel } from './SettingsPanel';
@@ -24,7 +26,10 @@ import { startRecording, stopRecording, isSTTSupported, getSTTLangCode } from '.
 import type { Message, PhraseCardData } from '../../types/chat';
 import type { ScenarioKey } from '../../types/config';
 import type { Character, GeneratedCharacter } from '../../types/character';
+import { mapCharacterToUI } from '../../types/character';
 import scenarioContexts from '../../config/scenarioContexts.json';
+import { getLanguageByCode } from '../../config/supportedLanguages';
+import { buildStructuredDebriefContext } from '../../agent/director/scenarioArc';
 
 interface ConversationScreenProps {
   character: GeneratedCharacter;
@@ -38,6 +43,7 @@ interface ConversationScreenProps {
   onOpenScenarios: () => void;
   onShowModelPicker?: () => void;
   onShowAuth?: () => void;
+  onSignOut?: () => void;
   onDeleteCompanion?: (charId: string) => Promise<void>;
   isDark: boolean;
 }
@@ -83,6 +89,7 @@ export function ConversationScreen({
   onOpenScenarios,
   onShowModelPicker,
   onShowAuth,
+  onSignOut,
   onDeleteCompanion,
   isDark,
 }: ConversationScreenProps) {
@@ -102,6 +109,7 @@ export function ConversationScreen({
   const [retryText, setRetryText]               = useState('');
   const [portraitSrc, setPortraitSrc]           = useState<string | null>(null);
   const [isReacting, setIsReacting]             = useState(false);
+  const [suggestScenarioWrap, setSuggestScenarioWrap] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const proactiveShownRef = useRef(false);
   const lastCharMsgRef = useRef<string | null>(null);
@@ -120,7 +128,14 @@ export function ConversationScreen({
   const { agent, isLLMReady } = useNaviAgent();
   const { userMode } = useAppStore();
 
-  const languageName = currentLocation?.dialectInfo?.language ?? 'English';
+  useEffect(() => {
+    if (!isScenarioActive) setSuggestScenarioWrap(false);
+  }, [isScenarioActive]);
+
+  const languageName =
+    currentLocation?.dialectInfo?.language
+    ?? (activeCharacter?.target_language ? getLanguageByCode(activeCharacter.target_language)?.name : null)
+    ?? 'English';
 
   // Auto-scroll chat log
   useEffect(() => {
@@ -225,16 +240,6 @@ export function ConversationScreen({
     setShowQuickActions(false);
 
     if (!isLLMReady) {
-      const helpMsg: Message = {
-        id: `err-${Date.now()}`,
-        role: 'character',
-        content:
-          "The AI model isn't loaded yet. Open Settings (gear icon) → AI Model to download or retry.",
-        type: 'text',
-        timestamp: Date.now(),
-        showAvatar: true,
-      };
-      addMessage(helpMsg);
       setLlmError(true);
       setRetryText(msgText);
       return;
@@ -279,6 +284,10 @@ export function ConversationScreen({
 
       const fullText = truncateRepetition(stripThinkTags(result.response));
 
+      if (result.suggestScenarioWrap && isScenarioActive) {
+        setSuggestScenarioWrap(true);
+      }
+
       const segments = parseResponse(fullText);
       useChatStore.setState((state) => {
         const msgs = [...state.messages];
@@ -310,9 +319,15 @@ export function ConversationScreen({
       }
     } catch (err) {
       console.error('[NAVI:chat] handleSend error:', err);
-      const errorMsg = err instanceof Error ? err.message : String(err);
-      const shortError = errorMsg.length > 150 ? errorMsg.slice(0, 150) + '…' : errorMsg;
-      updateLastMessage(`Something went wrong: ${shortError}`, true);
+      // Remove the empty streaming placeholder — never show failures as character bubbles
+      useChatStore.setState((state) => {
+        const msgs = [...state.messages];
+        const last = msgs[msgs.length - 1];
+        if (last?.metadata?.isStreaming || last?.content === '') {
+          msgs.pop();
+        }
+        return { messages: msgs };
+      });
       setLlmError(true);
       setRetryText(msgText);
     } finally {
@@ -388,9 +403,12 @@ export function ConversationScreen({
   }, [pendingUserMessage]);
 
   const handleRetry = () => {
-    useChatStore.setState((state) => ({
-      messages: state.messages.slice(0, -2),
-    }));
+    // Drop the last user turn so handleSend can re-append it cleanly
+    useChatStore.setState((state) => {
+      const msgs = [...state.messages];
+      if (msgs[msgs.length - 1]?.role === 'user') msgs.pop();
+      return { messages: msgs };
+    });
     setLlmError(false);
     handleSend(retryText);
   };
@@ -398,13 +416,16 @@ export function ConversationScreen({
   const handleEndScenario = async () => {
     const scenarioKey = activeScenario;
     const scenarioLabel = scenarioKey ? SCENARIOS[scenarioKey]?.label ?? scenarioKey : 'the scenario';
+    setSuggestScenarioWrap(false);
     setScenarioActive(false);
     setScenarioContext(null);
     setScenario(null);
     kickoffScenarioRef.current = null; // allow re-launching the same scenario later
     agent.avatar.applyOverride({
       scenario: '',
-      additionalContext: `DEBRIEF MODE: The user just finished a '${scenarioLabel}' practice session. Step completely out of scenario mode. Your debrief MUST follow this structure:\n(1) NAME ONE SPECIFIC THING THEY SAID CORRECTLY — quote their actual words. "When you said '...' — that was spot on."\n(2) NAME ONE SPECIFIC THING TO IMPROVE — give the corrected form. "When you tried to say X, the natural way is Y. Here's how: **Y** (pronunciation)."\n(3) Present 2 phrase cards for the most useful phrases from this scenario (use full **Phrase:**/**Say it:**/**Sound tip:**/**Means:**/**Tip:** format).\nBe honest and warm, not generic. QUOTE what the user actually said — this makes it real, not cheerleading.`,
+      additionalContext: scenarioKey
+        ? buildStructuredDebriefContext(scenarioKey)
+        : buildStructuredDebriefContext('custom'),
     });
     await handleSend(`[End scenario — debrief: ${scenarioLabel}]`);
     agent.avatar.clearOverrides();
@@ -470,14 +491,25 @@ export function ConversationScreen({
     setIsRecording(false);
   };
 
-  const pills: Array<{ icon: string; label: string; isCamera?: boolean; isDictionary?: boolean; text?: string }> =
+  const pills: Array<{
+    icon: typeof BookOpen;
+    label: string;
+    isCamera?: boolean;
+    isDictionary?: boolean;
+    text?: string;
+    variant?: 'default' | 'cta' | 'gold';
+  }> =
     activeScenario && SCENARIOS[activeScenario]
-      ? SCENARIOS[activeScenario].auto_suggestions.map(s => ({ icon: '💬', label: s, text: s }))
+      ? SCENARIOS[activeScenario].auto_suggestions.map(s => ({
+          icon: MessageSquare,
+          label: s,
+          text: s,
+        }))
       : [
-          { icon: '📚', label: 'My phrases', isDictionary: true },
-          { icon: '📸', label: 'Scan a menu',         isCamera: true },
-          { icon: '🗣',  label: 'Teach me a phrase',  text: 'Teach me a useful local phrase for right now' },
-          { icon: '🧭', label: "What's nearby?",      text: "What's interesting nearby that locals love?" },
+          { icon: BookOpen, label: 'My phrases', isDictionary: true, variant: 'gold' },
+          { icon: Camera, label: 'Scan a menu', isCamera: true, variant: 'cta' },
+          { icon: MessageCircle, label: 'Teach me a phrase', text: 'Teach me a useful local phrase for right now' },
+          { icon: MapPin, label: "What's nearby?", text: "What's interesting nearby that locals love?" },
         ];
 
   const dialectIndicator = currentLocation?.countryCode
@@ -491,9 +523,53 @@ export function ConversationScreen({
   // ── Header (live presence) ─────────────────────────────────────────────────
   const statusDotColor = RING_COLOR[avatarState];
   const header = (
-    <div className="flex-shrink-0 relative flex flex-col items-center px-4 pt-3 pb-3 border-b border-border bg-card/50">
-      {/* Action buttons — top-right */}
-      <div className="absolute top-2 right-2 flex items-center gap-1">
+    <div className="flex-shrink-0 flex items-center justify-between px-4 py-2.5 border-b border-border bg-card/50">
+      {/* Left: avatar + name + scenario badge */}
+      <div className="flex items-center gap-2.5 min-w-0">
+        {/* Avatar circle */}
+        <div className="flex-shrink-0">
+          <CompanionFace
+            imageUrl={activeCharacter?.avatarImageUrl}
+            name={character.name}
+            size="sm"
+            accentColor={{
+              primary: character.colors?.primary ?? '#6BBAA7',
+              secondary: character.colors?.secondary ?? '#D4A853',
+            }}
+          />
+        </div>
+
+        <div className="flex flex-col min-w-0">
+          <p className="font-medium text-foreground text-sm truncate leading-tight">{character.name}</p>
+          {dialectIndicator && (
+            <span className="text-[11px] text-muted-foreground leading-tight" title={currentLocation?.dialectInfo?.dialect ?? ''}>
+              {dialectIndicator} {currentLocation?.city ?? ''}
+            </span>
+          )}
+        </div>
+
+        {activeScenario && SCENARIOS[activeScenario] && (() => {
+          const ScenarioIcon = scenarioIcon(activeScenario);
+          return (
+            <button
+              onClick={isScenarioActive ? handleEndScenario : undefined}
+              disabled={!isScenarioActive}
+              aria-label={isScenarioActive ? `End ${SCENARIOS[activeScenario].label} scenario` : undefined}
+              title={isScenarioActive ? 'Tap to end this scenario' : undefined}
+              className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap transition-colors ml-1
+                ${isScenarioActive
+                  ? 'bg-primary/20 text-primary hover:bg-primary/30'
+                  : 'bg-primary/10 text-primary/70 cursor-default'}`}
+            >
+              <ScenarioIcon className="w-3 h-3" strokeWidth={2} />
+              {SCENARIOS[activeScenario].label}
+              {isScenarioActive && <XIcon className="w-3 h-3 ml-0.5 opacity-60" />}
+            </button>
+          );
+        })()}
+      </div>
+
+      <div className="flex items-center gap-1 flex-shrink-0">
         <button
           onClick={onOpenScenarios}
           className="p-2 hover:bg-muted/50 rounded-lg transition-colors"
@@ -578,21 +654,64 @@ export function ConversationScreen({
     >
       {header}
 
+      {suggestScenarioWrap && isScenarioActive && (
+        <motion.div
+          className="flex items-center justify-between gap-3 px-4 py-2 border-b border-border/60 bg-primary/5"
+          initial={{ opacity: 0, y: -6 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.25 }}
+        >
+          <p className="text-xs text-muted-foreground min-w-0">
+            Practice arc complete — ready to wrap up?
+          </p>
+          <button
+            type="button"
+            onClick={handleEndScenario}
+            className="flex-shrink-0 text-xs font-medium text-primary hover:text-primary/80 transition-colors"
+          >
+            Finish & debrief
+          </button>
+        </motion.div>
+      )}
+
       {/* ── Scrollable chat messages ─────────────────────────────────── */}
       <div
         ref={scrollRef}
         className="flex-1 min-h-0 overflow-y-auto px-4 py-3"
       >
         {logMessages.length === 0 ? (
-          <p className="text-xs text-muted-foreground text-center pt-8">
-            No messages yet — say something!
-          </p>
+          <motion.div
+            className="flex flex-col items-center justify-center pt-16 pb-8 px-6 text-center"
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4 }}
+          >
+            <motion.div
+              className="mb-5 w-12 h-12 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center"
+              initial={{ scale: 0.9 }}
+              animate={{ scale: 1 }}
+              transition={{ delay: 0.1, type: 'spring', stiffness: 260, damping: 18 }}
+            >
+              <Sparkles className="w-5 h-5 text-primary" strokeWidth={1.75} />
+            </motion.div>
+            <p
+              className="text-base text-foreground mb-1.5"
+              style={{ fontFamily: 'var(--font-display)' }}
+            >
+              {character.name} is here
+            </p>
+            <p className="text-xs text-muted-foreground max-w-[220px]">
+              Say hello — or tap a suggestion below
+            </p>
+          </motion.div>
         ) : (
           logMessages.map((message) => (
             <ChatLogEntry
               key={message.id}
               message={message}
-              character={message.role === 'character' ? character : undefined}
+              character={message.role === 'character'
+                ? (activeCharacter ? mapCharacterToUI(activeCharacter) : character)
+                : undefined}
               languageName={languageName}
               onPhraseCardClick={handlePhraseCardClick}
             />
@@ -601,10 +720,15 @@ export function ConversationScreen({
 
         {llmError && !isGenerating && (
           <motion.div
-            className="flex justify-center mt-3"
+            className="flex flex-col items-center gap-2 mt-3 px-4"
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
           >
+            <p className="text-xs text-muted-foreground text-center">
+              {!isLLMReady
+                ? "The AI model isn't ready yet. Open Settings → AI to connect, then retry."
+                : 'Something went wrong sending that message.'}
+            </p>
             <button
               onClick={handleRetry}
               className="flex items-center gap-2 px-4 py-2 bg-primary/10 border border-primary/30 text-primary rounded-xl text-sm font-medium hover:bg-primary/20 transition-colors"
@@ -625,6 +749,7 @@ export function ConversationScreen({
                 key={idx}
                 icon={pill.icon}
                 label={pill.label}
+                variant={pill.variant}
                 onClick={
                   pill.isCamera
                     ? onOpenCamera
@@ -727,6 +852,7 @@ export function ConversationScreen({
             onDeleteCompanion={onDeleteCompanion}
             onShowModelPicker={onShowModelPicker}
             onShowAuth={onShowAuth}
+            onSignOut={onSignOut}
           />
         )}
       </AnimatePresence>

@@ -19,6 +19,7 @@ export const COUNTRY_NAMES: Record<string, string> = {
   SE: 'Sweden', NO: 'Norway', DK: 'Denmark', FI: 'Finland', NL: 'Netherlands',
   BE: 'Belgium', PT: 'Portugal', CH: 'Switzerland', AT: 'Austria', IE: 'Ireland',
   CO: 'Colombia', PE: 'Peru', CL: 'Chile', EC: 'Ecuador', VE: 'Venezuela',
+  KE: 'Kenya', TZ: 'Tanzania', UG: 'Uganda', RW: 'Rwanda', BI: 'Burundi',
 };
 
 /**
@@ -36,6 +37,22 @@ export function resolveDialectKey(storedDialectKey: string | undefined, city: st
 export function getDialectInfo(dialectKey: string): DialectInfo | null {
   if (!dialectKey) return null;
   return dialectMap[dialectKey] ?? null;
+}
+
+/** Return all cities available in dialectMap as { key, city, country, countryCode } objects. */
+export function getPresetCities(): Array<{ key: string; city: string; country: string; countryCode: string }> {
+  return Object.keys(dialectMap).map((key) => {
+    const countryCode = key.split('/')[0];
+    const city = key.split('/').slice(1).join('/');
+    return { key, city, country: COUNTRY_NAMES[countryCode] ?? countryCode, countryCode };
+  });
+}
+
+/** Build a minimal location object from a dialect preset key (e.g. "IN/Delhi"). */
+export function buildLocationFromPreset(dialectKey: string): { city: string; country: string; countryCode: string } {
+  const countryCode = dialectKey.split('/')[0];
+  const city = dialectKey.split('/').slice(1).join('/');
+  return { city, country: COUNTRY_NAMES[countryCode] ?? countryCode, countryCode };
 }
 
 /**

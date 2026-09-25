@@ -10,7 +10,8 @@
 
 import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Pencil, MapPin, Globe } from 'lucide-react';
+import { Pencil, MapPin, Globe, Utensils, FileText, Mic, Building2, ShoppingBag, Moon, Users, Sparkles } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import avatarTemplates from '../../config/avatarTemplates.json';
 import { getLanguageByCode } from '../../config/supportedLanguages';
 import { CityPicker } from './CityPicker';
@@ -33,6 +34,17 @@ const TEMPLATE_GRADIENTS: Record<string, string> = {
   elder_speaker:       'from-amber-500/20 to-yellow-500/10',
   youth_translator:    'from-pink-500/20 to-rose-500/10',
   custom:              'from-teal-500/20 to-cyan-500/10',
+};
+
+const TEMPLATE_ICONS: Record<string, LucideIcon> = {
+  street_food: Utensils,
+  form_helper: FileText,
+  pronunciation_tutor: Mic,
+  office_navigator: Building2,
+  market_haggler: ShoppingBag,
+  night_guide: Moon,
+  elder_speaker: Users,
+  youth_translator: Sparkles,
 };
 
 export function AvatarSelectScreen({ onSelect }: AvatarSelectScreenProps) {
@@ -98,11 +110,13 @@ export function AvatarSelectScreen({ onSelect }: AvatarSelectScreenProps) {
       <div className="relative z-10 flex-1 flex flex-col px-6 py-8">
         {/* Header */}
         <motion.div className="text-center mb-6" initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }}>
-          <p className="text-4xl mb-2">🌏</p>
-          <h1 className="text-2xl font-bold text-foreground tracking-tight" style={{ fontFamily: 'var(--font-display)' }}>
-            Choose your companion
+          <h1 className="text-3xl font-bold text-foreground tracking-tight" style={{ fontFamily: 'var(--font-display)' }}>
+            NAVI
           </h1>
-          <p className="text-xs text-muted-foreground mt-1">Create your own or pick a quick start</p>
+          <p className="text-sm text-muted-foreground mt-2 max-w-xs mx-auto leading-relaxed">
+            A local companion who teaches how people actually speak.
+          </p>
+          <p className="text-xs text-muted-foreground/70 mt-3">Create your own or pick a quick start</p>
         </motion.div>
 
         <motion.div className="flex-1 overflow-y-auto" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.1 }}>
@@ -143,6 +157,7 @@ export function AvatarSelectScreen({ onSelect }: AvatarSelectScreenProps) {
             {templates.map((t, i) => {
               const gradient = TEMPLATE_GRADIENTS[t.id] ?? 'from-gray-500/20 to-gray-500/10';
               const isActive = selected === t.id;
+              const TemplateIcon = TEMPLATE_ICONS[t.id];
               return (
                 <motion.button
                   key={t.id}
@@ -156,7 +171,13 @@ export function AvatarSelectScreen({ onSelect }: AvatarSelectScreenProps) {
                       : 'bg-card border-border hover:border-primary/30'
                   }`}
                 >
-                  <span className="text-3xl mb-2">{t.emoji}</span>
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-2 ${isActive ? 'bg-primary/20' : 'bg-muted/50'}`}>
+                    {TemplateIcon ? (
+                      <TemplateIcon className={`w-5 h-5 ${isActive ? 'text-primary' : 'text-muted-foreground'}`} />
+                    ) : (
+                      <span className="text-lg opacity-60">{t.emoji}</span>
+                    )}
+                  </div>
                   <span className={`text-sm font-semibold ${isActive ? 'text-foreground' : 'text-muted-foreground'}`}>{t.label}</span>
                   <span className="text-xs text-muted-foreground mt-1 line-clamp-2">{t.base_personality.split('.')[0]}</span>
                 </motion.button>

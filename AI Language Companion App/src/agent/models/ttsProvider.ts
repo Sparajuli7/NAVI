@@ -22,9 +22,13 @@ const LANG_CODE_MAP: Record<string, string> = {
   Thai: 'th-TH',
   Arabic: 'ar-SA',
   Hindi: 'hi-IN',
+  Nepali: 'ne-NP',
   Russian: 'ru-RU',
   Indonesian: 'id-ID',
   Tagalog: 'tl-PH',
+  Filipino: 'fil-PH',
+  Turkish: 'tr-TR',
+  Swahili: 'sw-KE',
   Mandarin: 'zh-CN',
   Cantonese: 'zh-HK',
 };
@@ -44,9 +48,13 @@ const GTTS_LANG_MAP: Record<string, string> = {
   Thai: 'th',
   Arabic: 'ar',
   Hindi: 'hi',
+  Nepali: 'ne',
   Russian: 'ru',
   Indonesian: 'id',
   Tagalog: 'tl',
+  Filipino: 'tl',
+  Turkish: 'tr',
+  Swahili: 'sw',
   Mandarin: 'zh-CN',
   Cantonese: 'zh-TW',
 };
@@ -54,7 +62,7 @@ const GTTS_LANG_MAP: Record<string, string> = {
 /** Languages where browser TTS is typically poor and we should prefer Google Translate when online */
 const POOR_LOCAL_TTS_LANGUAGES = new Set([
   'Vietnamese', 'Thai', 'Korean', 'Japanese', 'Chinese', 'Mandarin', 'Cantonese',
-  'Arabic', 'Hindi', 'Tagalog', 'Indonesian',
+  'Arabic', 'Hindi', 'Nepali', 'Tagalog', 'Filipino', 'Indonesian', 'Swahili', 'Turkish',
 ]);
 
 export interface VoiceOption {

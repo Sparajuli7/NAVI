@@ -26,6 +26,8 @@ import { RelationshipStore } from './relationshipStore';
 import { SituationAssessor } from './situationAssessor';
 import { KnowledgeGraphStore } from './knowledgeGraph';
 import { MemoryMaker } from './memoryMaker';
+import { EmotionalMemoryStore } from './emotionalMemory';
+import { ConversationThreadStore } from './conversationThreads';
 import type { EpisodicMemory } from '../core/types';
 import type { ChatLLM } from '../models/chatLLM';
 import { agentBus } from '../core/eventBus';
@@ -40,6 +42,8 @@ export class MemoryManager {
   readonly situation: SituationAssessor;
   readonly graph: KnowledgeGraphStore;
   readonly memoryMaker: MemoryMaker;
+  readonly emotional: EmotionalMemoryStore;
+  readonly threads: ConversationThreadStore;
 
   private initialized = false;
 
@@ -53,6 +57,8 @@ export class MemoryManager {
     this.situation = new SituationAssessor();
     this.graph = new KnowledgeGraphStore();
     this.memoryMaker = new MemoryMaker(this.graph, llmProvider ?? null);
+    this.emotional = new EmotionalMemoryStore();
+    this.threads = new ConversationThreadStore();
   }
 
   /** Initialize all persistent stores (including knowledge graph) */
@@ -66,6 +72,8 @@ export class MemoryManager {
       this.relationships.load(),
       this.situation.load(),
       this.graph.load(),
+      this.emotional.load(),
+      this.threads.load(),
     ]);
     this.initialized = true;
     agentBus.emit('memory:update', { type: 'initialized' });
@@ -171,6 +179,8 @@ export class MemoryManager {
     await this.relationships.clear();
     await this.situation.reset();
     await this.graph.clear();
+    await this.emotional.clear();
+    await this.threads.clear();
     agentBus.emit('memory:update', { type: 'cleared' });
   }
 }
@@ -184,3 +194,5 @@ export { RelationshipStore } from './relationshipStore';
 export { SituationAssessor } from './situationAssessor';
 export { KnowledgeGraphStore } from './knowledgeGraph';
 export { MemoryMaker } from './memoryMaker';
+export { EmotionalMemoryStore } from './emotionalMemory';
+export { ConversationThreadStore } from './conversationThreads';

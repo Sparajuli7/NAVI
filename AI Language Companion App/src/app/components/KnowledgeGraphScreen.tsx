@@ -1,5 +1,5 @@
 import React, { useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Search, LayoutList, Brain } from 'lucide-react';
+import { ArrowLeft, Search, LayoutList, Brain, Network } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { PhraseDetailSheet } from './PhraseDetailSheet';
 import { countryFlag } from '../../utils/countryFlag';
@@ -670,7 +670,10 @@ export function KnowledgeGraphScreen({
         </button>
 
         <div className="text-center min-w-0 flex-1 px-2">
-          <h1 className="font-serif text-lg text-foreground truncate">My Dictionary</h1>
+          <h1 className="font-serif text-lg text-foreground truncate flex items-center justify-center gap-1.5">
+            <Network className="w-4 h-4 text-primary" strokeWidth={1.75} />
+            Phrases
+          </h1>
           <p className="text-[11px] text-muted-foreground truncate">{languageTitle}</p>
         </div>
 
@@ -741,9 +744,13 @@ export function KnowledgeGraphScreen({
       </div>
 
       {!usingLiveData && (
-        <p className="text-[11px] text-center text-muted-foreground px-4 py-1.5 shrink-0 border-b border-border/30">
-          Sample phrases for {languageTitle} — chat with NAVI to build your real phrase map.
-        </p>
+        <motion.p
+          className="text-[11px] text-center text-muted-foreground px-4 py-1.5 shrink-0 border-b border-border/30"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+        >
+          Sample · chat to build yours
+        </motion.p>
       )}
 
       <div
@@ -762,9 +769,8 @@ export function KnowledgeGraphScreen({
         onTouchEnd={handleTouchEnd}
         onDoubleClick={resetView}
       >
-        {/* Reset hint */}
-        <p className="absolute top-2 right-3 text-[10px] text-muted-foreground/50 z-30 pointer-events-none select-none">
-          Pinch or scroll to zoom · Double-tap to reset
+        <p className="absolute top-2 right-3 text-[10px] text-muted-foreground/40 z-30 pointer-events-none select-none">
+          Pinch · double-tap reset
         </p>
         <div
           style={{

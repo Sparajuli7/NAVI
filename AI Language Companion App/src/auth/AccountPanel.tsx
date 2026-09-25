@@ -1,6 +1,6 @@
 /**
  * AccountPanel — inline account management shown inside SettingsPanel.
- * Shows current user info and sign-out, or sign-in prompt for guests.
+ * Shows current user info and sign-out, or sign-in prompt when not logged in.
  */
 
 import React, { useState } from 'react';
@@ -10,11 +10,12 @@ import { useAuthStore } from './authStore';
 import { resetToLocal } from '../db';
 
 interface Props {
-  onSignIn: () => void; // navigate to AuthScreen
+  onSignIn: () => void;
+  onSignOut?: () => void;
 }
 
-export function AccountPanel({ onSignIn }: Props) {
-  const { user, isGuest } = useAuthStore();
+export function AccountPanel({ onSignIn, onSignOut }: Props) {
+  const { user } = useAuthStore();
   const [signingOut, setSigningOut] = useState(false);
 
   const handleSignOut = async () => {
@@ -23,13 +24,15 @@ export function AccountPanel({ onSignIn }: Props) {
     resetToLocal();
     useAuthStore.getState().signOut();
     setSigningOut(false);
+    onSignOut?.();
   };
 
   if (!isSupabaseConfigured) {
     return (
       <div className="p-4 rounded-xl bg-muted/50 border border-border text-center">
-        <p className="text-xs text-muted-foreground">
-          Account system not set up yet. Add Supabase env vars to enable.
+        <p className="text-sm font-medium text-foreground">Accounts unavailable</p>
+        <p className="text-xs text-muted-foreground mt-1">
+          Sign-in is not configured for this environment.
         </p>
       </div>
     );
@@ -68,14 +71,11 @@ export function AccountPanel({ onSignIn }: Props) {
     );
   }
 
-  // Guest or not logged in
   return (
     <div className="rounded-xl border border-dashed border-border bg-card/50 p-4 space-y-3">
       <div className="flex items-center gap-2 text-muted-foreground">
         <Mail size={16} />
-        <p className="text-sm">
-          {isGuest ? 'Using without account' : 'Not signed in'}
-        </p>
+        <p className="text-sm">Not signed in</p>
       </div>
       <p className="text-xs text-muted-foreground leading-relaxed">
         Create a free account to back up your companions, phrases, and progress across devices.

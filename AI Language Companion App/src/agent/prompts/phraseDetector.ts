@@ -31,11 +31,14 @@ const MEANS_REGEX = /\*\*Means:\*\*\s*(.+?)(?:\n|$)/gi;
  * Returns all detected phrases with their pronunciation and meaning.
  */
 export function detectPhrases(text: string): DetectedPhrase[] {
+  const results: DetectedPhrase[] = [];
+  const seen = new Set<string>();
+
+  // 1. Full phrase cards: **Phrase:** / **Say it:** / **Means:**
   const phrases: string[] = [];
   const pronunciations: string[] = [];
   const meanings: string[] = [];
 
-  // Extract all phrase matches
   let match: RegExpExecArray | null;
 
   PHRASE_REGEX.lastIndex = 0;
@@ -53,17 +56,34 @@ export function detectPhrases(text: string): DetectedPhrase[] {
     meanings.push(match[1].trim());
   }
 
-  // Build detected phrases — align by index
-  const results: DetectedPhrase[] = [];
   for (let i = 0; i < phrases.length; i++) {
-    // Skip placeholder text that wasn't filled in
     const phrase = phrases[i];
     if (phrase.startsWith('[') && phrase.endsWith(']')) continue;
-
+    const key = phrase.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
     results.push({
       phrase,
       pronunciation: pronunciations[i]?.startsWith('[') ? undefined : pronunciations[i],
       meaning: meanings[i]?.startsWith('[') ? undefined : meanings[i],
+    });
+  }
+
+  // 2. Inline teaching format: **phrase** (phonetic) — optional meaning
+  //    Matches Praktika doctrine: **bonjour** (bon-ZHOOR) — hello
+  const INLINE_REGEX = /\*\*([^*]+)\*\*\s*\(([^)]+)\)(?:\s*[—–-]\s*([^.!?\n]+))?/g;
+  INLINE_REGEX.lastIndex = 0;
+  while ((match = INLINE_REGEX.exec(text)) !== null) {
+    const phrase = match[1].trim();
+    // Skip card field labels
+    if (/^(phrase|say it|means|tip|sound tip)$/i.test(phrase)) continue;
+    const key = phrase.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    results.push({
+      phrase,
+      pronunciation: match[2].trim(),
+      meaning: match[3]?.trim(),
     });
   }
 

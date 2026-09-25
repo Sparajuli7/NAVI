@@ -1,18 +1,19 @@
 /**
- * generateAvatarImage — fetches a one-time AI portrait from Pollinations.ai.
+ * generateAvatarImage — portrait generation for companions.
  *
- * Called once during onboarding after character generation. On success, the
- * base64 string is saved to IndexedDB via saveAvatarImage() and the character's
- * has_portrait flag is set to true. On any error, returns null silently so the
- * DiceBear fallback in AIAvatarDisplay remains the experience.
- *
- * Seed = characterId so regeneration is deterministic for the same character.
+ * Cascade: /api/generate-avatar (FLUX Pro) → Pollinations.ai fallback.
+ * Returns base64 data URI on success, null on failure.
  */
 
 const POLLINATIONS_BASE = 'https://image.pollinations.ai/prompt';
-// Realistic editorial portrait style — much better quality than Pixar 3D
 const STYLE_PREFIX = 'editorial portrait photography, shallow depth of field, natural skin texture, soft studio lighting, ';
 const STYLE_SUFFIX = ', looking slightly off-camera, warm authentic expression, photorealistic, sharp focus on face, bokeh background, professional headshot quality, 85mm lens';
+
+function portraitSeed(characterId: string): number {
+  return Math.abs(
+    characterId.split('_').pop()?.split('').reduce((a, c) => a * 31 + c.charCodeAt(0), 0) ?? 0,
+  ) % 99999;
+}
 
 /**
  * Fetch an AI portrait for the given portrait prompt.
@@ -27,23 +28,45 @@ export async function generateAvatarImage(
   if (!portraitPrompt || !characterId) return null;
 
   const fullPrompt = `${STYLE_PREFIX}${portraitPrompt}${STYLE_SUFFIX}`;
+
+  // Step A — FLUX Pro via /api/generate-avatar proxy
+  try {
+    const bflAbort = new AbortController();
+    const bflTimeout = setTimeout(() => bflAbort.abort(), 90_000);
+    const bflRes = await fetch('/api/generate-avatar', {
+      method: 'POST',
+      signal: bflAbort.signal,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt: fullPrompt }),
+    });
+    clearTimeout(bflTimeout);
+    if (bflRes.ok) {
+      const { imageUrl } = await bflRes.json() as { imageUrl?: string };
+      if (imageUrl) {
+        const imgRes = await fetch(imageUrl);
+        if (imgRes.ok) {
+          const blob = await imgRes.blob();
+          if (blob.size) return await blobToBase64(blob);
+        }
+      }
+    }
+  } catch {
+    // FLUX Pro unavailable — fall through
+  }
+
+  // Step B — Pollinations.ai fallback
   const encoded = encodeURIComponent(fullPrompt);
-  // Derive a numeric seed from characterId (hash the timestamp portion)
-  const seed = Math.abs(characterId.split('_').pop()?.split('').reduce((a, c) => a * 31 + c.charCodeAt(0), 0) ?? 0) % 99999;
+  const seed = portraitSeed(characterId);
   const url = `${POLLINATIONS_BASE}/${encoded}?width=512&height=512&nologo=true&seed=${seed}&model=flux`;
 
   try {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 40_000);
-
     const response = await fetch(url, { signal: controller.signal });
     clearTimeout(timeoutId);
-
     if (!response.ok) return null;
-
     const blob = await response.blob();
     if (!blob.size) return null;
-
     return await blobToBase64(blob);
   } catch (err) {
     console.warn('[NAVI] avatar image generation failed:', err);

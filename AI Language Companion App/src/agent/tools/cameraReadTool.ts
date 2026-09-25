@@ -26,6 +26,7 @@ export function createCameraReadTool(
     description: 'Read and explain text from an image (menu, sign, document, form).',
     paramSchema: {
       imageData: { type: 'string|blob', required: true, description: 'Image data (File, Blob, or data URL)' },
+      ocrLanguages: { type: 'string', required: false, description: 'Tesseract language string (e.g. vie+eng)' },
       onOCRProgress: { type: 'function', required: false, description: 'OCR progress callback' },
       onExplanationToken: { type: 'function', required: false, description: 'Streaming explanation callback' },
     },
@@ -34,6 +35,7 @@ export function createCameraReadTool(
 
     async execute(params: Record<string, unknown>): Promise<unknown> {
       const imageData = params.imageData as File | Blob | string;
+      const ocrLanguages = params.ocrLanguages as string | undefined;
       const onOCRProgress = params.onOCRProgress as ((p: number) => void) | undefined;
       const onExplanationToken = params.onExplanationToken as ((t: string, f: string) => void) | undefined;
 
@@ -45,6 +47,7 @@ export function createCameraReadTool(
         language,
         avatarContext,
         userNativeLanguage,
+        ocrLanguages,
         onOCRProgress,
         onExplanationToken,
       });
