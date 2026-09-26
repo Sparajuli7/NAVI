@@ -8,6 +8,7 @@
     "dev": "vite",
     "bridge": "node scripts/claude-bridge.mjs",
     "screenshot-survey": "node scripts/screenshot-survey.mjs",
+    "screenshot-survey-bridge": "node scripts/screenshot-survey-bridge.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest"

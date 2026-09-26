@@ -1,0 +1,306 @@
+{
+  "none:clinic": {
+    "reply1": "Okay, since yesterday — got it. Can you point to exactly where it hurts, and is it more like a sharp pain or a dull ache?",
+    "reply2": "It's probably not serious, but I want to check you over to be sure — let's do a quick exam and maybe a urine test, okay? In the meantime, don't eat anything heavy, and tell me right away if the pain gets worse or you start throwing up."
+  },
+  "light:clinic:zh": {
+    "reply1": "Okay, stomach pain since yesterday — got it. Let me ask a couple quick things to figure out what's going on: **\"Can you point to where it hurts the most?\"** — 你可以指一下最痛的地方吗?\n\nAnd I'll want to know: **\"Is the pain sharp, or more of a dull ache?\"** 一个是刺痛（sharp），一个是钝痛（dull）— 哪个更像你的感觉?",
+    "reply2": "Totally fair to want to know that first — 别紧张. One day of stomach pain by itself usually isn't an emergency, but I still need those details to be sure. So instead of guessing, I'll say: **\"I don't want to guess — let's figure out exactly what it is first, then I'll tell you what to do.\"**\n\nIf it gets way worse, or you get a fever, or the pain moves to your lower right side, that's when we'd act fast — otherwise we're just gathering clues right now. 先别自己吓自己，我们一步一步来。"
+  },
+  "heavy:clinic:zh": {
+    "reply1": "好的,坐下别紧张。医生会先确认位置和时间,你可能会听到这句:**\"Can you point to where it hurts?\"**(你能指一下是哪里疼吗?)\n\n你可以直接用手指着肚子那块,再补一句你已经会的英文。练习一下:肚子中间还是两侧?疼痛是那种\"一阵一阵\"还是\"一直\"的?这个区别医生一定会问。",
+    "reply2": "别慌,肚子疼一天,大部分情况不是急症,但这句问题问得对——要学会问医生。你可以说:**\"Is it serious? What should I do?\"** (这严重吗?我该怎么办?),这句你已经会用了,直接照说就行。\n\n医生通常会先说要不要做检查,你可能会听到 **\"We'll run some tests to be sure.\"**(我们会做些检查确认一下)——这不代表很严重,只是标准流程,听到别吓一跳。"
+  },
+  "light:clinic:fr": {
+    "reply1": "Ah, okay — depuis hier, d'accord. Let me ask a couple quick things: **\"Can you point to where it hurts?\"** and **\"Is the pain sharp, or more like a dull ache?\"** — *sharp* (aigu, comme une piqûre) vs *dull* (sourd, une gêne constante).\n\nAlso good to know: **\"Have you thrown up or had any fever?\"** No pressure to be precise — pointer avec le doigt marche très bien aussi si les mots manquent.",
+    "reply2": "Pas de panique — most stomach pain like this isn't serious, but it's smart to get it checked. I'd probably say **\"I don't think it's anything dangerous, but let's run some tests to be sure\"** — histoire d'écarter les causes simples avant tout.\n\nYou could also just ask directly: **\"What do you think it could be?\"** — ça montre que tu veux comprendre, pas juste qu'on te rassure vite fait."
+  },
+  "heavy:clinic:fr": {
+    "reply1": "Ah d'accord, une douleur au ventre depuis hier — je vais jouer la suite pour qu'on soit prêts. Le médecin va probablement demander **\"Can you point to where it hurts the most?\"** (tu peux montrer avec le doigt, pas besoin de mots compliqués).\n\nToi tu peux répondre simplement en montrant : **\"It hurts right here.\"** Essaie de le dire à voix haute — c'est exactement la phrase qui va servir dans dix minutes.",
+    "reply2": "Bonne question, ça montre que tu es attentif. En vrai, à ce stade le médecin ne sait pas encore — il/elle va d'abord poser des questions et peut-être appuyer sur ton ventre pour voir. Tu peux directement demander **\"Is it serious? What should I do?\"** — exactement ta phrase, elle est nickel comme ça.\n\nPrépare-toi aussi à une question de suivi possible : **\"Have you had any fever or vomiting?\"** — pas de panique si tu ne comprends pas tout, tu peux toujours dire **\"Sorry, can you say that again?\"**"
+  },
+  "light:clinic:de": {
+    "reply1": "Okay, since yesterday — good to know, danke. Just to pin it down: **\"Can you point to where it hurts the most?\"** — and while you're pointing, is it more like a dull ache or sharp and stabbing? Auf Deutsch wäre das \"dumpf\" (dull) oder \"stechend\" (sharp/stabbing) — sag einfach das englische Wort, das am ehesten passt.",
+    "reply2": "Good question — and honestly, one pain day usually isn't an emergency, so try not to panic. I'll probably say: **\"It doesn't look serious right now, but let's run a few tests just to be safe.\"** Maybe you'll hear **\"I'd like to check your blood pressure and take a urine sample\"** — ganz normale Routine, keine große Sache, easy to say back: **\"Okay, sure, no problem.\"**"
+  },
+  "heavy:clinic:de": {
+    "reply1": "Ah, okay, Bauchschmerzen seit gestern — das klingt unangenehm. Der Arzt wird wahrscheinlich als Erstes genauer nachfragen wollen, also hör mal: **\"Can you point to where it hurts?\"**\n\nZeig einfach mit dem Finger drauf, das reicht völlig. Und wenn er fragt, wie schlimm es ist, kannst du sagen: **\"It's a dull ache, not sharp.\"** — falls es eher ein dumpfer Schmerz ist und kein stechender.",
+    "reply2": "Gute Frage, und keine Sorge — bei \"seit gestern\" wird der Arzt erstmal ruhig abtasten und Fragen stellen, das ist Routine, kein Alarmsignal. Du kannst ruhig fragen: **\"Is this something serious?\"** — direkt und höflich, das macht man hier ganz normal.\n\nUnd wenn du wissen willst, was du tun sollst, frag einfach: **\"What should I do in the meantime?\"** — dann sagt er dir, ob z.B. Schonkost oder Wasser reicht, bis das Ergebnis da ist."
+  },
+  "light:clinic:hi": {
+    "reply1": "Oh no, since yesterday? That's not fun. *(as the doctor, gently)* \"Can you point to exactly where it hurts, and is the pain sharp or more like a dull ache?\"\n\nएक बहुत useful sentence अभी सीख लो — डॉक्टर अक्सर पहले यही पूछते हैं: **\"Can you point to where it hurts?\"** — बस उंगली से दिखाना है, आसान है।\n\nऔर जब वो pain के बारे में और पूछें, अपनी तरफ से बोलने के लिए ये रख लो: **\"It's a dull ache, not sharp.\"** (या अगर तेज़ दर्द है तो \"It's sharp, like a stabbing pain.\") तैयार हो practice करने को?",
+    "reply2": "Good sign that you're asking, but don't panic — this is exactly the kind of question doctors get all day. *(as the doctor)* \"It's hard to say yet — let's rule out the serious stuff first. I'm going to press on your stomach gently, just tell me if it hurts more.\"\n\nएक बहुत काम की line सीखो — जब भी doctor कुछ next-step बताए, बस ये पूछ लो: **\"What do you think it could be?\"** — सीधा सवाल, doctor को अच्छा लगता है clear patient मिलना। और अगर वो कोई test या medicine suggest करें, बोलो: **\"Okay, should I be worried, or is this normal?\"** — इससे तुम्हें clarity भी मिलेगी और panic भी नहीं दिखेगा। practice करें इसे बोलकर?"
+  },
+  "heavy:clinic:hi": {
+    "reply1": "अच्छा, पेट में दर्द है, और कल से है। डॉक्टर पूछेंगे कि ठीक-ठीक कहाँ दर्द है और कैसा दर्द है — तेज़ या हल्का। तुम बोल सकते हो: **\"The pain is around my belly button, and it's a dull ache.\"**\n\nअगर सही जगह नहीं पता, तो सिर्फ हाथ से दिखा दो — बोलना ज़रूरी नहीं। बाकी तैयारी के लिए — क्या तुमने कुछ खाया था जो अलग लगा, या उल्टी/बुखार भी है?",
+    "reply2": "घबराओ मत — पेट दर्द अक्सर serious नहीं होता, पर डॉक्टर check करके ही बताएंगे, guess मत करो। तुम पूछ सकते हो: **\"Is this something serious? What should I do next?\"**\n\nऔर डरने की बात नहीं — अगर सच में कुछ गंभीर होता, तो डॉक्टर तुरंत टेस्ट बोल देते। पूछने से हिचको मत, यही तो appointment का मकसद है।"
+  },
+  "light:clinic:ja": {
+    "reply1": "Ah, okay, sorry that's uncomfortable — let's figure it out together. Can you point to exactly where it hurts, and is it sharp or more like a dull ache? Try: **\"It's a dull ache, right around here\"** or **\"It's sharp, especially when I press on it.\"** 「鈍い痛み」か「鋭い痛み」か、まずそこを伝えられると先生も助かるよ。",
+    "reply2": "Good question to ask — and honestly, that's exactly the phrase to use with the doctor. Try: **\"Is it serious? What should I do?\"** — short, direct, totally normal thing to say. 深刻な感じかどうか聞くのは全然変じゃないから、遠慮なく聞いていいよ。\n\nFor now: since it just started yesterday and you can still talk normally, we'll just check a few things — I might press on your stomach gently and ask about food, fever, nausea. If I say **\"Let's run a quick test to be safe\"**, that just means routine, not alarming — 念のためのチェックってことね。"
+  },
+  "heavy:clinic:ja": {
+    "reply1": "あ〜お腹痛いのつらいね。昨日からってことは、もう1日以上続いてる感じ。まずお医者さんはこう聞いてくると思うよ:**\"Can you point to where it hurts the most?\"**(どこが一番痛いか指してもらえますか)\n\nそしたら実際にお腹を指して、こう答える練習しよう:**\"It hurts right here.\"**(ここが痛いです)。指しながら言えば単語が完璧じゃなくても全然伝わるから大丈夫。",
+    "reply2": "深刻かどうか気になるよね、その気持ちすごく分かる。実はそれ、お医者さんに直接聞いていい質問なんだよ:**\"Is this serious?\"**(これは深刻ですか)ってそのまま聞けばOK。\n\nそれと「どうすればいいか」は:**\"What should I do?\"**(どうすればいいですか)。この2つセットで聞けば、次にお医者さんが検査とか薬とか説明してくれる流れになるよ。まずは深呼吸〜、この2つ言えたら十分伝わる。"
+  },
+  "light:clinic:ko": {
+    "reply1": "Ah, stomach pain since yesterday — okay, let's figure this out together. First thing I'd ask: **\"Can you show me exactly where it hurts?\"** — 어디가 아픈지 손으로 짚어서 보여달라는 뜻이에요, 배 전체보다 정확한 위치가 중요하거든요.\n\nThen I'd probably follow up with **\"Is the pain sharp, or more like a dull ache?\"** (콕콕 찌르는 느낌 vs 은근하게 뻐근한 느낌). Try answering both out loud — how would you describe *your* pain?",
+    "reply2": "Totally fair to ask — that's exactly the right question. Honestly, one day of stomach pain usually isn't an emergency, but I'll want to check a few things first before saying \"don't worry.\" Try this one on the doctor: **\"Is this something serious, or can it wait?\"**\n\n너무 겁먹지 마요 — 배 아픈 거 하루 정도는 대부분 심각한 거 아니에요. 근데 열이 있거나 토하거나 하면 얘기가 다르니까, 의사가 물어볼 거예요: **\"Do you have any fever, nausea, or vomiting?\"** (열, 메스꺼움, 구토 있어요?) 이 세 개 미리 생각해두면 답하기 훨씬 편해요 — 지금 그중에 있어요?"
+  },
+  "heavy:clinic:ko": {
+    "reply1": "아이고, 배 아픈 거 어제부터라니 힘들었겠다. 의사가 바로 물어볼 거야 — **\"On a scale of one to ten, how bad is the pain?\"** (아픈 정도를 1~10으로 말하면 돼).\n\n숫자로만 답해도 되고, 이렇게도 말할 수 있어: **\"It's like a 6, and it gets worse after I eat.\"** (먹고 나면 더 아프면 이렇게 덧붙이면 돼). 어디쯤 아픈지도 손으로 가리키면서 말하면 훨씬 편해!",
+    "reply2": "걱정되는 거 당연해. 근데 지금 단계에서 의사가 심각한지 바로 판단해주는 거니까 너무 앞서가지 말고 물어봐: **\"Is it serious? What should I do?\"** 이렇게 그대로 물으면 돼.\n\n의사가 보통 배 눌러보면서 검사할 수도 있어 — 그때 **\"Does it hurt when I press here?\"** 라고 물으면, 아프면 그냥 **\"Yes, that hurts.\"** 라고만 해도 충분해. 진단은 검사해봐야 아는 거니까 지금은 정직하게 증상만 잘 전달하는 게 제일 중요해!"
+  },
+  "light:clinic:ne": {
+    "reply1": "Okay, thank you for telling me — stomach pain since yesterday, got it. First I'll probably ask **\"Can you point to where it hurts the most?\"** — यसो हातले देखाइदेऊ भन्ने हो, easy one.\n\nAlso get ready to answer things like sharp or dull pain, and whether you've thrown up or had fever. Try saying it out loud: **\"It's a dull ache, right around here.\"**",
+    "reply2": "Not necessarily serious — but good that you're checking it out, त्यही भएर त डाक्टरकहाँ आउने। We'll figure out what's causing it first before jumping to conclusions.\n\nYou can just ask straight up: **\"Is this something serious? What should I do next?\"** — डाक्टरले जाँचेपछि, blood test वा treatment चाहिए भन्छन्, that's normal, don't panic."
+  },
+  "heavy:clinic:ne": {
+    "reply1": "*ओहह, पेट दुख्यो is it? Ok, समझें त्यो — डाक्टरले पहिले exact location र timing सोध्छन्।* पहिला उनले सोध्न सक्छन् — **\"Can you point to where it hurts the most?\"** — औंलाले ठ्याक्कै ठाउँ देखाइदिनुस् है, त्यसले धेरै सजिलो बनाउँछ।\n\nThen उनले pain को feeling बारे पनि सोध्न सक्छन्, त्यो अर्को पटक कभर गरौंला — अहिलेलाई यो एउटा phrase प्रयोग गरेर देखाउनुस्।",
+    "reply2": "राम्रो प्रश्न — डर लाग्नु स्वाभाविक हो, तर पहिले नै serious भनेर नठान्नुस्। धेरैजसो पेट दुख्ने कुरा normal हुन्छ, डाक्टरले जाँचेपछि मात्र थाहा हुन्छ। यसो सोध्नुस् है — **\"Is it serious? What should I do?\"** — ठ्याक्कै यही वाक्य, अनि उनले explain गर्छन्।"
+  },
+  "light:clinic:ru": {
+    "reply1": "Okay, thank you for telling me. So — pain in the stomach, started yesterday. Doctor's next question is usually **\"Can you describe the pain — is it sharp, or more like a dull ache?\"** (острая или тупая боль).\n\nJust try repeating that phrase in your head — **\"It's a sharp pain\"** or **\"It's a dull ache\"**, whichever fits. Which one is it, кстати, для практики?",
+    "reply2": "Good question to ask — doctors like when patients ask that directly. I can't say yet if it's serious, that's literally why we're checking, but one day of stomach pain isn't automatically scary. The doctor's likely next move is a couple more questions plus maybe a quick exam, so a useful line for you is: **\"Should I be worried? Is there anything I need to do right now?\"**\n\nПрактическая фраза, если хочешь звучать чуть увереннее: **\"What do you think it could be?\"** — нормально спросить врача прямо. Хочешь попробовать сказать это вслух?"
+  },
+  "heavy:clinic:ru": {
+    "reply1": "Ага, понятно. Врач бы, наверное, сначала уточнил, где именно и насколько сильно болит — что-то вроде **\"Can you point to where it hurts?\"** (кэн ю пойнт ту вэа ит хёртс).\n\nА ты в ответ можешь просто показать пальцем и сказать **\"Right here\"** — не нужно ничего сложного, жест + два слова достаточно.",
+    "reply2": "Не переживай, обычно с этим разбираются быстро — но врач наверняка задаст пару уточняющих вопросов, что-то вроде **\"Any nausea or fever?\"** (эни нозиа ор фивэр — тошнота или температура была?). А ты можешь честно ответить да/нет и добавить, если что-то ещё беспокоит: **\"No fever, but it hurts more when I press here.\"**\n\nСамо \"серьёзно ли это\" врач озвучит после осмотра — не бойся прямо спросить: **\"Is this something serious?\"** — это абсолютно нормальный вопрос, так и говори."
+  },
+  "light:clinic:es": {
+    "reply1": "Ay, entiendo — dolor de estómago desde ayer, no es divertido. The doctor's gonna want details, so get ready to say **\"It's a sharp pain\"** or **\"it's more like a dull ache\"** — whichever fits, `sharp` = agudo, `dull` = sordo.\n\nThey'll probably follow up with **\"On a scale of 1 to 10, how bad is the pain?\"** — just answer with a number, easy. ¿Quieres practicar esa respuesta ahorita?",
+    "reply2": "Totally fair to ask that — but honestly, don't self-diagnose in your head, just ask the doctor straight up. You can say **\"Is it serious?\"** or a bit softer, **\"Should I be worried about this?\"**\n\nAnd if they want to examine you, they might say \"let me take a look\" or \"can I press here?\" — you'd just say **\"okay\"** or **\"ow, right there\"** (ahí mismo) if it hurts. Tranquilo, es súper normal preguntar esto — nadie te va a juzgar por tener miedo."
+  },
+  "heavy:clinic:es": {
+    "reply1": "Ay, ok, vamos a ver ese dolor de estómago. Primero te va a preguntar algo básico: **\"On a scale of one to ten, how bad is the pain?\"** — o sea, del uno al diez, qué tan fuerte es.\n\nPrepárate también para esta, casi siempre la hacen: **\"Is the pain sharp, or more like a dull ache?\"** — si es un dolor agudo/punzante o más bien sordo, constante. Tú puedes contestar corto, tipo \"it's a dull ache, comes and goes.",
+    "reply2": "No te adelantes al susto — con un dolor que empezó ayer, sin fiebre alta ni vómito, normalmente no es nada grave. El doctor te va a decir algo como: **\"It's probably nothing serious, but let's run a few tests to be sure.\"**\n\nY ahí tú puedes preguntar directo, así de simple: **\"What should I do in the meantime — any food or medicine I should avoid?\"** — le pides consejo práctico mientras esperan resultados. Eso ya deja la pelota en su cancha."
+  },
+  "none:professor": {
+    "reply1": "Yeah, sure, come on in — what part's tripping you up?",
+    "reply2": "Nah, sorry, Monday's too late — I need it by Friday at midnight, no exceptions on this one. If Friday's rough for you, email me why and we'll figure something out."
+  },
+  "light:professor:zh": {
+    "reply1": "Of course, come on in — no rush. *(小声安慰：别紧张，教授语气很平常，不是在怪你)* You could open with **\"Sorry to bother you, do you have a sec? I got a little confused about the deadline.\"** — nice and casual, that's exactly how students actually ask.\n\n要不要我们先练一次你怎么说这句话?说完再接你具体哪里没听懂的问题。",
+    "reply2": "Ah — good question, but careful: **\"Can I submit it on Monday?\"** sounds a bit direct, almost like you're assuming yes. Softer version: **\"Would it be possible to submit it on Monday instead?\"** — 用 \"would it be possible\" 显得更礼貌，教授更容易说好。\n\n要不要练一遍这句，然后我们再看看万一教授说\"不行\"你要怎么接？"
+  },
+  "heavy:professor:zh": {
+    "reply1": "当然有时间~ 别紧张，这种问题特别常见。你可以先说 **\"Excuse me, do you have a minute? I didn't understand the part about the deadline.\"** —— 你刚才其实已经说得很好了！\n\n我来演教授接话：*\"Sure, no problem — which part is confusing you?\"*（当然，没问题，哪部分让你不明白？）这时候你就直接说出具体哪里不懂就行。",
+    "reply2": "哈哈这个问题问得好，直接问清楚最实际。你可以说 **\"So can I submit it on Monday?\"** —— 这句你已经说得很自然了，不用改。\n\n我接教授的话：*\"Monday should be fine, just email me a heads-up so I have it on record.\"*（周一应该没问题，先给我发个邮件说一声，我好留个记录。）如果教授这么回，你就顺势说一句 **\"Will do, thank you so much!\"** 表示答应+道谢，收尾很漂亮。"
+  },
+  "light:professor:fr": {
+    "reply1": "Of course, come on in — take a seat. **\"Sure, no problem — what part's confusing you?\"** is exactly what I'd say back, so just jump right in with your question.\n\nPetit tip : \"do you have a minute\" c'était nickel, très naturel. Tu peux enchaîner direct avec ta vraie question sur le deadline maintenant — vas-y, essaie ! 😊",
+    "reply2": "Ah, bonne question — mais attention, en anglais tu ne dis pas \"can I submit it on Monday\" tout court, ça sonne un peu abrupte. Essaie plutôt **\"Would it be possible to hand it in on Monday instead?\"** — plus poli, ça sous-entend que tu demandes une faveur, pas que c'est acquis.\n\nLe prof pourrait répondre un truc comme \"That should be fine, just email me before then\" — donc prépare-toi à entendre ça et à dire merci !"
+  },
+  "heavy:professor:fr": {
+    "reply1": "Bien sûr, pas de souci ! *Of course, no worries!* — voilà exactement la phrase à utiliser : **\"Of course, no worries — what did you want to ask?\"**\n\nLe prof va probablement enchaîner tout de suite sur ta question, donc prépare déjà ta phrase suivante sur le deadline en tête.",
+    "reply2": "Ah, bonne question mais... pas cette fois. *\"I'm afraid not — the deadline's firm, but if you email me your draft tonight I can take a quick look.\"* Le prof reste sympa mais pose une limite claire.\n\nRetiens surtout **\"I'm afraid not, but...\"** — ça adoucit un refus en anglais, jamais juste \"no\". Tu veux qu'on pratique comment répondre si le prof dit ça ?"
+  },
+  "light:professor:de": {
+    "reply1": "Of course, come on in — I've got a minute. *(Kein Stress, keine Eile.)* Just ask me straight: **\"Could you go over the deadline again? I want to make sure I got it right.\"**\n\nTry saying it out loud once, then tell me — was genau war unklar, das Datum oder was abgegeben werden muss?",
+    "reply2": "Ah, good question — but let's not guess, let's ask properly first. Try: **\"So, just to confirm — is Monday okay for submission, or was that only for the draft?\"** That way you're not assuming, you're checking.\n\nNutz lieber \"just to confirm\" statt direkt zu fragen — klingt höflicher, nicht so, als hättest du im Unterricht gepennt. Wie würdest du das jetzt sagen, probier's mal?"
+  },
+  "heavy:professor:de": {
+    "reply1": "Klar, kein Problem — als Prof würde ich da spontan sagen: **\"Sure, what's up?\"** oder **\"Of course, go ahead.\"** — ganz locker, kein großes Ding.\n\nUnd dann kommt dein eigentliches Anliegen: du willst sagen, dass du den Teil zur Deadline nicht verstanden hast. Probier mal: **\"I didn't quite catch the part about the deadline — could you go over it again?\"**",
+    "reply2": "Ha, direkt zur Sache — verständlich. Als Prof würde ich da spontan antworten: **\"Monday should be fine, just make sure it's in by midnight.\"** — kurz, klar, kein Drama.\n\nFalls du auf Nummer sicher gehen willst, häng noch dran: **\"Just to confirm — Monday works for you?\"** Zeigt, dass du's ernst meinst und nicht einfach annimmst."
+  },
+  "light:professor:hi": {
+    "reply1": "Of course, come on in — I've got a minute. Which part's confusing you, the due date or the late-submission policy?\n\n*(थोड़ा रुककर सुनना — professor busy tो है पर rude नहीं, वो genuinely help करना चाहते हैं। तुम बस अपनी confusion clearly बता दो।)* तुम कह सकते हो: **\"I just wanted to check — is the deadline the 15th, or did that change?\"** — सीधा, polite, कोई overthinking नहीं।",
+    "reply2": "Ah, not quite — Monday would be late. Let me be straight with you: **\"No, I'm afraid Monday won't work — I need it by Friday at 5pm, but if something's come up, email me and we'll figure it out.\"**\n\n*(यहाँ एक trick है — professor \"no\" बोल भी दे तो घबराना मत। बस पूछ लो अगर genuinely कोई problem है:)* **\"Okay, understood — is there any way I could get a short extension?\"**"
+  },
+  "heavy:professor:hi": {
+    "reply1": "अरे हाँ बिल्कुल, कोई बात नहीं! (as professor, smiling but glancing at watch a bit) — बस अगर लंबा doubt है तो office hours में आना, पर छोटा सा सवाल हो तो अभी पूछ लो।\n\nतुम्हारे लिए सही opening line ये है: **\"Excuse me, do you have a minute? I didn't quite understand the part about the deadline.\"** — ये बिलकुल सही और polite है, बस \"did not\" की जगह spoken English में \"didn't\" बोलना ज़्यादा natural लगता है। बोलकर दिखाओ ज़रा?",
+    "reply2": "(हल्का सा सोचते हुए, फिर थोड़ी नरमी से) हम्म्... देखो, वैसे तो deadline पक्की थी, पर चलो genuine confusion था तो ठीक है — Monday तक भेज दो, पर उसके बाद नहीं।\n\nअभी तुम्हें बस पूछना है, permission माँगने वाले tone में: **\"Would it be okay if I submit it on Monday instead?\"** — \"Would it be okay\" से politely पूछना अच्छा लगता है, सीधे \"can I\" से थोड़ा ज़्यादा request जैसा sound करता है।"
+  },
+  "light:professor:ja": {
+    "reply1": "Of course, come on in — I've got a few minutes. What part was confusing, the actual date or what's due?\n\n(いいね、その聞き方バッチリ！ちゃんと「時間ありますか」って聞けてる。) When I answer, listen for how I explain it — you can always say **\"sorry, could you say that one more time?\"** if I go too fast.",
+    "reply2": "Ah — not quite. *checks notes* Monday's actually the deadline for the draft, not the final paper, so I'd say **\"you can turn it in Monday, but just double check it's the final version, not the draft.\"**\n\n(「これは最終版ですよね？」って確認したいときの言い方ね。もし不安なら \"Just to confirm — Monday is the final deadline, right?\" って聞き返してもいいよ、それが一番安全。)"
+  },
+  "heavy:professor:ja": {
+    "reply1": "Ah, もちろん!今大丈夫だよ、どうぞ。(Sure, no problem — go ahead.) 実際に聞くときはこう言うといいよ:**\"Sorry, could you go over the deadline part again? I got a little lost.\"**\n\nまず「すみません」って一言添えるだけで、先生側も丁寧に聞かれてる感じがして構えずに説明してくれるよ。緊張しなくて大丈夫、これは復習だから何回でも言ってみよう。",
+    "reply2": "あ、いいところ聞くね。締め切りの質問はまさにこのタイミングでするのが正解!実際に聞くならこう言うといいよ:**\"Would it be okay if I turned it in on Monday instead?\"**\n\n「できますか?」より「もし可能なら〜してもいいですか」って感じの方が、教授にもお願いしてる感がやわらかく伝わるよ。返事がどうなるかは分からないけど、聞き方はこれで完璧。"
+  },
+  "light:professor:ko": {
+    "reply1": "Of course — come on in. **\"Sure, what's up? Which part's confusing you?\"**\n\n(살짝 여유 있게 물어봐주는 느낌이야— 교수님이 안 바쁜 척 안 해도 괜찮아, 그냥 편하게 물어보면 돼 😊)",
+    "reply2": "Ah, good question — but no, Monday's actually after the deadline, so that'd be late. **\"I'm afraid Monday would be late — the deadline's Friday at midnight.\"**\n\n혹시 연장이 필요하면 이렇게 물어봐: **\"Is there any way I could get a short extension?\"** — 교수님마다 다르지만, 이유 있으면 대부분 들어줘 😊"
+  },
+  "heavy:professor:ko": {
+    "reply1": "Of course, come on in. **\"Sure, what's up?\"** — 이렇게 편하게 물어봐줄 거야, 걱정 마.\n\n이제 마감일 질문할 차례야: **\"I just wanted to double check — when exactly is the deadline?\"** 이렇게 말하면 자연스러워. \"did not understand\"보다 이 표현이 훨씬 덜 부담스럽게 들려.",
+    "reply2": "Ah — 여기서 교수님이 살짝 조심스럽게 답할 거야. **\"I'm afraid not — the deadline's firm, but let me know if something specific is holding you up.\"** 이런 식으로 말할 가능성 높아. 마감일 자체보다 \"왜 늦어질 것 같은지\"를 먼저 말하면 훨씬 부드럽게 넘어가.\n\n그러니까 바로 \"월요일에 내도 돼요?\"보다, **\"Is there any flexibility if I run into an issue?\"** 처럼 이유를 붙여서 물어보는 연습 해볼래?"
+  },
+  "light:professor:ne": {
+    "reply1": "Of course, come in — I've got a minute. What part's confusing you, the actual due date or the submission format?\n\n*(यो सजिलो हो है — तिमीले भर्खरै भनेको वाक्य नै एकदम राम्रो थियो: **\"do you have a minute?\"** — professor लाई पछ्याउँदा यही भन्दा पुग्छ, अलिकति busy भए पनि टाल्दैनन्।)*",
+    "reply2": "Hmm, not quite — Monday's actually past the deadline, so let's not go there. I'll say: **\"I'm afraid Monday's too late — the deadline's Friday at midnight, but if you're close, email me and I'll see what I can do.\"**\n\nराम्रो कुरा, \"can I submit it on Monday?\" एकदम स्पष्ट थियो — अब सुन, professor ले \"too late\" भन्यो भने निराश नहोऊ, त्यो नै ठाउँ हो extension सोध्ने: **\"is there any way I could get a short extension?\"**"
+  },
+  "heavy:professor:ne": {
+    "reply1": "ओहो हुन्छ, बस्नुस् है — म फेरि क्लास जानुअघि दुई मिनेट छ। तिमीले भनेको ठ्याक्कै यस्तै भन्ने: **\"Excuse me, do you have a minute? I didn't understand the part about the deadline.\"**\n\nएकदम राम्रो वाक्य थियो त्यो, natural सुनियो! अब professor ले \"deadline को कुन part\" भनेर सोध्न सक्छन्, त्यसकोलागि तयार हुनुस् है।",
+    "reply2": "हाहा, सीधा मुद्दामा आयौ है! अब यहाँ म professor को role मा भन्छु: \"Monday चाहिँ ठीक छ, तर एक पटक स्पष्ट पुष्टि गर्नु राम्रो — जस्तै **\"So just to confirm, is it okay if I submit it on Monday instead?\"**\n\nयसो सोध्दा professor ले \"हो\" वा \"होइन\" प्रस्टै भन्छन्, अनि तिमीलाई ढुक्क हुन्छ। म अब professor बनेर जवाफ दिन्छु — तयार भए भन, \"yes go\" भन।"
+  },
+  "light:professor:ru": {
+    "reply1": "Of course, come on in — sure, no rush. So what's confusing about the deadline?\n\n(Мини-подсказка: professor's casual \"yes go ahead\" often sounds like **\"sure, no rush\"** or **\"of course, go ahead\"** — расслабленно, не формально.)\n\nTry opening with exactly this next time: **\"Excuse me, do you have a minute? I didn't quite catch the part about the deadline.\"** — звучит чуть более естественно чем \"did not understand\" (сокращение **didn't**, и **didn't quite catch** мягче, чем \"не понял\").",
+    "reply2": "Ah, Monday's actually when I need to grade them, so no — **\"I'm afraid Monday's too late, I need it by Friday at the latest.\"** Отличный вопрос, кстати — именно так и надо спрашивать напрямую, если что-то неясно про дедлайн.\n\nTry it back to me: how would you ask if Friday works, just to double check?"
+  },
+  "heavy:professor:ru": {
+    "reply1": "*[кивает, но уже собирает бумаги]* Ага, конечно, спрашивай — только быстро, у меня следующая пара через пару минут. Что именно по дедлайну непонятно?\n\nКстати, отличное начало у тебя — именно так и подходят к преподавателю: **\"Excuse me, do you have a minute?\"** звучит вежливо и не резко. Давай, задавай свой вопрос про дедлайн.",
+    "reply2": "*[смотрит на часы, слегка морщится]* Не, пятница — жёсткий дедлайн, без исключений. Скажи так: **\"Is it possible to get a short extension until Monday?\"** — вежливо просишь продление, а не просто заявляешь.\n\nЕсли попросишь с объяснением причины, шансов больше — профессора это ценят."
+  },
+  "light:professor:es": {
+    "reply1": "Of course, come on in — don't worry, happens to half the class. What part's confusing you, the actual date or how it's submitted?\n\n*(Y tranquilo, esto de preguntar después de clase da nervios pero es súper normal — los profes lo esperan.)* If you want, you could open with something like: **\"Sorry to bother you — could you clarify when exactly this is due?\"** Try saying that out loud, I'll be the professor.",
+    "reply2": "Ah, careful — Monday's actually after the deadline, so no, that one would already be late. *(Ojo, esa pregunta suena bien pero te puede meter en problemas si el deadline es antes del lunes.)* Better to ask it more open, like: **\"Is there any flexibility if I submit it a bit late?\"** — that way you find out the real rule instead of guessing a date."
+  },
+  "heavy:professor:es": {
+    "reply1": "¡Claro que sí! *Yes, of course, come on in* — un profesor ocupado pero amable siempre te va a decir algo así, con una sonrisa aunque tenga prisa.\n\nYo, como profesor, te respondería más o menos: **\"Sure, I've got a minute — what part's confusing you?\"** Es súper natural, nada formal, así que no te preocupes por sonar \"perfecto\".\n\nAhora dime tú, en inglés, cuál es tu duda específica sobre el deadline — practiquemos esa parte también.",
+    "reply2": "¡Buena pregunta directa, así se hace! Como profesor te diría algo tipo: **\"Monday should be fine, just send it before midnight.\"** — o quizás **\"Let me check, I'll confirm by email.\"** si no está 100% seguro en el momento.\n\nTip: cuando pides ese permiso extra, suena más natural si agregas *\"if that's okay\"* al final — **\"Can I submit it on Monday, if that's okay?\"** — un poco más suave, menos directo.\n\nAhora práctica esto: imagina que te dice que sí — ¿cómo le agradeces rápido antes de irte? Inténtalo en inglés."
+  },
+  "none:ordering": {
+    "reply1": "You got it. You want fries or a drink with that, or just the sandwich?",
+    "reply2": "Oh, it's just fries and a drink bundled with the sandwich for a couple bucks less than buying 'em separate. Want me to make it a combo?"
+  },
+  "light:ordering:zh": {
+    "reply1": "Nice, easy start — **\"Can I get the chicken sandwich?\"** is exactly right, no need to change a thing 👍\n\n*Sure thing! For here or to go?* 意思是问你在店里吃还是带走。You'd just say **\"for here\"** or **\"to go\"**.",
+    "reply2": "Good question — a combo just means sandwich + fries + drink together, usually a bit cheaper than buying them separate. Cashier might ask **\"Do you want to make that a combo?\"** and you can just say **\"Yes, please\"** or **\"No, just the sandwich.\"**\n\n要吗?加了combo通常还会问你要什么口味的薯条/饮料哦,先想好答案就不慌了 😌"
+  },
+  "heavy:ordering:zh": {
+    "reply1": "太棒了,你已经在用完整句子点单了!收银员接下来可能会问你要不要加点东西,比如套餐,通常会说:**\"Do you want to make that a combo?\"**(要把它换成套餐吗?)。你可以直接回答 **\"Yes, please\"** 或 **\"No, just the sandwich\"**。",
+    "reply2": "问得好!\"combo\"就是套餐的意思——加薯条和饮料,通常比单点便宜一点。收银员问的时候你可以说 **\"Yeah, can I get a combo?\"**,他们就会接着问你要什么饮料。放心,这个环节很快,不会考你什么难的~"
+  },
+  "light:ordering:fr": {
+    "reply1": "Coming right up! I'd say: **\"Sure thing — for here or to go?\"** — c'est la question classique qu'on te pose juste après ta commande.\n\nTry answering with **\"To go, please\"** (à emporter) or **\"For here, please\"** (sur place) — go ahead, practice it!",
+    "reply2": "Ah bonne question — a combo is when they bundle your sandwich with fries and a drink for one price, cheaper than buying separately. The cashier might ask: **\"Do you want to make that a combo?\"** — c'est-à-dire \"tu veux le menu complet ?\"\n\nIf you want it, just say **\"Yeah, make it a combo\"** — sinon **\"No thanks, just the sandwich.\"** Which one you trying?"
+  },
+  "heavy:ordering:fr": {
+    "reply1": "Yes of course! Petite question sur ta phrase : dans un fast-food, on dit souvent juste **\"Can I get a chicken sandwich?\"** — sans \"the\", parce que tu ne demandes pas UN sandwich spécifique, juste \"un\" en général.\n\nCashier me: \"Sure thing! For here or to go?\" — je te demande si tu manges sur place ou tu emportes.",
+    "reply2": "Bonne question ! Un \"combo\", c'est un menu — genre sandwich + frites + boisson, tout ensemble à un meilleur prix (comme un \"menu\" en France). Si tu veux ça tu peux dire **\"Can I make that a combo?\"** — et souvent le/la cashier va enchaîner avec \"what size?\" pour les frites/la boisson."
+  },
+  "light:ordering:de": {
+    "reply1": "Sure thing! One chicken sandwich comin' up — **\"Sure, one chicken sandwich coming right up!\"** Now I'll ask you the next bit: \"For here or to go?\" — auf Deutsch: hier essen oder mitnehmen? Was sagst du?",
+    "reply2": "Oh good question — a \"combo\" just means sandwich + fries + drink together for one price, cheaper than buying separately. So I might ask you: **\"Do you want to make that a combo?\"** — auf Deutsch: möchtest du daraus ein Menü machen? You could just answer **\"Yeah, make it a combo\"** or **\"No thanks, just the sandwich.\"**"
+  },
+  "heavy:ordering:de": {
+    "reply1": "Klasse, easy! Ich sag jetzt als Kassierer: **\"Coming right up!\"** — bedeutet einfach \"kommt sofort\". Danach frag ich dich meistens gleich weiter: **\"For here or to go?\"** (hier essen oder zum Mitnehmen?) — überleg dir schon mal deine Antwort dazu!",
+    "reply2": "Gute Frage! Ein \"combo\" ist einfach das Menü — also Sandwich + Fries + Drink zusammen, meistens billiger als einzeln. Als Kassierer frag ich dich dann oft: **\"Do you want to make that a combo?\"** (willst du das als Menü haben?) — du kannst einfach **\"Yeah, make it a combo\"** antworten, wenn du willst."
+  },
+  "light:ordering:hi": {
+    "reply1": "Hey! Yeah for sure — **\"one chicken sandwich, coming right up\"**. Easy start, dekha? बस order बोला और वो समझ गए, कोई tension नहीं।\n\nNext मैं पूछूंगी combo के बारे में, so get ready to hear **\"is that for here or to go?\"**.",
+    "reply2": "Good question — combo means sandwich + fries + drink together, ek saath, usually cheaper than ordering alone. So when they ask, you can say **\"can I get that as a combo?\"** — bas itna bolna hai, wo baaki khud sambhal lenge.\n\nTry saying it once — **\"can I get that as a combo?\"** — bol ke dekho, phir main tumhe drink options dungi."
+  },
+  "heavy:ordering:hi": {
+    "reply1": "हेय! ऑर्डर सुनते ही मैं बोलूंगी — **\"Sure thing, anything else with that?\"** मतलब \"बिल्कुल, इसके साथ कुछ और चाहिए?\" — कॉम्बो या ड्रिंक पुश करने का उनका तरीका है, घबराना मत।\n\nतुम बस बोल सकते हो: **\"No, that's it, thanks.\"** अगर कुछ और नहीं चाहिए — बहुत सिंपल और नैचुरल लगता है।",
+    "reply2": "अच्छा सवाल! \"कॉम्बो\" मतलब सैंडविच के साथ फ्राइज़ और ड्रिंक एक साथ, थोड़ा सस्ता पड़ता है अलग-अलग लेने से — जैसे यहाँ थाली होती है ना, वैसा ही डील समझो।\n\nअगर चाहिए तो बोलना: **\"Sure, make it a combo.\"** — यानी \"हाँ, कॉम्बो ही दे दो।\" वरना बस \"No, just the sandwich\" बोल देना, दोनों नैचुरल हैं।"
+  },
+  "light:ordering:ja": {
+    "reply1": "Sure thing! **\"Can I get the chicken sandwich?\"** — perfect, that's exactly the right way to say it, super casual and natural.\n\nNext I'll probably ask if you want it as a combo — listen for **\"Do you want that as a meal?\"** — meal ってセットのことね。準備できたら答えてみて!",
+    "reply2": "Good question! \"Combo\" just means they turn your sandwich into a set — fries and a drink added. コンボ・セットみたいな感じ、日本の「セット」と同じ発想だよ!\n\nSo when they ask **\"Do you want that as a meal?\"**, you can just say **\"Yeah, I'll make it a meal.\"** — that gets you the whole combo in one go."
+  },
+  "heavy:ordering:ja": {
+    "reply1": "いいね、注文の第一声クリア!私がレジ役やるね〜「はい、チキンサンドね」って感じで返すよ:**\"Sure thing, one chicken sandwich!\"**\n\nこのあと絶対聞かれるのが \"for here or to go?\"(店内か、持ち帰りか)。答えは **\"For here, please.\"** か **\"To go, please.\"** どっちにする?次はそこ練習しよ。",
+    "reply2": "あ、いい質問!コンボは「セット」みたいなやつ、サンドイッチ+ポテト+ドリンクがまとめて安くなるやつね。レジで聞かれたら気にせずこう返せばOK:**\"Yeah, can I make it a combo?\"**\n\n飲み物のサイズも聞かれることが多いから、**\"Medium, please.\"**とかも一緒に頭に入れとくと安心だよ。次はドリンク選び練習する?"
+  },
+  "light:ordering:ko": {
+    "reply1": "Coming right up! *\"Chicken sandwich, got it — for here or to go?\"* 이렇게 물어볼 거예요. 여기서 먹을지 포장할지 물어보는 거니까 **\"for here, please\"** 아니면 **\"to go, please\"**로 답하면 돼요.\n\nTry answering me now — pretend I just asked you that 😊",
+    "reply2": "Good question! A combo just means sandwich + fries + drink together, cheaper than buying separate. Cashier might say *\"Do you want to make that a combo?\"* — you just say **\"yes, combo, please\"** or **\"no, just the sandwich\"**.\n\n콤보로 하면 세트메뉴처럼 감자튀김이랑 음료까지 같이 나오는 거예요, 따로 사는 것보다 싸고! 그럼 한번 대답해볼까요 — 콤보로 할래요, 아니면 샌드위치만?"
+  },
+  "heavy:ordering:ko": {
+    "reply1": "오 좋은 시작이에요! **\"Hi, can I get the chicken sandwich?\"** 완전 자연스럽게 잘 말했어요.\n\n이제 저는 캐셔니까 다음으로 이렇게 물어볼 확률 높아요 — **\"For here or to go?\"** (여기서 드실 건가요, 가져가실 건가요?) 어떻게 대답할지 생각해보세요, 준비되면 말해줘요!",
+    "reply2": "아 좋은 질문이에요! 콤보는 그냥 샌드위치만 사는 게 아니라 감자튀김이랑 음료수까지 세트로 같이 주는 거예요 — 보통 더 싸게요. 캐셔로서 저는 이렇게 물어볼 거예요: **\"Do you want to make it a combo?\"** (콤보로 만들어드릴까요?) 원한다면 **\"Yeah, make it a combo\"**, 안 하면 **\"No, just the sandwich\"** 이렇게 답하면 돼요."
+  },
+  "light:ordering:ne": {
+    "reply1": "Coming right up! **\"You got it — anything to drink with that?\"** — यो सुन्नु हुन्छ ठीक अर्डर पछि, cashier ले प्रायः drink वा size सोध्छ।\n\nTry replying: **\"Just a Coke, please.\"** or if you don't want anything: **\"No, that's all, thanks.\"**",
+    "reply2": "Good question — combo means सँगै आउँछ: sandwich + fries + drink, ek saath, and often cheaper than ordering separately. Cashier ले भन्न सक्छ **\"Do you want to make that a combo?\"**\n\nTry: **\"Yeah, can I make it a combo?\"** — त्यसपछि उनीहरूले size (small/medium/large) सोध्छन्।"
+  },
+  "heavy:ordering:ne": {
+    "reply1": "Yes of course! एकदम राम्रो सुरुवात — त्यो line नै पर्फेक्ट थियो। अब cashier ले साइज या combo सोध्न सक्छ, so सुन्न तैयार हुनु: **\"For here or to go?\"** (यहीं खाने कि लैजाने?) — अनि तपाईं जवाफ दिनुहोस् **\"To go, please.\"**",
+    "reply2": "राम्रो प्रश्न! Combo भनेको sandwich मात्र होइन, साथमा fries र drink पनि आउँछ — अलि सस्तो पर्छ single item भन्दा। तपाईं सोध्न सक्नुहुन्छ **\"What comes with the combo?\"** (combo मा के के आउँछ?), अनि cashier ले sides र drink options बताउँछ।"
+  },
+  "light:ordering:ru": {
+    "reply1": "Hey, welcome in! For here or to go — **\"for here or to go?\"** — that's the first thing they'll usually ask you back.\n\nТвоя фраза отлично сработала, кстати, просто и естественно 👍 Готов ответить на этот вопрос?",
+    "reply2": "Good question — combo just means sandwich + fries + drink together for one price, cheaper than buying separately. So you could just say **\"can I make it a combo?\"** and they'll swap it for you.\n\nХочешь потренировать этот ответ, если кассир спросит \"for here or to go\" сразу после этого?"
+  },
+  "heavy:ordering:ru": {
+    "reply1": "Hey, конечно! Один момент — я как кассир сейчас спрошу тебя дальше по заказу. Обычно после этого говорят **\"Anything else?\"** или **\"For here or to go?\"** — так что не удивляйся, если услышишь это сразу.\n\nГотов(а) продолжить диалог? Могу спросить тебя как кассир прямо сейчас 😊",
+    "reply2": "О, хороший вопрос — комбо это когда сэндвич + картошка фри + напиток идут вместе, обычно дешевле, чем брать по отдельности. Кассир может спросить **\"Do you want to make that a combo?\"** — то есть \"хочешь сделать это комбо?\".\n\nЕсли хочешь — просто ответь **\"Yeah, make it a combo\"** или **\"No, just the sandwich\"**, если не надо."
+  },
+  "light:ordering:es": {
+    "reply1": "¡Perfecto, así de simple! Aquí voy como cashier: \"Sure thing! **Anything to drink with that?**\" — that's the next thing they'll almost always ask you.\n\nTip rápido: no necesitas decir nada elaborado, un simple \"**No, that's it, thanks**\" cierra el pedido si no quieres bebida. ¿Quieres practicar responder eso?",
+    "reply2": "Good question — a \"combo\" just means sandwich + fries + drink together for one price, cheaper than buying separately. If they ask, you can say **\"Can I make that a combo?\"** or they might offer it first with something like \"Do you want to combo that?\"\n\nIf they do, ¡di que sí nomás si quieres papas y bebida! Want to try answering that one?"
+  },
+  "heavy:ordering:es": {
+    "reply1": "¡Perfecto, así se pide! El cajero probablemente te responde algo como **\"Sure, anything else with that?\"** — o sea, \"claro, ¿algo más con eso?\". Tú puedes decir **\"No, that's it, thanks\"** si ya terminaste, o pedir algo más si quieres.",
+    "reply2": "Ah, buena pregunta — un \"combo\" es el paquete: tu sándwich viene con papas fritas y una bebida, todo junto y más barato que pedirlo por separado. El cajero te puede decir **\"Do you want to make it a combo?\"** — \"¿quieres hacerlo combo?\" — y tú respondes **\"Yeah, make it a combo\"** si te conviene."
+  },
+  "none:smalltalk": {
+    "reply1": "Yeah, no kidding, I should've worn a jacket. You want me to crank the heater by the window or is that just gonna annoy everyone else?",
+    "reply2": "Pretty much, yeah — like September through March you're basically always one layer away from freezing, so just get used to carrying a jacket around."
+  },
+  "light:smalltalk:zh": {
+    "reply1": "Haha yeah, no joke — good opener, very \"before class\" energy 😄. You can just agree and toss it back like **\"I know, right? I'm freezing.\"** — super casual, no big grammar needed.\n\nThen if you want to keep it going, ask them something back, like **\"Were you waiting long?\"** 别想太多，这种小对话就是随便接一句就行，不用完美。",
+    "reply2": "Oh that's such a good \"new person\" question 😄. Easy small talk move — you can say **\"Pretty much, yeah — get ready for a lot of layers.\"** or keep it simple with **\"Yeah, it's like this most of the year, you'll get used to it.\"**\n\n如果你只是想快速接话，随便挑一句就行，不需要很详细，就是那种走廊闲聊的感觉，不是真的在问天气预报 😄。"
+  },
+  "heavy:smalltalk:zh": {
+    "reply1": "哈哈是啊,今天真的挺冷的~这种时候聊天就很自然会从天气开始。你可以直接接一句 **\"Yeah, I should've worn a jacket.\"**(是啊,我应该穿件外套的),既附和又轻松,老美聊天最爱这种小抱怨式开场。",
+    "reply2": "这个问题超实用,是标准的开场闲聊问题~ 你可以简单回答然后再反问回去,比如 **\"Pretty much, yeah. You get used to it though.\"**(基本上是这样,不过习惯了就好)。回答完记得加一句反问延续话题,像 **\"Where are you from?\"**(你从哪里来的),这样对话才不会卡住。"
+  },
+  "light:smalltalk:fr": {
+    "reply1": "Ah oui, ça caille grave aujourd'hui ! Petite classique pour briser la glace — tu peux répondre juste **\"I know, right? I should've worn a jacket\"** — ça montre que t'es d'accord et ça ouvre la porte à continuer la conversation.\n\nEt si tu veux relancer un peu, t'as **\"Yeah, it came out of nowhere\"** — comme \"ça sort de nulle part\". Simple, personne ne va analyser ta grammaire, promis 😌",
+    "reply2": "Ha, bonne question — small talk classique quand même ! You could say **\"Pretty much, yeah — it gets even colder in winter, so brace yourself\"**, kind of a fair warning with a smile.\n\nOr shorter and easy to remember: **\"Yeah, this is pretty typical for here.\"** Ça te permet de répondre sans stresser, et ça garde la conversation légère avant que le cours commence."
+  },
+  "heavy:smalltalk:fr": {
+    "reply1": "Ah oui, ça caille vraiment aujourd'hui ! Pour dire ça de façon naturelle en anglais, tu peux répondre **\"Yeah, it's freezing, right?\"** — ça sonne beaucoup plus vivant que \"it is cold\".\n\nTu peux aussi juste renchérir avec **\"Tell me about it!\"** si tu veux avoir l'air à l'aise, ça veut dire \"carrément, je confirme\". Essaie de le dire à voix haute une fois, tu vas voir, c'est tout naturel.",
+    "reply2": "Ah, bonne question pour faire un peu de small talk en retour, pas juste répondre par \"oui/non\" ! Tu peux dire **\"Yeah, pretty much — you get used to it though\"** — ça veut dire \"ouais, plus ou moins, mais on s'y habitue\".\n\nÇa montre que tu es à l'aise et ça relance un peu la conversation. Essaie de le répéter une fois pour que ça sorte tout seul le jour venu."
+  },
+  "light:smalltalk:de": {
+    "reply1": "Haha ja, total — perfektes Small-Talk-Thema, genau sowas sagt man hier vor dem Unterricht. Du könntest antworten: **\"I know, right? I'm freezing.\"** — locker, jeder versteht das sofort.\n\nUnd wenn du noch was dranhängen willst: **\"Did you forget your jacket too?\"** — zeigt Interesse, hält die Konversation am Laufen, ohne dass es kompliziert wird.",
+    "reply2": "Good question to have ready — small talk loves this one. You could say **\"Yeah, it gets pretty brutal in winter, but summer's actually nice.\"** or if you're not sure yet, just be honest: **\"I'm not sure, this is my first winter here.\"**\n\nBeides klingt total normal, kein Druck, die \"perfekte\" Antwort zu haben — bei Small Talk zählt nur, dass du überhaupt was sagst."
+  },
+  "heavy:smalltalk:de": {
+    "reply1": "Oh ja, total! Genau sowas sagt man locker zurück mit **\"Yeah, freezing, right?\"** — kurz, easy, kein großes Gespräch nötig.\n\nWenn du noch was drauflegen willst, geht auch **\"I wasn't ready for this weather.\"** — klingt total natürlich vor dem Unterricht.",
+    "reply2": "Ha, ja, willkommen im deutschen Winterhalbjahr. Antworte einfach locker mit **\"Pretty much — get used to it!\"**, das zeigt, du nimmst es mit Humor und bist nicht genervt.\n\nDanach kannst du easy überleiten zu was Normalem, z.B. **\"So how long have you been studying here?\"** — gutes nächstes Thema vor dem Unterricht."
+  },
+  "light:smalltalk:hi": {
+    "reply1": "Haha yeah, seriously — I'm freezing. This is a super common one, easy to answer: **\"I know, right? I should've worn a jacket.\"** or just **\"Tell me about it!\"** if you want to sound extra natural.\n\nछोटी सी बात है, बस हामी भरनी है — cold के बारे में ज़्यादा सोचो मत, बस vibe match करो। Try saying it out loud once — **\"tell me about it\"** — sounds like \"tel mee uh-BOWT it,\" nice and casual.",
+    "reply2": "Ha, honestly this is a great real question — classmate will probably say something like **\"Yeah pretty much, October to March it's brutal\"** or **\"Nah, this is nothing, wait till January.\"**\n\nतुम बस curious रहो, ये follow-up question बढ़िया है क्योंकि इससे बातचीत आगे बढ़ती है। Try this reply if they say it's cold all year: **\"Good to know, I need to buy a warmer jacket then.\"** — sounds like \"good-tuh-know, ai need tuh bai uh warmer jacket then."
+  },
+  "heavy:smalltalk:hi": {
+    "reply1": "हाहा हाँ यार, सच में! ऐसे में बस बोल दो **\"Yeah, it's freezing today!\"** — बड़ा natural जवाब है, टीचर आने से पहले वाली small talk के लिए एकदम सही। चाहो तो आगे जोड़ सकते हो **\"I should've worn a jacket.\"**",
+    "reply2": "अरे हाँ, यहाँ का weather ऐसा ही रहता है यार — सर्दियों में तो और गिरता है। तुम बोल सकते हो **\"Yeah, this is pretty normal for this time of year.\"** या हल्के में **\"Yeah, welcome to the winter here!\"** भी चल जाएगा, थोड़ा मज़ाकिया लगेगा।"
+  },
+  "light:smalltalk:ja": {
+    "reply1": "Ugh yeah, freezing today ☹️ actually a classic small talk opener btw — weather talk is basically the safe default before class starts. You could say **\"Yeah, it's freezing, right?\"** — casual, friendly, invites them to just agree and move on.\n\n「right?」って最後につけるの、相手に同意求めてる感じで自然だよ。日本語の「ですよね」に近い感覚かな。試しに言ってみて?",
+    "reply2": "Haha good question, super common one to ask when you're new somewhere. You could say **\"Is it always this cold, or is today special?\"** — a little joke built in, makes you sound relaxed not just fishing for info.\n\n「special」を皮肉っぽく使うのがポイントで、「今日だけ特別寒いの?」ってニュアンス。相手も笑ってくれるはず、試しに言ってみて。"
+  },
+  "heavy:smalltalk:ja": {
+    "reply1": "あ〜わかる、めっちゃ寒いよね。こういう時はサラッと **\"Yeah, tell me about it!\"**(だよね、ほんとそれ)って返すと自然だよ。相槌としてめちゃ使えるフレーズ。\n\nもし自分から話すなら **\"It is really cold today\"** の代わりに **\"It's freezing today, right?\"** の方がネイティブ感あって会話広がりやすいよ。",
+    "reply2": "ああ、鋭い質問!それは自然な流れの返しだね。相手はたぶん **\"Yeah, pretty much—winter here just doesn't let up.\"**(うん、だいたいね〜冬はずっとこんな感じ)みたいに答えると思う。\n\nこういう天気トークって実は超いい練習台で、返す時は **\"Oh really? I'm not used to this yet.\"**(えー、まだ慣れてなくて)って言えば、相手も気にかけてくれるし話も続きやすいよ。"
+  },
+  "light:smalltalk:ko": {
+    "reply1": "Ugh, right? My hands are basically frozen. Small talk about weather is like the golden ticket here — you'll hear it a hundred times before class, so try tossing back **\"I know, I should've worn a jacket!\"** — super casual, nobody's grading your grammar.\n\n날씨 얘기는 진짜 자주 나오는 스몰토크라 이거 하나만 외워도 든든해. 대답 못 할까봐 긴장 안 해도 돼 — 그냥 \"맞아요\" 느낌으로 던지는 거야 😌",
+    "reply2": "Ha, honestly? Yeah, pretty much — this campus turns into a wind tunnel most mornings. Classmates love answering stuff like that, so you could say **\"Yeah, pretty much year-round — you get used to it!\"** if they ask you back later.\n\n그리고 이런 스몰토크는 답 안 궁금해서 물어보는 게 아니라 그냥 친해지려는 거야, 그래서 대충 편하게 대답해도 전혀 안 이상해 😊"
+  },
+  "heavy:smalltalk:ko": {
+    "reply1": "아 완전 공감! 이럴 때 딱 좋은 표현이 **\"Yeah, it's freezing!\"** 이야 — \"really cold\"보다 훨씬 더 원어민스럽고 자연스러운 반응이지.\n\n그다음에 자연스럽게 이어가고 싶으면 **\"I know, right?\"** 붙여도 좋아. 소소한 잡담엔 완벽한 콤보야.",
+    "reply2": "아 좋은 질문! 이럴 땐 살짝 웃으면서 **\"Pretty much, yeah — you'll get used to it!\"** 이라고 하면 딱 좋아. 날씨 얘기에서 자연스럽게 학교 생활 얘기로 넘어가는 흐름이야.\n\n굳이 길게 설명 안 해도 돼 — 이 정도면 친근하면서 대화가 계속 이어지는 느낌 줄 수 있어."
+  },
+  "light:smalltalk:ne": {
+    "reply1": "Haha yeah, it's freezing! Easy comeback: **\"I know, right? I should've worn a jacket.\"** — super casual, everyone says this before class.\n\nTry saying it back to me — नर्भस नहोस्, यो त सानो chit-chat हो, class नसुरु हुँदै time pass गर्ने तरिका मात्र हो।",
+    "reply2": "Yeah pretty much — small talk before class, so keep it light. You could say **\"Pretty much, yeah — you'll get used to it.\"** or just laugh and add **\"Winter's coming, so... good luck.\"**\n\nयो जवाफ दिँदा ठूलो कुरा गर्नुपर्दैन है — छोटो answer दिएर हाँसे पुग्छ, त्यसपछि सायद class सुरु भइहाल्छ।"
+  },
+  "heavy:smalltalk:ne": {
+    "reply1": "ओह एकदम! यस्तो weather मा त सबैले यही भन्छन् — साथी बनाउने सजिलो line हो यो। तिमीले भन्न सक्छौ: **\"Yeah, it's freezing! I should've worn a jacket.\"**\n\nअनि उसले \"yeah tell me about it\" जस्तो केही भन्न सक्छ — त्यो बेला बस टाउको हल्लाएर हाँस्दियौ भने पुग्छ, धेरै सोच्नु पर्दैन।",
+    "reply2": "ओहो राम्रो प्रश्न! यो त एकदमै natural follow-up हो — साथी बनाउँदा यस्तै chit-chat नै हुन्छ। जवाफ दिन सक्छौ: **\"Pretty much, yeah — it gets even colder in winter though.\"**\n\nअनि यसपछि उल्टो प्रश्न सोध्न सक्छौ, conversation बढाउनलाई: **\"Where are you from originally?\"** — यसले कुरा अझ लम्ब्याउँछ र साथी बनाउने मौका दिन्छ।"
+  },
+  "light:smalltalk:ru": {
+    "reply1": "Ha, right?! Perfect small talk opener, by the way — weather comments are basically the universal icebreaker before class. You could go **\"Yeah, freezing! I should've worn a jacket\"** — super casual, nobody expects more than that.\n\nКстати, если не хочешь про погоду — можно просто улыбнуться и кивнуть, этого тоже достаточно. Хочешь, потренируем ответ вслух?",
+    "reply2": "Ha, honest question — totally normal to ask! You could say **\"Pretty much, yeah — you'll want a real coat, not just a hoodie\"** — friendly, a little joking, easy to say.\n\nИ это отличный ход в small talk — задать встречный вопрос, показывает интерес, разговор сам продолжается. Попробуй сказать вслух?"
+  },
+  "heavy:smalltalk:ru": {
+    "reply1": "Ага, классика — с погоды всегда легко начать разговор с незнакомцем. Можешь просто согласиться и чуть добавить: **\"I know, right? I should've worn a jacket.\"** — звучит естественно, не как учебник.\n\nПотом можно перекинуть разговор дальше, спросив что-то вроде **\"Are you freezing too?\"** — и вот уже завязался диалог, а не просто обмен фразой.",
+    "reply2": "Хах, честный вопрос — и очень нормальный small-talk-переход. Можно спросить прямо: **\"Is it always like this here?\"** — вот именно так, как ты и сказал, это уже готовая рабочая фраза, просто повтори её вслух увереннее.\n\nА классмейт скорее всего ответит что-то простое типа **\"Pretty much, yeah — get used to layers.\"** Ты можешь среагировать легко: **\"Good to know, thanks for the warning!\"** — и всё, разговор течёт сам."
+  },
+  "light:smalltalk:es": {
+    "reply1": "Ay sí, totally — great line to open with, small talk sobre el clima siempre funciona. You could say **\"Yeah, it's freezing, right?\"** — súper casual, con ese \"right?\" al final invitando a que sigan hablando.\n\nTry tossing it back at me like that — I'll respond como si fuera tu compañero de clase.",
+    "reply2": "Ha, honestly? Nah, this is brutal even for here — normal winters aren't usually this bad. You could say **\"Nah, this is pretty unusual, actually\"** — nice easy way to keep the chat going without overexplaining.\n\nTry it: \"Nah, this is pretty unusual, actually\" — imagínate diciéndolo bien relajado, como quien no le da mucha importancia."
+  },
+  "heavy:smalltalk:es": {
+    "reply1": "Uy sí, hace un frío que pela hoy. Justo lo que dijiste es perfecto, ojo con el tonito: se dice **\"It's really cold today\"** o más natural aún, **\"Man, it's freezing today\"** — así suena súper de local.\n\nSi quieres seguir la charla, puedes tirar algo como **\"Yeah, I know, right?\"** para mostrar que estás de acuerdo sin sonar forzado.",
+    "reply2": "Buena pregunta, y súper típica de charla random antes de clase. Puedes responder algo tipo **\"Pretty much, yeah — it gets better in spring though\"** o si de verdad no sabes, simplemente **\"Honestly, I'm not sure, I'm new here too\"**.\n\nLo lindo es que esa última frase también te sirve de excusa para conectar con la otra persona, no solo responder."
+  }
+}
